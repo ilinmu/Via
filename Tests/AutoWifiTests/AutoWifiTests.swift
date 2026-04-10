@@ -26,7 +26,7 @@ class MockWiFiInterface: WiFiInterfaceProtocol {
         return currentSSID
     }
     
-    func scanForNetworks(withSSID ssid: Data?) throws -> [WiFiNetworkProtocol] {
+    func scanForNetworksProtocol(withSSID ssid: Data?) throws -> [WiFiNetworkProtocol] {
         if let error = scanError {
             throw error
         }
@@ -43,7 +43,7 @@ class MockWiFiInterface: WiFiInterfaceProtocol {
 }
 
 class MockWiFiClient: WiFiClientProtocol {
-    var delegate: CWEventDelegate?
+    var delegate: AnyObject?
     var mockInterface: MockWiFiInterface? = MockWiFiInterface()
     
     func interface() -> WiFiInterfaceProtocol? {
@@ -56,7 +56,9 @@ class MockWiFiClient: WiFiClientProtocol {
     
     func simulateSSIDChange(to newSSID: String) {
         mockInterface?.currentSSID = newSSID
-        delegate?.ssidDidChangeForWiFiInterface?(withName: "en0")
+        if let eventDelegate = delegate as? CWEventDelegate {
+            eventDelegate.ssidDidChangeForWiFiInterface?(withName: "en0")
+        }
     }
 }
 
@@ -92,16 +94,12 @@ final class AutoWifiTests: XCTestCase {
     // MARK: - AppState Tests
     
     func testAppStateInitialization() {
-        // ...
-    }
-    // ... (rest of tests)
-    */
         let defaults = UserDefaults(suiteName: "testAppStateInitialization")!
         defaults.removePersistentDomain(forName: "testAppStateInitialization")
         
         let appState = AppState(userDefaults: defaults)
         
-        XCTAssertEqual(appState.ssidA, "")
+        XCTAssertEqual(appState.ssidP, "")
         XCTAssertEqual(appState.checkInterval, 60)
         XCTAssertEqual(appState.currentNetworkName, "Not Connected")
     }
@@ -112,12 +110,12 @@ final class AutoWifiTests: XCTestCase {
         
         let appState = AppState(userDefaults: defaults)
         
-        appState.ssidA = "TestNetworkA"
+        appState.ssidP = "TestNetworkA"
         appState.passwordA = "password123"
         
         // Create new instance to verify persistence
         let newAppState = AppState(userDefaults: defaults)
-        XCTAssertEqual(newAppState.ssidA, "TestNetworkA")
+        XCTAssertEqual(newAppState.ssidP, "TestNetworkA")
         XCTAssertEqual(newAppState.passwordA, "password123")
     }
     
@@ -184,9 +182,9 @@ final class AutoWifiTests: XCTestCase {
     }
     
     func testAutoConnect_PriorityNetwork() {
-        let appState = AppState(userDefaults: UserDefaults(suiteName: "testAutoConnectA")!)
-        appState.ssidA = "NetworkA"
-        appState.passwordA = "passA"
+        let appState = AppState(userDefaults: UserDefaults(suiteName: "testAutoConnectP")!)
+        appState.ssidP = "NetworkP"
+        appState.passwordA = "passP"
         appState.ssidB = "NetworkB"
         appState.passwordB = "passB"
         
@@ -197,25 +195,25 @@ final class AutoWifiTests: XCTestCase {
         // Currently connected to nothing
         mockInterface.currentSSID = nil
         
-        // Available networks include A
+        // Available networks include P
         mockInterface.availableNetworks = [
-            MockWiFiNetwork(ssid: "NetworkA"),
+            MockWiFiNetwork(ssid: "NetworkP"),
             MockWiFiNetwork(ssid: "Other")
         ]
         
         let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
         manager.startMonitoring() // Triggers checkConnection
         
-        // Should connect to A
-        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkA")
+        // Should connect to P
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkP")
         // Status should update
-        XCTAssertEqual(appState.currentNetworkName, "NetworkA")
+        XCTAssertEqual(appState.currentNetworkName, "NetworkP")
     }
     
     func testAutoConnect_BackupNetwork() {
         let appState = AppState(userDefaults: UserDefaults(suiteName: "testAutoConnectB")!)
-        appState.ssidA = "NetworkA"
-        appState.passwordA = "passA"
+        appState.ssidP = "NetworkP"
+        appState.passwordA = "passP"
         appState.ssidB = "NetworkB"
         appState.passwordB = "passB"
         
@@ -226,7 +224,7 @@ final class AutoWifiTests: XCTestCase {
         // Currently connected to nothing
         mockInterface.currentSSID = nil
         
-        // Available networks include B but NOT A
+        // Available networks include B but NOT P
         mockInterface.availableNetworks = [
             MockWiFiNetwork(ssid: "NetworkB"),
             MockWiFiNetwork(ssid: "Other")
@@ -242,8 +240,8 @@ final class AutoWifiTests: XCTestCase {
     
     func testAutoSwitch_BackToPriority() {
         let appState = AppState(userDefaults: UserDefaults(suiteName: "testSwitchBack")!)
-        appState.ssidA = "NetworkA"
-        appState.passwordA = "passA"
+        appState.ssidP = "NetworkP"
+        appState.passwordA = "passP"
         appState.ssidB = "NetworkB"
         appState.passwordB = "passB"
         
@@ -254,18 +252,18 @@ final class AutoWifiTests: XCTestCase {
         // Currently connected to B
         mockInterface.currentSSID = "NetworkB"
         
-        // A becomes available
+        // P becomes available
         mockInterface.availableNetworks = [
-            MockWiFiNetwork(ssid: "NetworkA"),
+            MockWiFiNetwork(ssid: "NetworkP"),
             MockWiFiNetwork(ssid: "NetworkB")
         ]
         
         let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
         manager.startMonitoring()
         
-        // Should switch to A
-        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkA")
-        XCTAssertEqual(appState.currentNetworkName, "NetworkA")
+        // Should switch to P
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkP")
+        XCTAssertEqual(appState.currentNetworkName, "NetworkP")
     }
     
     func testSSIDChangeDelegate() {
@@ -287,5 +285,30 @@ final class AutoWifiTests: XCTestCase {
         }
         
         wait(for: [expectation], timeout: 1.0)
+    }
+    
+    func testLaunchAtLoginToggle() {
+        let defaults = UserDefaults(suiteName: "testLaunchAtLogin")!
+        defaults.removePersistentDomain(forName: "testLaunchAtLogin")
+        
+        let mockService = MockLaunchService()
+        let appState = AppState(userDefaults: defaults, launchService: mockService)
+        
+        // Initial state
+        XCTAssertFalse(appState.launchAtLogin)
+        XCTAssertFalse(mockService.isEnabled)
+        
+        // Enable
+        appState.launchAtLogin = true
+        XCTAssertTrue(mockService.isEnabled)
+        
+        // Disable
+        appState.launchAtLogin = false
+        XCTAssertFalse(mockService.isEnabled)
+        
+        // Test failure handling
+        mockService.shouldFail = true
+        appState.launchAtLogin = true
+        XCTAssertTrue(appState.lastLog.contains("Failed to toggle"))
     }
 }

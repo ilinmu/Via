@@ -8,7 +8,7 @@ class SimpleWifiMonitor {
     private var client: CWWiFiClient
     private var interface: CWInterface?
     
-    var ssidA: String = ""
+    var ssidP: String = ""
     var passwordA: String = ""
     var ssidB: String = ""
     var passwordB: String = ""
@@ -32,7 +32,7 @@ class SimpleWifiMonitor {
             return
         }
         
-        if ssidA.isEmpty || ssidB.isEmpty {
+        if ssidP.isEmpty || ssidB.isEmpty {
             log("Error: SSIDs not configured.")
             return
         }
@@ -40,9 +40,9 @@ class SimpleWifiMonitor {
         let currentSSID = interface.ssid()
         log("Current network: \(currentSSID ?? "None")")
         
-        // If already connected to A, we are good
-        if currentSSID == ssidA {
-            log("Connected to preferred network A (\(ssidA)).")
+        // If already connected to P, we are good
+        if currentSSID == ssidP {
+            log("Connected to preferred network P (\(ssidP)).")
             return
         }
         
@@ -52,26 +52,26 @@ class SimpleWifiMonitor {
             let networks = try interface.scanForNetworks(withSSID: nil)
             let networkMap = Dictionary(grouping: networks, by: { $0.ssid ?? "" })
             
-            // Check for A
-            if let networksA = networkMap[ssidA], let targetNetworkA = networksA.first {
-                log("Found network A (\(ssidA)). Connecting...")
-                try interface.associate(to: targetNetworkA, password: passwordA)
-                log("Successfully connected to \(ssidA).")
+            // Check for P
+            if let networksP = networkMap[ssidP], let targetNetworkP = networksP.first {
+                log("Found network P (\(ssidP)). Connecting...")
+                try interface.associate(to: targetNetworkP, password: passwordP)
+                log("Successfully connected to \(ssidP).")
                 return
             }
             
-            // If A not found and not connected to B, check for B
+            // If P not found and not connected to B, check for B
             if currentSSID != ssidB {
                 if let networksB = networkMap[ssidB], let targetNetworkB = networksB.first {
-                    log("Network A not found. Found network B (\(ssidB)). Connecting...")
+                    log("Network P not found. Found network B (\(ssidB)). Connecting...")
                     try interface.associate(to: targetNetworkB, password: passwordB)
                     log("Successfully connected to \(ssidB).")
                     return
                 } else {
-                    log("Neither network A nor B found.")
+                    log("Neither network P nor B found.")
                 }
             } else {
-                log("Connected to backup network B (\(ssidB)). Network A not found.")
+                log("Connected to backup network B (\(ssidB)). Network P not found.")
             }
             
         } catch {
@@ -81,7 +81,7 @@ class SimpleWifiMonitor {
     
     func start() {
         log("Auto-Wifi Monitor Started")
-        log("Priority Network (A): \(ssidA)")
+        log("Priority Network (P): \(ssidP)")
         log("Backup Network (B): \(ssidB)")
         log("Check Interval: \(checkInterval) seconds")
         log("Press Ctrl+C to stop")
@@ -109,7 +109,7 @@ let monitor = SimpleWifiMonitor()
 
 // Read configuration from command line or use interactive mode
 if CommandLine.arguments.count >= 5 {
-    monitor.ssidA = CommandLine.arguments[1]
+    monitor.ssidP = CommandLine.arguments[1]
     monitor.passwordA = CommandLine.arguments[2]
     monitor.ssidB = CommandLine.arguments[3]
     monitor.passwordB = CommandLine.arguments[4]
@@ -119,9 +119,9 @@ if CommandLine.arguments.count >= 5 {
 } else {
     print("Auto-Wifi Monitor - Command Line Version")
     print("=========================================")
-    print("Enter Priority Network (A) SSID:")
-    monitor.ssidA = readLine() ?? ""
-    print("Enter Priority Network (A) Password:")
+    print("Enter Priority Network (P) SSID:")
+    monitor.ssidP = readLine() ?? ""
+    print("Enter Priority Network (P) Password:")
     monitor.passwordA = readLine() ?? ""
     print("Enter Backup Network (B) SSID:")
     monitor.ssidB = readLine() ?? ""

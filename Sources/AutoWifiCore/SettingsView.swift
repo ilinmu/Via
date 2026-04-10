@@ -25,6 +25,16 @@ public struct SettingsView: View {
                 
                 Spacer()
                 
+                // Launch at Login Button
+                Button(action: { appState.launchAtLogin.toggle() }) {
+                    Image(systemName: "desktopcomputer")
+                        .font(.system(size: 16))
+                        .foregroundColor(appState.launchAtLogin ? .blue : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(i18n.localizedString("launch_at_login_tooltip"))
+                .padding(.trailing, 4)
+                
                 // Language Toggle
                 Button(action: { i18n.toggleLanguage() }) {
                     Text(i18n.language == .chinese ? "EN" : "中")
@@ -34,6 +44,7 @@ public struct SettingsView: View {
                         .cornerRadius(4)
                 }
                 .buttonStyle(.plain)
+                .help(i18n.localizedString("language_tooltip"))
                 
                 // Help Button
                 Button(action: { showHelp.toggle() }) {
@@ -42,6 +53,7 @@ public struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
+                .help(i18n.localizedString("help_tooltip"))
                 .popover(isPresented: $showHelp) {
                     HelpView()
                         .frame(width: 300, height: 250)
@@ -54,21 +66,21 @@ public struct SettingsView: View {
                         .foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
-                .help(i18n.localizedString("quit"))
+                .help(i18n.localizedString("quit_tooltip"))
             }
             .padding()
-            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
+            // Removed header background to let root background show through
             
             ScrollView {
                 VStack(spacing: 16) {
                     // Current Status Card & Scan
-                    VStack(spacing: 10) {
+                    VStack(spacing: 0) {
                         HStack {
                             Image(systemName: "wifi")
                                 .font(.system(size: 24))
                                 .foregroundColor(.blue)
                             VStack(alignment: .leading) {
-                                Text("Current Network")
+                                Text(i18n.localizedString("current_network"))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text(appState.currentNetworkName)
@@ -105,13 +117,13 @@ public struct SettingsView: View {
                     .padding()
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                     
-                    // Priority Network A
+                    // Priority Network P
                     NetworkCard(
                         title: i18n.localizedString("priority_network"),
-                        ssid: $appState.ssidA,
-                        password: $appState.passwordA,
+                        ssid: $appState.ssidP,
+                        password: $appState.passwordP,
                         networks: availableNetworks,
                         icon: "star.fill",
                         color: .yellow
@@ -137,6 +149,19 @@ public struct SettingsView: View {
                                 .frame(width: 60)
                         }
                         
+                        // Countdown (No Progress Bar)
+                        if appState.isRunning, let nextCheck = wifiManager.nextCheckTime {
+                            TimelineView(.animation) { context in
+                                let now = context.date
+                                let remaining = max(0, nextCheck.timeIntervalSince(now))
+                                
+                                Text(String(format: i18n.localizedString("next_check_in"), remaining))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .monospacedDigit()
+                            }
+                        }
+                        
                         Button(action: {
                             if appState.isRunning {
                                 wifiManager.stopMonitoring()
@@ -152,21 +177,21 @@ public struct SettingsView: View {
                             .padding(.vertical, 8)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(appState.isRunning ? .red : .green)
-                        .disabled(appState.ssidA.isEmpty || appState.ssidB.isEmpty)
+                        .tint(appState.isRunning ? Color(red: 1.0, green: 0.184, blue: 0.212) : Color(red: 0.0, green: 0.431, blue: 0.945))
+                        .disabled(appState.ssidP.isEmpty || appState.ssidB.isEmpty)
                     }
                     .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
+                    .background(Color(NSColor.controlBackgroundColor)) // Use controlBackgroundColor for softer look
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                    
-
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2) // Slightly stronger shadow
                 }
                 .padding()
             }
-            .background(Color(NSColor.windowBackgroundColor))
+            // Removed ScrollView background to let root background show through
         }
-        .frame(width: 360, height: 550)
+        .background(VisualEffectView(material: .popover, blendingMode: .behindWindow).ignoresSafeArea()) // Unified background
+        .cornerRadius(16) // Rounded corners for the whole window content
+        .frame(width: 360, height: 560)
         .onAppear {
             wifiManager.refreshStatus()
         }
@@ -202,6 +227,7 @@ struct NetworkCard: View {
     let icon: String
     let color: Color
     @ObservedObject var i18n = LocalizationManager.shared
+    @State private var showPassword = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -226,13 +252,29 @@ struct NetworkCard: View {
                 .labelsHidden()
             }
             
-            SecureField(i18n.localizedString("password"), text: $password)
-                .textFieldStyle(.roundedBorder)
+            HStack {
+                if showPassword {
+                    TextField(i18n.localizedString("password"), text: $password)
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    SecureField(i18n.localizedString("password"), text: $password)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+            .overlay(
+                Button(action: { showPassword.toggle() }) {
+                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 8)
+                , alignment: .trailing
+            )
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }
 
