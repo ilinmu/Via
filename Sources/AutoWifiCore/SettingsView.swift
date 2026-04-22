@@ -148,6 +148,16 @@ public struct SettingsView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 60)
                         }
+
+                        Text(
+                            String(
+                                format: i18n.localizedString("minimum_interval_hint"),
+                                Int(AppState.minimumCheckInterval)
+                            )
+                        )
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         
                         // Countdown (No Progress Bar)
                         if appState.isRunning, let nextCheck = wifiManager.nextCheckTime {
@@ -184,6 +194,35 @@ public struct SettingsView: View {
                     .background(Color(NSColor.controlBackgroundColor)) // Use controlBackgroundColor for softer look
                     .cornerRadius(12)
                     .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2) // Slightly stronger shadow
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(i18n.localizedString("status_card_title"))
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+
+                        Text(appState.currentStatus)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if !appState.lastLog.isEmpty {
+                            Divider()
+
+                            Text(i18n.localizedString("latest_log"))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Text(appState.lastLog)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                 }
                 .padding()
             }

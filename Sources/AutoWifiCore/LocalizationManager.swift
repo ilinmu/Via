@@ -91,7 +91,10 @@ public class LocalizationManager: ObservableObject {
         "launch_at_login_tooltip": "开机自动启动",
         "current_network": "当前网络",
         "next_check_in": "下次检查还剩 %.0f 秒",
-        "permission_pending": "等待权限..."
+        "permission_pending": "等待权限...",
+        "minimum_interval_hint": "最小间隔为 %d 秒，输入更小值会自动校正。",
+        "status_card_title": "运行状态",
+        "latest_log": "最近日志"
     ]
     
     private let englishStrings: [String: String] = [
@@ -152,6 +155,9 @@ public class LocalizationManager: ObservableObject {
         "help_tooltip": "View Help",
         "language_tooltip": "Switch Language",
         "quit_tooltip": "Quit Application",
-        "launch_at_login_tooltip": "Launch automatically at login"
+        "launch_at_login_tooltip": "Launch automatically at login",
+        "minimum_interval_hint": "Minimum interval is %d seconds. Smaller values are corrected automatically.",
+        "status_card_title": "Runtime Status",
+        "latest_log": "Latest Log"
     ]
 }

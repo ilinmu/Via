@@ -9,7 +9,7 @@ class SimpleWifiMonitor {
     private var interface: CWInterface?
     
     var ssidP: String = ""
-    var passwordA: String = ""
+    var passwordP: String = ""
     var ssidB: String = ""
     var passwordB: String = ""
     var checkInterval: Double = 60.0
@@ -50,10 +50,9 @@ class SimpleWifiMonitor {
         log("Scanning...")
         do {
             let networks = try interface.scanForNetworks(withSSID: nil)
-            let networkMap = Dictionary(grouping: networks, by: { $0.ssid ?? "" })
             
             // Check for P
-            if let networksP = networkMap[ssidP], let targetNetworkP = networksP.first {
+            if let targetNetworkP = strongestNetwork(named: ssidP, from: networks) {
                 log("Found network P (\(ssidP)). Connecting...")
                 try interface.associate(to: targetNetworkP, password: passwordP)
                 log("Successfully connected to \(ssidP).")
@@ -62,7 +61,7 @@ class SimpleWifiMonitor {
             
             // If P not found and not connected to B, check for B
             if currentSSID != ssidB {
-                if let networksB = networkMap[ssidB], let targetNetworkB = networksB.first {
+                if let targetNetworkB = strongestNetwork(named: ssidB, from: networks) {
                     log("Network P not found. Found network B (\(ssidB)). Connecting...")
                     try interface.associate(to: targetNetworkB, password: passwordB)
                     log("Successfully connected to \(ssidB).")
@@ -80,6 +79,7 @@ class SimpleWifiMonitor {
     }
     
     func start() {
+        checkInterval = max(5.0, checkInterval)
         log("Auto-Wifi Monitor Started")
         log("Priority Network (P): \(ssidP)")
         log("Backup Network (B): \(ssidB)")
@@ -95,12 +95,17 @@ class SimpleWifiMonitor {
         // Run immediately
         checkAndConnect()
         
-        // Run in loop
-        RunLoop.current.run()
-        Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
+        // Keep the timer alive on the main run loop.
+        _ = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
             self?.checkAndConnect()
         }
         RunLoop.current.run()
+    }
+
+    private func strongestNetwork(named ssid: String, from networks: Set<CWNetwork>) -> CWNetwork? {
+        networks
+            .filter { $0.ssid == ssid }
+            .max(by: { $0.rssiValue < $1.rssiValue })
     }
 }
 
@@ -110,7 +115,7 @@ let monitor = SimpleWifiMonitor()
 // Read configuration from command line or use interactive mode
 if CommandLine.arguments.count >= 5 {
     monitor.ssidP = CommandLine.arguments[1]
-    monitor.passwordA = CommandLine.arguments[2]
+    monitor.passwordP = CommandLine.arguments[2]
     monitor.ssidB = CommandLine.arguments[3]
     monitor.passwordB = CommandLine.arguments[4]
     if CommandLine.arguments.count >= 6 {
@@ -122,7 +127,7 @@ if CommandLine.arguments.count >= 5 {
     print("Enter Priority Network (P) SSID:")
     monitor.ssidP = readLine() ?? ""
     print("Enter Priority Network (P) Password:")
-    monitor.passwordA = readLine() ?? ""
+    monitor.passwordP = readLine() ?? ""
     print("Enter Backup Network (B) SSID:")
     monitor.ssidB = readLine() ?? ""
     print("Enter Backup Network (B) Password:")

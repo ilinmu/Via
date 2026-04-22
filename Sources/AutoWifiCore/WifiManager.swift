@@ -53,6 +53,17 @@ extension CWInterface: WiFiInterfaceProtocol {
 
 extension CLLocationManager: LocationManagerProtocol {}
 
+enum WifiManagerError: LocalizedError {
+    case noInterface
+
+    var errorDescription: String? {
+        switch self {
+        case .noInterface:
+            return "No Wi-Fi interface found."
+        }
+    }
+}
+
 // MARK: - WifiManager
 
 @MainActor
@@ -96,6 +107,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         
         if authStatus == .denied || authStatus == .restricted {
             appState.currentNetworkName = "Location Permission Denied"
+            appState.connectedNetworkType = .none
             appState.log("⚠️ Location permission denied. Cannot read SSID.")
             return
         }
@@ -196,8 +208,9 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
                 let isPAvailable = networks.contains(self.appState.ssidP)
                 
                 if isPAvailable {
-                    self.appState.log("⚠️ Network P is available but we are on B. Assuming manual override.")
-                    self.stopMonitoring()
+                    self.stopMonitoring(
+                        logMessage: "⚠️ Network P is available but we are on B. Assuming manual override."
+                    )
                 } else {
                     self.appState.log("ℹ️ Network P not found. Assuming system fallback. Auto-switch continues.")
                     // Trigger a check to ensure we are settled
@@ -209,31 +222,40 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             
             // Case D: Switched to Unmanaged Network (Neither P nor B)
             // We assume this is a manual user action to use a different network.
-            self.appState.log("⚠️ Switched to unmanaged network (\(newSSID ?? "Unknown")). Stopping auto-switch.")
-            self.stopMonitoring()
+            self.stopMonitoring(
+                logMessage: "⚠️ Switched to unmanaged network (\(newSSID ?? "Unknown")). Stopping auto-switch."
+            )
             self.refreshStatus()
         }
     }
     
     @Published public var nextCheckTime: Date?
-    @Published public var currentCheckInterval: TimeInterval = 60 // Add this to track the interval used for current timer
+    @Published public var currentCheckInterval: TimeInterval = AppState.defaultCheckInterval
     
     public func startMonitoring() {
         requestPermissions()
-        stopMonitoring()
+
+        guard !appState.ssidP.isEmpty, !appState.ssidB.isEmpty else {
+            appState.log("Error: SSIDs not configured.")
+            return
+        }
+
+        resetMonitoringState()
         appState.isRunning = true
         appState.log("Started monitoring...")
         
         // Run immediately
         checkConnection()
         
-        // Schedule timer
-        scheduleTimer()
+        if appState.isRunning {
+            scheduleTimer()
+        }
     }
     
     private func scheduleTimer() {
         let interval = appState.checkInterval
-        currentCheckInterval = interval // Store the interval used for this cycle
+        timer?.invalidate()
+        currentCheckInterval = interval
         nextCheckTime = Date().addingTimeInterval(interval)
         
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
@@ -248,22 +270,28 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
     
     public func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
-        nextCheckTime = nil
-        appState.isRunning = false
-        appState.log("Stopped monitoring.")
+        stopMonitoring(logMessage: "Stopped monitoring.")
+    }
+
+    private func stopMonitoring(logMessage: String?) {
+        let wasRunning = appState.isRunning || timer != nil
+        resetMonitoringState()
+
+        if wasRunning, let logMessage {
+            appState.log(logMessage)
+        }
     }
     
     private func checkConnection() {
-        // Update interface
         self.interface = client.interface()
-        
+
         guard let interface = self.interface else {
+            appState.connectedNetworkType = .none
+            appState.currentNetworkName = "No Interface"
             appState.log("Error: No Wi-Fi interface found.")
             return
         }
-        
+
         let ssidP = appState.ssidP
         let ssidB = appState.ssidB
         
@@ -296,12 +324,10 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         // Scan for networks
         appState.log("Scanning...")
         do {
-            let networks = try interface.scanForNetworksProtocol(withSSID: nil)
-            
-            let networkMap = Dictionary(grouping: networks, by: { $0.ssid ?? "" })
+            let networks = try scanNetworks()
             
             // Check for P
-            if let networksP = networkMap[ssidP], let targetNetworkP = networksP.first {
+            if let targetNetworkP = bestNetwork(named: ssidP, in: networks) {
                 appState.log("Found network P (\(ssidP)). Connecting...")
                 connect(to: targetNetworkP, password: appState.passwordP)
                 return
@@ -309,7 +335,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             
             // If P not found, and not connected to B, check for B
             if currentSSID != ssidB {
-                if let networksB = networkMap[ssidB], let targetNetworkB = networksB.first {
+                if let targetNetworkB = bestNetwork(named: ssidB, in: networks) {
                     appState.log("Network P not found. Found network B (\(ssidB)). Connecting...")
                     connect(to: targetNetworkB, password: appState.passwordB)
                     return
@@ -326,15 +352,8 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
     
     public func getAvailableNetworks() async -> [String] {
-        let client = CWWiFiClient.shared()
-        // Call the original CoreWLAN interface() method, not our protocol extension
-        guard let cwInterface: CWInterface = (client as CWWiFiClient).interface() else {
-            await appState.log("❌ Error: No Wi-Fi interface found")
-            return []
-        }
-        
         do {
-            let networks = try cwInterface.scanForNetworks(withSSID: nil as Data?)
+            let networks = try scanNetworks()
             let ssids = networks
                 .compactMap { $0.ssid }
                 .filter { !$0.isEmpty }
@@ -342,9 +361,9 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             let uniqueSSIDs = Array(Set(ssids)).sorted()
             return uniqueSSIDs
         } catch {
-            await appState.log("❌ Scan error: \(error.localizedDescription)")
+            appState.log("❌ Scan error: \(error.localizedDescription)")
             if error.localizedDescription.contains("location") {
-                 await appState.log("💡 Try checking Location Services permissions again.")
+                 appState.log("💡 Try checking Location Services permissions again.")
             }
             return []
         }
@@ -366,5 +385,28 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         } catch {
             appState.log("Failed to connect to \(network.ssid ?? "Unknown"): \(error.localizedDescription)")
         }
+    }
+
+    private func resetMonitoringState() {
+        timer?.invalidate()
+        timer = nil
+        nextCheckTime = nil
+        appState.isRunning = false
+    }
+
+    private func scanNetworks() throws -> [WiFiNetworkProtocol] {
+        self.interface = client.interface()
+
+        guard let interface = self.interface else {
+            throw WifiManagerError.noInterface
+        }
+
+        return try interface.scanForNetworksProtocol(withSSID: nil)
+    }
+
+    private func bestNetwork(named ssid: String, in networks: [WiFiNetworkProtocol]) -> WiFiNetworkProtocol? {
+        networks
+            .filter { $0.ssid == ssid }
+            .max(by: { $0.rssiValue < $1.rssiValue })
     }
 }

@@ -3,26 +3,37 @@ import Combine
 
 @MainActor
 public class AppState: ObservableObject {
+    public static let defaultCheckInterval: Double = 60
+    public static let minimumCheckInterval: Double = 5
+
+    private enum DefaultsKey {
+        static let ssidP = "ssidP"
+        static let ssidB = "ssidB"
+        static let checkInterval = "checkInterval"
+        static let passwordP = "passwordP"
+        static let passwordB = "passwordB"
+    }
+
     @Published public var ssidP: String {
-        didSet { userDefaults.set(ssidP, forKey: "ssidP") }
+        didSet { userDefaults.set(ssidP, forKey: DefaultsKey.ssidP) }
     }
     @Published public var passwordP: String {
-        didSet { userDefaults.set(passwordP, forKey: "passwordP") }
+        didSet { persistPassword(passwordP, key: DefaultsKey.passwordP) }
     }
     @Published public var ssidB: String {
-        didSet { userDefaults.set(ssidB, forKey: "ssidB") }
+        didSet { userDefaults.set(ssidB, forKey: DefaultsKey.ssidB) }
     }
     @Published public var passwordB: String {
-        didSet { userDefaults.set(passwordB, forKey: "passwordB") }
+        didSet { persistPassword(passwordB, key: DefaultsKey.passwordB) }
     }
     @Published public var checkInterval: Double {
-        didSet { userDefaults.set(checkInterval, forKey: "checkInterval") }
+        didSet { persistCheckInterval() }
     }
     @Published public var isRunning: Bool = false
     @Published public var currentStatus: String = "Ready"
     @Published public var lastLog: String = ""
     @Published public var currentNetworkName: String = "Not Connected"
-    public enum ConnectedNetworkType {
+    public enum ConnectedNetworkType: Equatable {
         case none
         case priority
         case backup
@@ -33,15 +44,22 @@ public class AppState: ObservableObject {
     
     @Published public var launchAtLogin: Bool = false {
         didSet {
-            toggleLaunchAtLogin()
+            toggleLaunchAtLoginIfNeeded()
         }
     }
 
     private let userDefaults: UserDefaults
+    private let secureStore: SecureStoreProtocol
     private var launchService: LaunchServiceProtocol?
+    private var isSynchronizingLaunchAtLogin = false
 
-    public init(userDefaults: UserDefaults = .standard, launchService: LaunchServiceProtocol? = nil) {
+    public init(
+        userDefaults: UserDefaults = .standard,
+        launchService: LaunchServiceProtocol? = nil,
+        secureStore: SecureStoreProtocol = KeychainStore.shared
+    ) {
         self.userDefaults = userDefaults
+        self.secureStore = secureStore
         
         if #available(macOS 13.0, *) {
             self.launchService = launchService ?? LaunchAtLoginManager.shared
@@ -49,21 +67,30 @@ public class AppState: ObservableObject {
             self.launchService = launchService ?? MockLaunchService() // Fallback for older OS (though target is 13)
         }
         
-        self.ssidP = userDefaults.string(forKey: "ssidP") ?? ""
-        self.passwordP = userDefaults.string(forKey: "passwordP") ?? ""
-        self.ssidB = userDefaults.string(forKey: "ssidB") ?? ""
-        self.passwordB = userDefaults.string(forKey: "passwordB") ?? ""
-        self.checkInterval = userDefaults.double(forKey: "checkInterval")
-        if self.checkInterval == 0 { self.checkInterval = 60 }
+        self.ssidP = userDefaults.string(forKey: DefaultsKey.ssidP) ?? ""
+        self.passwordP = AppState.loadPassword(
+            from: secureStore,
+            userDefaults: userDefaults,
+            key: DefaultsKey.passwordP
+        )
+        self.ssidB = userDefaults.string(forKey: DefaultsKey.ssidB) ?? ""
+        self.passwordB = AppState.loadPassword(
+            from: secureStore,
+            userDefaults: userDefaults,
+            key: DefaultsKey.passwordB
+        )
+        self.checkInterval = AppState.normalizedCheckInterval(
+            userDefaults.object(forKey: DefaultsKey.checkInterval) as? Double
+        )
         
         // Sync launch state
-        self.launchAtLogin = self.launchService?.isEnabled ?? false
+        syncLaunchAtLogin(self.launchService?.isEnabled ?? false)
     }
     
-    private func toggleLaunchAtLogin() {
+    private func toggleLaunchAtLoginIfNeeded() {
+        guard !isSynchronizingLaunchAtLogin else { return }
         guard let service = launchService else { return }
         
-        // Avoid recursive loop if state matches
         if service.isEnabled == launchAtLogin { return }
         
         do {
@@ -76,13 +103,7 @@ public class AppState: ObservableObject {
             }
         } catch {
             log("❌ Failed to toggle launch at login: \(error.localizedDescription)")
-            // Revert UI state if operation failed
-            // We need to do this carefully to avoid infinite loop, but since we check equality above, it should be fine
-            // However, changing published property in didSet is tricky.
-            // Ideally we should separate the action from the property binding.
-            // For simplicity in SwiftUI, we often use binding. 
-            // Let's keep it simple: if it fails, the UI might be out of sync with system.
-            // A better way is to have a function `setLaunchAtLogin(_ enabled: Bool)`
+            syncLaunchAtLogin(service.isEnabled)
         }
     }
     
@@ -94,5 +115,67 @@ public class AppState: ObservableObject {
         print(logMessage)
         self.lastLog = logMessage
         self.currentStatus = message
+    }
+
+    private func persistCheckInterval() {
+        let normalized = Self.normalizedCheckInterval(checkInterval)
+        if normalized != checkInterval {
+            checkInterval = normalized
+            return
+        }
+
+        userDefaults.set(normalized, forKey: DefaultsKey.checkInterval)
+    }
+
+    private func persistPassword(_ password: String, key: String) {
+        do {
+            if password.isEmpty {
+                try secureStore.removeValue(forKey: key)
+            } else {
+                try secureStore.setString(password, forKey: key)
+            }
+            userDefaults.removeObject(forKey: key)
+        } catch {
+            log("❌ Failed to save credentials securely: \(error.localizedDescription)")
+        }
+    }
+
+    private func syncLaunchAtLogin(_ enabled: Bool) {
+        isSynchronizingLaunchAtLogin = true
+        launchAtLogin = enabled
+        isSynchronizingLaunchAtLogin = false
+    }
+
+    private static func loadPassword(
+        from secureStore: SecureStoreProtocol,
+        userDefaults: UserDefaults,
+        key: String
+    ) -> String {
+        if let password = (try? secureStore.string(forKey: key)) ?? nil {
+            return password
+        }
+
+        let legacyPassword = userDefaults.string(forKey: key) ?? ""
+        guard !legacyPassword.isEmpty else {
+            return ""
+        }
+
+        do {
+            try secureStore.setString(legacyPassword, forKey: key)
+            userDefaults.removeObject(forKey: key)
+        } catch {
+            print("Failed to migrate password for \(key): \(error.localizedDescription)")
+        }
+
+        return legacyPassword
+    }
+
+    private static func normalizedCheckInterval(_ value: Double?) -> Double {
+        let candidate = value ?? defaultCheckInterval
+        guard candidate.isFinite else {
+            return defaultCheckInterval
+        }
+
+        return max(candidate, minimumCheckInterval)
     }
 }
