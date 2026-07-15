@@ -5,22 +5,6 @@ import CoreWLAN
 
 // MARK: - Mocks
 
-final class MockSecureStore: SecureStoreProtocol {
-    var storage: [String: String] = [:]
-
-    func string(forKey key: String) throws -> String? {
-        storage[key]
-    }
-
-    func setString(_ value: String, forKey key: String) throws {
-        storage[key] = value
-    }
-
-    func removeValue(forKey key: String) throws {
-        storage.removeValue(forKey: key)
-    }
-}
-
 final class MockWiFiNetwork: WiFiNetworkProtocol {
     let ssid: String?
     let rssiValue: Int
@@ -104,27 +88,23 @@ final class AutoWifiTests: XCTestCase {
 
     private func makeAppState(
         defaults: UserDefaults? = nil,
-        launchService: MockLaunchService? = nil,
-        secureStore: MockSecureStore? = nil
+        launchService: MockLaunchService? = nil
     ) -> AppState {
         AppState(
             userDefaults: defaults ?? makeDefaults(),
-            launchService: launchService ?? MockLaunchService(),
-            secureStore: secureStore ?? MockSecureStore()
+            launchService: launchService ?? MockLaunchService()
         )
     }
 
-    func testAppStateInitializationUsesSecureStoreValues() {
+    func testAppStateInitializationUsesStoredValues() {
         let defaults = makeDefaults("initialization")
         defaults.set("NetworkP", forKey: "ssidP")
         defaults.set("NetworkB", forKey: "ssidB")
+        defaults.set("passP", forKey: "passwordP")
+        defaults.set("passB", forKey: "passwordB")
         defaults.set(30.0, forKey: "checkInterval")
 
-        let secureStore = MockSecureStore()
-        secureStore.storage["passwordP"] = "passP"
-        secureStore.storage["passwordB"] = "passB"
-
-        let appState = makeAppState(defaults: defaults, secureStore: secureStore)
+        let appState = makeAppState(defaults: defaults)
 
         XCTAssertEqual(appState.ssidP, "NetworkP")
         XCTAssertEqual(appState.passwordP, "passP")
@@ -134,34 +114,17 @@ final class AutoWifiTests: XCTestCase {
         XCTAssertEqual(appState.currentNetworkName, "Not Connected")
     }
 
-    func testAppStateMigratesLegacyPasswordsToSecureStore() {
-        let defaults = makeDefaults("migration")
-        defaults.set("legacyP", forKey: "passwordP")
-        defaults.set("legacyB", forKey: "passwordB")
-
-        let secureStore = MockSecureStore()
-        let appState = makeAppState(defaults: defaults, secureStore: secureStore)
-
-        XCTAssertEqual(appState.passwordP, "legacyP")
-        XCTAssertEqual(appState.passwordB, "legacyB")
-        XCTAssertEqual(secureStore.storage["passwordP"], "legacyP")
-        XCTAssertEqual(secureStore.storage["passwordB"], "legacyB")
-        XCTAssertNil(defaults.string(forKey: "passwordP"))
-        XCTAssertNil(defaults.string(forKey: "passwordB"))
-    }
-
     func testAppStatePersistsConfigurationAndNormalizesInterval() {
         let defaults = makeDefaults("persistence")
-        let secureStore = MockSecureStore()
 
-        let appState = makeAppState(defaults: defaults, secureStore: secureStore)
+        let appState = makeAppState(defaults: defaults)
         appState.ssidP = "OfficeWiFi"
         appState.passwordP = "office-pass"
         appState.ssidB = "PhoneHotspot"
         appState.passwordB = "hotspot-pass"
         appState.checkInterval = 1
 
-        let reloaded = makeAppState(defaults: defaults, secureStore: secureStore)
+        let reloaded = makeAppState(defaults: defaults)
 
         XCTAssertEqual(reloaded.ssidP, "OfficeWiFi")
         XCTAssertEqual(reloaded.passwordP, "office-pass")
@@ -172,14 +135,12 @@ final class AutoWifiTests: XCTestCase {
 
     func testLaunchAtLoginRevertsOnFailure() {
         let defaults = makeDefaults("launchAtLogin")
-        let secureStore = MockSecureStore()
         let launchService = MockLaunchService()
         launchService.shouldFail = true
 
         let appState = makeAppState(
             defaults: defaults,
-            launchService: launchService,
-            secureStore: secureStore
+            launchService: launchService
         )
 
         appState.launchAtLogin = true
@@ -297,7 +258,7 @@ final class AutoWifiTests: XCTestCase {
         XCTAssertEqual(appState.currentNetworkName, "NewWiFi")
     }
 
-    func testSSIDChangeToBackupStopsMonitoringWhenPriorityIsVisible() async {
+    func testSSIDChangeToBackupReturnsToPriorityAndKeepsMonitoringWhenPriorityIsVisible() async {
         let appState = makeAppState()
         appState.ssidP = "NetworkP"
         appState.passwordP = "passP"
@@ -318,8 +279,168 @@ final class AutoWifiTests: XCTestCase {
         mockClient.simulateSSIDChange(to: "NetworkB")
         try? await Task.sleep(for: .milliseconds(50))
 
-        XCTAssertFalse(appState.isRunning)
-        XCTAssertTrue(appState.currentStatus.contains("manual override"))
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkP")
+        XCTAssertEqual(mockInterface.associatedPassword, "passP")
+        XCTAssertEqual(appState.currentNetworkName, "NetworkP")
+        XCTAssertEqual(appState.connectedNetworkType, .priority)
+    }
+
+    func testSSIDChangeToBackupKeepsMonitoringWhenPriorityIsMissing() async {
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "NetworkB"
+        appState.passwordB = "passB"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.startMonitoring()
+
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)
+        ]
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(appState.currentNetworkName, "NetworkB")
+        XCTAssertEqual(appState.connectedNetworkType, .backup)
+    }
+
+    func testSSIDChangeToBackupAfterDisconnectReturnsToPriorityWhenItIsVisible() async {
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "NetworkB"
+        appState.passwordB = "passB"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.startMonitoring()
+
+        mockClient.simulateSSIDChange(to: nil)
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "NetworkP", rssiValue: -80),
+            MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)
+        ]
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkP")
+        XCTAssertEqual(mockInterface.associatedPassword, "passP")
+        XCTAssertEqual(appState.currentNetworkName, "NetworkP")
+        XCTAssertEqual(appState.connectedNetworkType, .priority)
+    }
+
+    func testPriorityLossFallsBackToBackupThenReturnsToPriorityWithoutDisablingAutoSwitch() async {
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "NetworkB"
+        appState.passwordB = "passB"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.startMonitoring()
+
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)
+        ]
+        mockClient.simulateSSIDChange(to: nil)
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(appState.currentNetworkName, "NetworkB")
+        XCTAssertEqual(appState.connectedNetworkType, .backup)
+
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "NetworkP", rssiValue: -40),
+            MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)
+        ]
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "NetworkP")
+        XCTAssertEqual(mockInterface.associatedPassword, "passP")
+        XCTAssertEqual(appState.currentNetworkName, "NetworkP")
+        XCTAssertEqual(appState.connectedNetworkType, .priority)
+    }
+
+    func testSSIDChangeToLegacyBackupReconnectsCurrentBackupAndKeepsMonitoring() async {
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "BackupA"
+        appState.passwordB = "passA"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.startMonitoring()
+
+        appState.ssidB = "BackupB"
+        appState.passwordB = "passB"
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "BackupA", rssiValue: -42),
+            MockWiFiNetwork(ssid: "BackupB", rssiValue: -38)
+        ]
+        mockClient.simulateSSIDChange(to: "BackupA")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "BackupB")
+        XCTAssertEqual(mockInterface.associatedPassword, "passB")
+        XCTAssertEqual(appState.currentNetworkName, "BackupB")
+    }
+
+    func testSSIDChangeToPreviousBackupReconnectsCurrentBackupAfterConfigurationChange() async {
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "BackupA"
+        appState.passwordB = "passA"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.startMonitoring()
+
+        appState.ssidB = "BackupB"
+        appState.passwordB = "passB"
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "NetworkP", rssiValue: -78),
+            MockWiFiNetwork(ssid: "BackupA", rssiValue: -40),
+            MockWiFiNetwork(ssid: "BackupB", rssiValue: -35)
+        ]
+        mockClient.simulateSSIDChange(to: "BackupA")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(mockInterface.associatedNetwork?.ssid, "BackupB")
+        XCTAssertEqual(mockInterface.associatedPassword, "passB")
+        XCTAssertEqual(appState.currentNetworkName, "BackupB")
     }
 
     func testSSIDChangeToUnmanagedNetworkStopsMonitoring() async {

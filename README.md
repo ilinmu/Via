@@ -37,7 +37,7 @@ AutoWifi 是一个面向 macOS 的菜单栏 Wi-Fi 自动切换工具。它允许
 
 - 应用依赖 macOS 定位权限来读取 SSID 和扫描 Wi-Fi。
 - 登录启动通过 `ServiceManagement` 管理。
-- Wi-Fi 密码现已存储在 macOS Keychain 中，而不是明文 `UserDefaults`。
+- Wi-Fi 密码当前仅保存在应用本地存储中，不访问 macOS Keychain。
 
 ## 主要代码结构
 
@@ -49,8 +49,6 @@ AutoWifi 是一个面向 macOS 的菜单栏 Wi-Fi 自动切换工具。它允许
   Wi-Fi 扫描、连接、监控和自动切换核心逻辑。
 - `Sources/AutoWifiCore/SettingsView.swift`
   SwiftUI 配置界面。
-- `Sources/AutoWifiCore/SecureStore.swift`
-  Keychain 安全存储抽象与实现。
 - `auto-wifi-cli.swift`
   命令行版本。
 - `Tests/AutoWifiTests/AutoWifiTests.swift`
@@ -70,13 +68,17 @@ swift test
 swiftc -typecheck auto-wifi-cli.swift
 ```
 
+更完整的开发入口、联调方式和打包说明见 [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)。
+如果只是想在本地打成 `.app`，直接运行 `scripts/package-app.sh`，产物会出现在 `dist/AutoWifi.app`。
+
 ## 本轮整理与优化
 
 本轮已完成的关键改进：
 
 - 修复了失效测试与当前实现不一致的问题。
 - 修复了 CLI 脚本中的变量命名错误和定时器死代码问题。
-- 将密码存储迁移到 Keychain，提升本地凭据安全性。
+- 移除了对 Keychain 的依赖，密码只保存在应用本地存储中。
+- 将密码输入框改成原生 AppKit 文本控件，支持直接粘贴。
 - 让 Wi-Fi 扫描逻辑走统一依赖注入路径，提升可测试性。
 - 连接同名网络时优先选择更强信号的 AP。
 - 为检查间隔增加最小值保护，避免异常输入导致不稳定行为。

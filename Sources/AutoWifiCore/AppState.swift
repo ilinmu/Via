@@ -49,17 +49,14 @@ public class AppState: ObservableObject {
     }
 
     private let userDefaults: UserDefaults
-    private let secureStore: SecureStoreProtocol
     private var launchService: LaunchServiceProtocol?
     private var isSynchronizingLaunchAtLogin = false
 
     public init(
         userDefaults: UserDefaults = .standard,
-        launchService: LaunchServiceProtocol? = nil,
-        secureStore: SecureStoreProtocol = KeychainStore.shared
+        launchService: LaunchServiceProtocol? = nil
     ) {
         self.userDefaults = userDefaults
-        self.secureStore = secureStore
         
         if #available(macOS 13.0, *) {
             self.launchService = launchService ?? LaunchAtLoginManager.shared
@@ -68,17 +65,9 @@ public class AppState: ObservableObject {
         }
         
         self.ssidP = userDefaults.string(forKey: DefaultsKey.ssidP) ?? ""
-        self.passwordP = AppState.loadPassword(
-            from: secureStore,
-            userDefaults: userDefaults,
-            key: DefaultsKey.passwordP
-        )
+        self.passwordP = userDefaults.string(forKey: DefaultsKey.passwordP) ?? ""
         self.ssidB = userDefaults.string(forKey: DefaultsKey.ssidB) ?? ""
-        self.passwordB = AppState.loadPassword(
-            from: secureStore,
-            userDefaults: userDefaults,
-            key: DefaultsKey.passwordB
-        )
+        self.passwordB = userDefaults.string(forKey: DefaultsKey.passwordB) ?? ""
         self.checkInterval = AppState.normalizedCheckInterval(
             userDefaults.object(forKey: DefaultsKey.checkInterval) as? Double
         )
@@ -128,15 +117,10 @@ public class AppState: ObservableObject {
     }
 
     private func persistPassword(_ password: String, key: String) {
-        do {
-            if password.isEmpty {
-                try secureStore.removeValue(forKey: key)
-            } else {
-                try secureStore.setString(password, forKey: key)
-            }
+        if password.isEmpty {
             userDefaults.removeObject(forKey: key)
-        } catch {
-            log("❌ Failed to save credentials securely: \(error.localizedDescription)")
+        } else {
+            userDefaults.set(password, forKey: key)
         }
     }
 
@@ -144,30 +128,6 @@ public class AppState: ObservableObject {
         isSynchronizingLaunchAtLogin = true
         launchAtLogin = enabled
         isSynchronizingLaunchAtLogin = false
-    }
-
-    private static func loadPassword(
-        from secureStore: SecureStoreProtocol,
-        userDefaults: UserDefaults,
-        key: String
-    ) -> String {
-        if let password = (try? secureStore.string(forKey: key)) ?? nil {
-            return password
-        }
-
-        let legacyPassword = userDefaults.string(forKey: key) ?? ""
-        guard !legacyPassword.isEmpty else {
-            return ""
-        }
-
-        do {
-            try secureStore.setString(legacyPassword, forKey: key)
-            userDefaults.removeObject(forKey: key)
-        } catch {
-            print("Failed to migrate password for \(key): \(error.localizedDescription)")
-        }
-
-        return legacyPassword
     }
 
     private static func normalizedCheckInterval(_ value: Double?) -> Double {

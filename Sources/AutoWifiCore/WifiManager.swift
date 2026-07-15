@@ -75,6 +75,11 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     private var locationManager: LocationManagerProtocol
     
     private var isSwitchingNetwork = false
+    private var lastObservedSSID: String?
+    private var trackedBackupSSID: String
+    private var previousBackupSSID: String?
+    private var lastManagedDisconnectAt: Date?
+    private let managedDisconnectWindow: TimeInterval = 12
     
     public init(appState: AppState,
                 client: WiFiClientProtocol = CWWiFiClient.shared(),
@@ -82,6 +87,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         self.appState = appState
         self.client = client
         self.locationManager = locationManager
+        self.trackedBackupSSID = appState.ssidB
         super.init()
         
         self.interface = client.interface()
@@ -103,6 +109,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     // ... (refreshStatus and requestPermissions remain same)
     
     public func refreshStatus() {
+        syncConfiguredNetworks()
         let authStatus = locationManager.authorizationStatus
         
         if authStatus == .denied || authStatus == .restricted {
@@ -117,6 +124,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         
         if let interface = self.interface {
             let currentSSID = interface.ssid()
+            lastObservedSSID = currentSSID
             if let ssid = currentSSID {
                 appState.currentNetworkName = ssid
             } else {
@@ -133,8 +141,10 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             if let ssid = currentSSID {
                 if ssid == appState.ssidP {
                     appState.connectedNetworkType = .priority
+                    clearManagedDisconnectContext()
                 } else if ssid == appState.ssidB {
                     appState.connectedNetworkType = .backup
+                    clearManagedDisconnectContext()
                 } else {
                     appState.connectedNetworkType = .other
                 }
@@ -161,6 +171,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     nonisolated public func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
         Task { @MainActor in
             print("DEBUG: SSID Changed notification received")
+            self.syncConfiguredNetworks()
             
             // 1. If we are programmatically switching, ignore this notification
             if self.isSwitchingNetwork {
@@ -175,13 +186,16 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             }
             
             // 3. Get new SSID
+            let previousSSID = self.lastObservedSSID
             self.interface = self.client.interface()
             let newSSID = self.interface?.ssid()
+            self.lastObservedSSID = newSSID
             
             // 4. Analyze the change
             
             // Case A: Switched to Priority Network (P)
             if newSSID == self.appState.ssidP {
+                self.clearManagedDisconnectContext()
                 self.appState.log("Connected to Priority Network (P). Auto-switch active.")
                 self.refreshStatus()
                 return
@@ -190,41 +204,16 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             // Case B: Disconnected (nil)
             // This is often a transient state during switching. We should NOT stop monitoring.
             if newSSID == nil {
+                if self.isManagedSSID(previousSSID) {
+                    self.lastManagedDisconnectAt = Date()
+                }
                 self.appState.log("Network disconnected. Waiting...")
                 self.refreshStatus()
                 return
             }
             
-            // Case C: Switched to Backup Network (B)
-            if newSSID == self.appState.ssidB {
-                self.appState.log("Switched to Backup Network (B). Checking cause...")
-                
-                // We need to determine if this was Manual (User) or System (Signal Loss).
-                // Heuristic: Scan for P.
-                // - If P is visible and strong -> User likely manually chose B. -> STOP.
-                // - If P is missing or weak -> System likely fell back to B. -> CONTINUE.
-                
-                let networks = await self.getAvailableNetworks()
-                let isPAvailable = networks.contains(self.appState.ssidP)
-                
-                if isPAvailable {
-                    self.stopMonitoring(
-                        logMessage: "⚠️ Network P is available but we are on B. Assuming manual override."
-                    )
-                } else {
-                    self.appState.log("ℹ️ Network P not found. Assuming system fallback. Auto-switch continues.")
-                    // Trigger a check to ensure we are settled
-                    self.checkConnection()
-                }
-                self.refreshStatus()
-                return
-            }
-            
-            // Case D: Switched to Unmanaged Network (Neither P nor B)
-            // We assume this is a manual user action to use a different network.
-            self.stopMonitoring(
-                logMessage: "⚠️ Switched to unmanaged network (\(newSSID ?? "Unknown")). Stopping auto-switch."
-            )
+            // Case C/D: Switched away from priority network.
+            self.handleObservedNetworkChange(to: newSSID)
             self.refreshStatus()
         }
     }
@@ -282,7 +271,8 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         }
     }
     
-    private func checkConnection() {
+    private func checkConnection(scannedNetworks: [WiFiNetworkProtocol]? = nil) {
+        syncConfiguredNetworks()
         self.interface = client.interface()
 
         guard let interface = self.interface else {
@@ -301,14 +291,17 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         }
         
         let currentSSID = interface.ssid()
+        lastObservedSSID = currentSSID
         appState.currentNetworkName = currentSSID ?? "Not Connected"
         
         // Update network type
         if let ssid = currentSSID {
             if ssid == ssidP {
                 appState.connectedNetworkType = .priority
+                clearManagedDisconnectContext()
             } else if ssid == ssidB {
                 appState.connectedNetworkType = .backup
+                clearManagedDisconnectContext()
             } else {
                 appState.connectedNetworkType = .other
             }
@@ -321,10 +314,14 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             return
         }
         
-        // Scan for networks
-        appState.log("Scanning...")
         do {
-            let networks = try scanNetworks()
+            let networks: [WiFiNetworkProtocol]
+            if let scannedNetworks {
+                networks = scannedNetworks
+            } else {
+                appState.log("Scanning...")
+                networks = try scanNetworks()
+            }
             
             // Check for P
             if let targetNetworkP = bestNetwork(named: ssidP, in: networks) {
@@ -348,6 +345,60 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             
         } catch {
             appState.log("Scan failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleObservedNetworkChange(to newSSID: String?) {
+        do {
+            let networks = try scanNetworks()
+            let isPriorityAvailable = bestNetwork(named: appState.ssidP, in: networks) != nil
+            let hasRecentManagedDisconnect = self.hasRecentManagedDisconnect
+            let isLegacyBackup = newSSID == previousBackupSSID && newSSID != appState.ssidB
+
+            if newSSID == appState.ssidB {
+                appState.log("Switched to Backup Network (B). Checking cause...")
+
+                if hasRecentManagedDisconnect {
+                    appState.log("ℹ️ Managed network was just lost. Keeping auto-switch active.")
+                } else if isPriorityAvailable {
+                    appState.log("ℹ️ Priority network is available again. Switching back while keeping auto-switch active.")
+                } else {
+                    appState.log("ℹ️ Network P not found. Assuming system fallback. Auto-switch continues.")
+                }
+
+                // A configured backup is part of the automatic failover flow, so
+                // connecting to it must never be treated as a manual override. Run
+                // the normal priority-first check with this scan result: it returns
+                // to P immediately when P is already visible, otherwise it remains
+                // on B and the scheduled checks continue.
+                checkConnection(scannedNetworks: networks)
+                return
+            }
+
+            if isLegacyBackup {
+                appState.log(
+                    "ℹ️ Switched to previous backup network (\(newSSID ?? "Unknown")). Reconnecting to current backup configuration."
+                )
+                recoverToConfiguredBackupIfNeeded(from: newSSID, networks: networks)
+            } else if hasRecentManagedDisconnect {
+                appState.log(
+                    "ℹ️ Managed network was just lost before switching to \(newSSID ?? "Unknown"). Auto-switch continues."
+                )
+                recoverToConfiguredBackupIfNeeded(from: newSSID, networks: networks)
+            } else if isPriorityAvailable {
+                stopMonitoring(
+                    logMessage: "⚠️ Switched to unmanaged network (\(newSSID ?? "Unknown")). Priority network is still available, assuming manual override."
+                )
+            } else {
+                appState.log(
+                    "ℹ️ Network P not found after switch to \(newSSID ?? "Unknown"). Treating it as system fallback."
+                )
+                recoverToConfiguredBackupIfNeeded(from: newSSID, networks: networks)
+            }
+        } catch {
+            appState.log(
+                "⚠️ Could not verify why Wi-Fi changed to \(newSSID ?? "Unknown"): \(error.localizedDescription)"
+            )
         }
     }
     
@@ -380,6 +431,10 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         
         do {
             try interface.associateNetwork(network, password: password)
+            lastObservedSSID = network.ssid
+            if network.ssid == appState.ssidP || network.ssid == appState.ssidB {
+                clearManagedDisconnectContext()
+            }
             appState.log("Successfully connected to \(network.ssid ?? "Unknown").")
             refreshStatus()
         } catch {
@@ -392,6 +447,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         timer = nil
         nextCheckTime = nil
         appState.isRunning = false
+        clearManagedDisconnectContext()
     }
 
     private func scanNetworks() throws -> [WiFiNetworkProtocol] {
@@ -408,5 +464,59 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         networks
             .filter { $0.ssid == ssid }
             .max(by: { $0.rssiValue < $1.rssiValue })
+    }
+
+    private var hasRecentManagedDisconnect: Bool {
+        guard let lastManagedDisconnectAt else {
+            return false
+        }
+
+        return Date().timeIntervalSince(lastManagedDisconnectAt) <= managedDisconnectWindow
+    }
+
+    private func isManagedSSID(_ ssid: String?) -> Bool {
+        guard let ssid else {
+            return false
+        }
+
+        return ssid == appState.ssidP || ssid == appState.ssidB || ssid == previousBackupSSID
+    }
+
+    private func syncConfiguredNetworks() {
+        guard trackedBackupSSID != appState.ssidB else {
+            return
+        }
+
+        if !trackedBackupSSID.isEmpty {
+            previousBackupSSID = trackedBackupSSID
+        }
+        trackedBackupSSID = appState.ssidB
+    }
+
+    private func clearManagedDisconnectContext() {
+        lastManagedDisconnectAt = nil
+    }
+
+    private func recoverToConfiguredBackupIfNeeded(from currentSSID: String?, networks: [WiFiNetworkProtocol]) {
+        let currentBackupSSID = appState.ssidB
+
+        guard !currentBackupSSID.isEmpty else {
+            appState.log("Current backup network is not configured.")
+            return
+        }
+
+        if currentSSID == currentBackupSSID {
+            appState.log("Connected to current backup network B (\(currentBackupSSID)). Auto-switch continues.")
+            clearManagedDisconnectContext()
+            return
+        }
+
+        if let targetNetworkB = bestNetwork(named: currentBackupSSID, in: networks) {
+            appState.log("Priority network lost. Reconnecting to current backup network (\(currentBackupSSID)).")
+            connect(to: targetNetworkB, password: appState.passwordB)
+            return
+        }
+
+        appState.log("Current backup network (\(currentBackupSSID)) not found. Waiting for next check.")
     }
 }

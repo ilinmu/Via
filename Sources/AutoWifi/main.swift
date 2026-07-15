@@ -4,6 +4,42 @@ import Combine
 import AutoWifiCore
 
 @MainActor
+final class FocusablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command),
+              let key = event.charactersIgnoringModifiers?.lowercased(),
+              let action = Self.editingAction(for: key)
+        else {
+            return super.performKeyEquivalent(with: event)
+        }
+
+        if NSApp.sendAction(action, to: nil, from: self) {
+            return true
+        }
+
+        return super.performKeyEquivalent(with: event)
+    }
+
+    private static func editingAction(for key: String) -> Selector? {
+        switch key {
+        case "x":
+            return #selector(NSText.cut(_:))
+        case "c":
+            return #selector(NSText.copy(_:))
+        case "v":
+            return #selector(NSText.paste(_:))
+        case "a":
+            return #selector(NSText.selectAll(_:))
+        default:
+            return nil
+        }
+    }
+}
+
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var window: NSPanel!
@@ -11,18 +47,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var wifiManager: WifiManager!
     var cancellables = Set<AnyCancellable>()
     var eventMonitor: Any?
+    var preferredPanelHeight: CGFloat = 440
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Initialize WifiManager
         wifiManager = WifiManager(appState: appState)
         
         // Create the SwiftUI view
-        let contentView = SettingsView(appState: appState, wifiManager: wifiManager)
+        let contentView = SettingsView(
+            appState: appState,
+            wifiManager: wifiManager
+        ) { [weak self] newHeight in
+            self?.updateWindowHeight(to: newHeight)
+        }
 
         // Create the window (NSPanel) instead of NSPopover
-        let window = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 600),
-            styleMask: [.borderless, .nonactivatingPanel],
+        let window = FocusablePanel(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: SettingsView.panelWidth,
+                height: preferredPanelHeight
+            ),
+            styleMask: [.borderless],
             backing: .buffered, defer: false
         )
         window.contentView = NSHostingView(rootView: contentView)
@@ -131,25 +178,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func showPopover(sender: AnyObject?) {
-        if let button = statusItem.button {
-            // Calculate position
-            let buttonRect = button.window?.convertToScreen(button.frame) ?? .zero
-            let windowHeight = window.frame.height
-            let windowWidth = window.frame.width
-            
-            // Center horizontally below button
-            let x = buttonRect.origin.x + (buttonRect.width / 2) - (windowWidth / 2)
-            // Position directly below button
-            let y = buttonRect.origin.y - windowHeight - 2 // 2px gap
-            
-            window.setFrameOrigin(NSPoint(x: x, y: y))
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        var frame = window.frame
+        frame.size = NSSize(width: SettingsView.panelWidth, height: preferredPanelHeight)
+        if let origin = panelOrigin(for: frame.size) {
+            frame.origin = origin
         }
+
+        window.setFrame(frame, display: false)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
     
     func closePopover(sender: AnyObject?) {
         window.orderOut(sender)
+    }
+
+    private func updateWindowHeight(to measuredHeight: CGFloat) {
+        guard window != nil else { return }
+
+        let targetHeight = max(ceil(measuredHeight), 360)
+        preferredPanelHeight = targetHeight
+
+        guard abs(window.frame.height - targetHeight) > 1 else { return }
+
+        var frame = window.frame
+        frame.size = NSSize(width: SettingsView.panelWidth, height: targetHeight)
+
+        if window.isVisible, let origin = panelOrigin(for: frame.size) {
+            frame.origin = origin
+        }
+
+        window.setFrame(frame, display: window.isVisible)
+    }
+
+    private func panelOrigin(for size: NSSize) -> NSPoint? {
+        guard let button = statusItem.button else { return nil }
+
+        let buttonRect = button.window?.convertToScreen(button.frame) ?? .zero
+        let x = buttonRect.origin.x + (buttonRect.width / 2) - (size.width / 2)
+        let y = buttonRect.origin.y - size.height - 2
+        return NSPoint(x: x, y: y)
     }
 }
 
