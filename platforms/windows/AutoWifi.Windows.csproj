@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>AutoWifi</AssemblyName>
+    <RootNamespace>AutoWifi.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\core\target\x86_64-pc-windows-msvc\release\autowifi_core.dll"
+          Link="autowifi_core.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('..\..\core\target\x86_64-pc-windows-msvc\release\autowifi_core.dll')" />
+    <None Include="..\..\core\target\release\autowifi_core.dll"
+          Link="autowifi_core.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('..\..\core\target\release\autowifi_core.dll')" />
+  </ItemGroup>
+
+</Project>

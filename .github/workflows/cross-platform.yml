@@ -1,0 +1,244 @@
+name: Cross-platform CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  core-tests:
+    name: Core tests (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path core/Cargo.toml --all -- --check
+
+      - name: Run workspace tests
+        run: cargo test --manifest-path core/Cargo.toml --workspace
+
+  macos-tests:
+    name: macOS tests (Swift + Rust)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build policy core
+        run: cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+
+      - name: Run Swift tests
+        run: swift test
+
+      - name: Build macOS app
+        run: swift build -c release
+
+  build-macos:
+    name: Build macOS app
+    needs: [core-tests, macos-tests]
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build policy core
+        run: cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+
+      - name: Package app
+        env:
+          SIGN_IDENTITY: ""
+        run: scripts/package-app.sh
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoWifi-macos
+          path: dist/AutoWifi-macos.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  build-ios:
+    name: Build iOS app
+    needs: [core-tests, macos-tests]
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build XCFramework
+        run: scripts/build-ios-core.sh
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: platforms/ios
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: >
+          xcodebuild
+          -project platforms/ios/AutoWifi.xcodeproj
+          -scheme AutoWifi
+          -configuration Release
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - name: Archive unsigned device build
+        run: |
+          mkdir -p dist
+          xcodebuild \
+            -project platforms/ios/AutoWifi.xcodeproj \
+            -scheme AutoWifi \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath dist/AutoWifi-ios.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoWifi-ios
+          path: dist/AutoWifi-ios.xcarchive
+          if-no-files-found: error
+          retention-days: 14
+
+  build-windows:
+    name: Build Windows app
+    needs: [core-tests, macos-tests]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build policy core
+        shell: pwsh
+        run: ./scripts/build-windows-core.ps1
+
+      - name: Build and publish app
+        run: >
+          dotnet publish platforms/windows/AutoWifi.Windows.csproj
+          -c Release
+          -r win-x64
+          --self-contained false
+          -o dist/windows
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoWifi-windows
+          path: dist/windows
+          if-no-files-found: error
+          retention-days: 14
+
+  build-android:
+    name: Build Android app
+    needs: [core-tests, macos-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;27.1.12297006"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+
+      - name: Build JNI libraries
+        run: scripts/build-android-core.sh
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Build debug APK
+        working-directory: platforms/android
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoWifi-android
+          path: platforms/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

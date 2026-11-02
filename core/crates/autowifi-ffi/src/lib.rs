@@ -474,11 +474,10 @@ pub unsafe extern "C" fn aw_engine_observed_change(
     };
     let previous = opt_string(previous_ssid);
     let new = opt_string(new_ssid);
-    let actions = engine.inner.observed_change(
-        previous.as_deref(),
-        new.as_deref(),
-        now_ms.max(0) as u64,
-    );
+    let actions =
+        engine
+            .inner
+            .observed_change(previous.as_deref(), new.as_deref(), now_ms.max(0) as u64);
     write_result(engine, actions, out);
 }
 

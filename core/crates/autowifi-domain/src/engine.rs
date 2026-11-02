@@ -516,13 +516,9 @@ impl Engine {
 
                 if is_backup {
                     if self.recent_programmatic_backup(now_ms) {
-                        return vec![
-                            Action::Log(LogEvent::AutomaticFailover),
-                            Action::CheckNow,
-                        ];
+                        return vec![Action::Log(LogEvent::AutomaticFailover), Action::CheckNow];
                     }
-                    self.pending =
-                        Pending::Classification(ClassificationContext::BackupChange);
+                    self.pending = Pending::Classification(ClassificationContext::BackupChange);
                     return vec![Action::Scan(ScanPurpose::PriorityClassification)];
                 }
 
@@ -534,8 +530,7 @@ impl Engine {
                     ];
                 }
 
-                self.pending =
-                    Pending::Classification(ClassificationContext::UnmanagedChange);
+                self.pending = Pending::Classification(ClassificationContext::UnmanagedChange);
                 vec![Action::Scan(ScanPurpose::PriorityClassification)]
             }
         }
@@ -781,10 +776,7 @@ mod tests {
 
         assert_eq!(
             engine.observed_change(Some("X"), Some("B"), 40),
-            vec![
-                Action::Log(LogEvent::AutomaticFailover),
-                Action::CheckNow
-            ]
+            vec![Action::Log(LogEvent::AutomaticFailover), Action::CheckNow]
         );
 
         engine.association_result("B", generation, AssociationOutcome::Success, 50);
@@ -870,12 +862,13 @@ mod tests {
         assert_eq!(engine.scan_result(true, 10), vec![Action::CheckNow]);
 
         engine.check_begin(20, Permission::Authorized, None);
-        assert_eq!(engine.scan_result(true, 30), vec![
-            Action::Associate {
+        assert_eq!(
+            engine.scan_result(true, 30),
+            vec![Action::Associate {
                 ssid: "P2".to_string(),
                 role: Role::Priority,
-            }
-        ]);
+            }]
+        );
     }
 
     #[test]

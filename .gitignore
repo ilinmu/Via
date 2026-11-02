@@ -4,3 +4,19 @@ core/target/
 dist/
 *.app/
 .DS_Store
+
+# Generated platform build output
+platforms/android/.gradle/
+platforms/android/build/
+platforms/android/app/build/
+platforms/android/local.properties
+platforms/android/app/src/main/jniLibs/
+platforms/ios/AutoWifi.xcodeproj/
+platforms/ios/Frameworks/
+platforms/ios/build/
+platforms/ios/DerivedData/
+platforms/windows/bin/
+platforms/windows/obj/
+*.xcuserstate
+*.iml
+.idea/

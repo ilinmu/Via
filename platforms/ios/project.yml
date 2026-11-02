@@ -1,0 +1,48 @@
+name: AutoWifi
+options:
+  bundleIdPrefix: com.autowifi
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  AutoWifi:
+    type: application
+    platform: iOS
+    sources:
+      - path: AutoWifi
+        excludes:
+          - "Info.plist"
+          - "AutoWifi.entitlements"
+          - "AutoWifi-Bridging-Header.h"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.autowifi.ios
+        PRODUCT_NAME: AutoWifi
+        INFOPLIST_FILE: AutoWifi/Info.plist
+        CODE_SIGN_ENTITLEMENTS: AutoWifi/AutoWifi.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: AutoWifi/AutoWifi-Bridging-Header.h
+        HEADER_SEARCH_PATHS: $(PROJECT_DIR)/Frameworks/include
+        OTHER_LDFLAGS: $(inherited) -framework NetworkExtension -framework CoreLocation -framework Security
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+    dependencies:
+      - framework: Frameworks/AutoWifiCore.xcframework
+        embed: false
+
+schemes:
+  AutoWifi:
+    build:
+      targets:
+        AutoWifi: all
+    run:
+      config: Debug
+    archive:
+      config: Release
