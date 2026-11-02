@@ -12,7 +12,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/platforms/android/app/src/main/jniLibs"
-MANIFEST="$ROOT_DIR/core/Cargo.toml"
 
 if ! command -v cargo-ndk >/dev/null 2>&1; then
   echo "cargo-ndk is required: cargo install cargo-ndk" >&2
@@ -23,12 +22,17 @@ if [[ -z "${ANDROID_NDK_HOME:-}" && -z "${ANDROID_NDK_ROOT:-}" && -n "${ANDROID_
   export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
 fi
 
-cargo ndk \
-  -t arm64-v8a \
-  -t armeabi-v7a \
-  -t x86_64 \
-  -o "$OUT_DIR" \
-  build --manifest-path "$MANIFEST" -p autowifi-jni --release
+# cargo-ndk runs `cargo metadata` in the current directory, so build from the
+# workspace root rather than passing --manifest-path.
+(
+  cd "$ROOT_DIR/core"
+  cargo ndk \
+    -t arm64-v8a \
+    -t armeabi-v7a \
+    -t x86_64 \
+    -o "$OUT_DIR" \
+    build -p autowifi-jni --release
+)
 
 echo "JNI libraries:"
 find "$OUT_DIR" -name 'libautowifi_jni.so' -print
