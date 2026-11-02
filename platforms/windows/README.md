@@ -13,6 +13,16 @@
 - `CredentialStore.cs`：Windows Credential Manager。
 - `SettingsStore.cs`：`%LocalAppData%\AutoWifi\settings.json` 与开机启动注册表项。
 
+## 测试
+
+先运行 `scripts/build-windows-core.ps1` 生成 `autowifi_core.dll`，然后：
+
+```powershell
+dotnet test platforms/windows.tests/AutoWifi.Windows.Tests.csproj
+```
+
+xUnit 测试覆盖设置归一化、本地化文案，以及通过 C ABI 驱动的策略引擎行为。
+
 ## 构建
 
 需要 .NET 8 SDK 和 Rust stable。

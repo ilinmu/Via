@@ -114,7 +114,11 @@ APK 输出在 `platforms/android/app/build/outputs/apk/debug/`。
 
 1. `core-tests`：Rust 格式检查和 workspace 测试（Ubuntu）。
 2. `macos-tests`：构建策略核心并运行 `swift test`（macOS）。
-3. 测试通过后并行构建四个平台：
+3. 平台测试：
+   - `windows-tests`：编译 Rust DLL 并运行 `platforms/windows.tests` 的 xUnit 测试（Windows）。
+   - `ios-tests`：构建 XCFramework，在 iOS 模拟器上运行 XCTest（macOS）。
+   - `android-tests`：运行 `gradle testDebugUnitTest`（Ubuntu）。
+4. 对应平台的测试通过后并行构建四个平台：
    - `build-macos`：打包未签名 `.app` 并压缩为 `AutoWifi-macos.zip`。
    - `build-ios`：构建 XCFramework、生成 Xcode 工程、模拟器编译并归档未签名设备包。
    - `build-windows`：编译 Rust DLL，`dotnet publish` 自包含关闭的 `win-x64` 产物。

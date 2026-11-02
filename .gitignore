@@ -17,6 +17,8 @@ platforms/ios/build/
 platforms/ios/DerivedData/
 platforms/windows/bin/
 platforms/windows/obj/
+platforms/windows.tests/bin/
+platforms/windows.tests/obj/
 *.xcuserstate
 *.iml
 .idea/

@@ -62,6 +62,96 @@ jobs:
       - name: Build macOS app
         run: swift build -c release
 
+  windows-tests:
+    name: Windows tests (.NET)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build policy core
+        shell: pwsh
+        run: ./scripts/build-windows-core.ps1
+
+      - name: Run xUnit tests
+        run: >
+          dotnet test platforms/windows.tests/AutoWifi.Windows.Tests.csproj
+          -c Release
+          --logger "console;verbosity=normal"
+
+  ios-tests:
+    name: iOS tests (XCTest)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build XCFramework
+        run: scripts/build-ios-core.sh
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: platforms/ios
+        run: xcodegen generate
+
+      - name: Run XCTest
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone[^(]*' | head -1 | xargs)
+          echo "Using simulator: $DEVICE"
+          xcodebuild test \
+            -project platforms/ios/AutoWifi.xcodeproj \
+            -scheme AutoWifi \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            CODE_SIGNING_ALLOWED=NO
+
+  android-tests:
+    name: Android tests (JUnit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install SDK platform
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Run JVM unit tests
+        working-directory: platforms/android
+        run: gradle testDebugUnitTest --no-daemon --stacktrace
+
   build-macos:
     name: Build macOS app
     needs: [core-tests, macos-tests]
@@ -95,7 +185,7 @@ jobs:
 
   build-ios:
     name: Build iOS app
-    needs: [core-tests, macos-tests]
+    needs: [core-tests, macos-tests, ios-tests]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -156,7 +246,7 @@ jobs:
 
   build-windows:
     name: Build Windows app
-    needs: [core-tests, macos-tests]
+    needs: [core-tests, macos-tests, windows-tests]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -191,7 +281,7 @@ jobs:
 
   build-android:
     name: Build Android app
-    needs: [core-tests, macos-tests]
+    needs: [core-tests, macos-tests, android-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

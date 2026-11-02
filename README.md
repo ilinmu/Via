@@ -81,7 +81,8 @@ dotnet publish platforms/windows/AutoWifi.Windows.csproj -c Release -r win-x64 -
 ```
 
 GitHub Actions 工作流 `.github/workflows/cross-platform.yml` 会在 push 和 pull
-request 时先运行 Rust 与 Swift 测试，再构建四个平台的产物并上传为 artifacts。
+request 时先运行 Rust、macOS Swift、iOS XCTest、Windows xUnit 与 Android JUnit
+测试，全部通过后再构建四个平台的产物并上传为 artifacts。
 
 ## 权限与安全
 
