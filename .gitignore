@@ -1,1 +1,6 @@
 .build/
+.swiftpm/
+core/target/
+dist/
+*.app/
+.DS_Store

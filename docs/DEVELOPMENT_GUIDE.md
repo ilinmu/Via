@@ -16,12 +16,14 @@ AutoWifi 是一个 macOS 菜单栏应用，用来在两个 Wi-Fi 之间做自动
 - macOS 13 或更高
 - Xcode 15+/Command Line Tools
 - Swift 6 工具链
+- Rust 工具链（建议 1.75+，用于构建共享策略核心）
 
 先确认命令可用：
 
 ```bash
 swift --version
 xcodebuild -version
+cargo --version
 ```
 
 ## 3. 仓库结构与开发入口
@@ -33,10 +35,16 @@ xcodebuild -version
 - [Sources/AutoWifi/main.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/main.swift)
   菜单栏应用入口，负责状态栏图标、弹出面板和 App 生命周期。
 - [Sources/AutoWifiCore/AppState.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/AppState.swift)
-  应用状态中心，负责配置持久化、密码本地存储、开机启动状态等。
+  应用状态中心，负责配置持久化、开机启动状态和网络状态发布。
+- [Sources/AutoWifiCore/CredentialStore.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/CredentialStore.swift)
+  Wi-Fi 密码的 Keychain 读写与旧数据迁移。
 - [Sources/AutoWifiCore/WifiManager.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/WifiManager.swift)
   核心业务逻辑入口，负责 Wi-Fi 扫描、自动切换、定时检测和权限相关逻辑。
-- [Sources/AutoWifiCore/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/SettingsView.swift)
+- [Sources/AutoWifiCore/WifiPolicy.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/WifiPolicy.swift)
+  共享策略核心的 Swift 封装，通过 `dlopen` 加载 Rust 动态库。
+- [core/README.md](/Users/linmu/git/auto-wifi/core/README.md)
+  跨平台策略核心的目录结构、C ABI 约定与接入方式。
+- [Sources/AutoWifi/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/SettingsView.swift)
   配置面板 UI。
 - [Sources/AutoWifiCore/LaunchAtLoginManager.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/LaunchAtLoginManager.swift)
   登录启动逻辑封装。
@@ -49,7 +57,9 @@ xcodebuild -version
 2. 再看 [Package.swift](/Users/linmu/git/auto-wifi/Package.swift) 确认目标结构。
 3. 读 [Sources/AutoWifi/main.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/main.swift) 了解应用怎么启动。
 4. 读 [Sources/AutoWifiCore/AppState.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/AppState.swift) 和 [Sources/AutoWifiCore/WifiManager.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/WifiManager.swift) 了解状态与核心逻辑。
-5. 最后看 [Sources/AutoWifiCore/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/SettingsView.swift) 了解 UI 绑定方式。
+5. 读 [core/README.md](/Users/linmu/git/auto-wifi/core/README.md) 了解共享策略核心的边界和接入方式。
+6. 最后看 [Sources/AutoWifi/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/SettingsView.swift) 了解 UI 绑定方式。
+7. 涉及界面时读 [docs/UI_DESIGN.md](/Users/linmu/git/auto-wifi/docs/UI_DESIGN.md) 了解视觉与术语约束。
 
 ## 4. 本地开发从哪里开始
 
@@ -66,6 +76,22 @@ swift test
 - Swift 工具链可用
 - 当前代码能编译
 - 核心自动切换逻辑没有明显回归
+
+策略核心有独立的 Rust 测试：
+
+```bash
+cargo test --manifest-path core/Cargo.toml
+```
+
+再构建动态库并跑 C ABI 冒烟：
+
+```bash
+scripts/build-core.sh
+swift run PolicySmoke
+```
+
+`PolicySmoke` 成功时输出 `policy smoke ok`。如果只想验证 C ABI，也可以直接
+编译 `core/tests/ffi_smoke.c`，具体命令见 [core/README.md](/Users/linmu/git/auto-wifi/core/README.md)。
 
 ### 4.2 本地构建可执行文件
 
@@ -96,23 +122,43 @@ swift run AutoWifi
 
 ```bash
 swiftc -typecheck auto-wifi-cli.swift
-swift auto-wifi-cli.swift
+swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 ```
+
+密码会在终端中以隐藏回显方式提示输入，不再接受命令行密码参数，避免出现在 `ps` 或 Shell 历史中。
 
 ## 5. 常见开发任务从哪里改
 
 ### 5.1 改 Wi-Fi 自动切换策略
 
-优先看：
+策略决定优先改共享核心：
 
-- [Sources/AutoWifiCore/WifiManager.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/WifiManager.swift)
+- [core/crates/autowifi-domain/src/engine.rs](/Users/linmu/git/auto-wifi/core/crates/autowifi-domain/src/engine.rs)
 
 这里包含：
 
-- 扫描当前网络
-- 定时检测
-- 在 `P/B` 间切换
-- 用户手动切网时停止监控
+- 扫描时机
+- 在 `P/B` 间切换的条件
+- 关联超时、冷却与代次
+- 用户手动切网的识别
+- 权限与配置变化的处理
+
+改完必须同步：
+
+- [core/crates/autowifi-domain/src/model.rs](/Users/linmu/git/auto-wifi/core/crates/autowifi-domain/src/model.rs)
+  中的动作、事件与状态类型
+- [core/crates/autowifi-ffi/src/lib.rs](/Users/linmu/git/auto-wifi/core/crates/autowifi-ffi/src/lib.rs)
+  和 [core/include/autowifi_core.h](/Users/linmu/git/auto-wifi/core/include/autowifi_core.h)
+  的 C ABI 映射
+- [Sources/AutoWifiCore/WifiPolicy.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/WifiPolicy.swift)
+  的 Swift 枚举与结构
+
+平台 API 的调用仍看：
+
+- [Sources/AutoWifiCore/WifiManager.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/WifiManager.swift)
+
+当前主检查流程尚未完全迁移到核心；修改策略时要注意 Swift 分支与 Rust 测试
+保持一致，避免两边行为分叉。
 
 ### 5.2 改设置项持久化或默认值
 
@@ -123,7 +169,7 @@ swift auto-wifi-cli.swift
 这里包含：
 
 - `UserDefaults` 配置项
-- 本地密码存储
+- Keychain 密码存储（`CredentialStore`）
 - 检查间隔规范化
 - 登录启动开关
 
@@ -131,10 +177,23 @@ swift auto-wifi-cli.swift
 
 优先看：
 
-- [Sources/AutoWifiCore/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifiCore/SettingsView.swift)
+- [Sources/AutoWifi/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/SettingsView.swift)
 - [Sources/AutoWifi/main.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/main.swift)
 
 前者是弹出面板内容，后者是菜单栏图标、窗口和 App 生命周期。
+
+当前 UI 采用深色科技控制台设计。修改前先阅读：
+
+- [docs/UI_DESIGN.md](/Users/linmu/git/auto-wifi/docs/UI_DESIGN.md)
+
+需要保持的约束包括：
+
+- 面板宽度为 400 点，高度动态测量。
+- `00 / LINK STATUS`、`01 / PRIMARY`、`02 / BACKUP`、`03 / AUTOMATION` 使用各自固定信号色。
+- `BACKUP` 是备用网络模块的统一术语，不使用 `FAILOVER` 作为配置模块名。
+- 扫描网络、自动切换和下次检查位于当前网络模块的同一行。
+- 顶部 hover 提示应锚定各自按钮，帮助面板应沿用主界面配色。
+- 底层接口名和原始运行日志不应直接作为首页状态文案。
 
 ### 5.4 改文案与多语言
 
@@ -166,13 +225,14 @@ macOS 会把 SSID 和 Wi-Fi 扫描结果视作定位相关信息，所以项目�
 
 ### 6.3 本地密码存储与签名
 
-项目当前把 Wi-Fi 密码保存在应用本地存储中，不访问 macOS Keychain，因此不会触发钥匙串访问提示。
+Wi-Fi 密码通过 `Security` 框架写入当前用户登录钥匙串的通用密码项（generic password），服务名为 `com.linmu.AutoWifi`，账户名为 `passwordP` / `passwordB`。应用不会把密码上传到网络服务。
 
 需要注意：
 
-- 这种方式的体验更直接，但安全性弱于 Keychain。
-- 如果后续要重新提高密码保护等级，可以再评估加密存储或重新接入 Keychain。
-- 打包签名依然只和发布体验、系统信任链有关，不影响本地密码存储机制。
+- 沙盒应用使用自身默认的钥匙串访问组即可读写自己创建的密码项，不需要额外的 keychain access group；如需跨应用共享才需要声明 `keychain-access-groups`。
+- 旧版本把密码明文写在 `UserDefaults` 的 `passwordP` / `passwordB` 键中。首次启动时 `AppState` 会读取这些旧值写入钥匙串，并在回读校验成功后删除旧键；如果钥匙串写入或读取失败，会保留旧明文并在设置面板显示警告，下次启动自动重试。
+- 密码输入采用 400ms 防抖，应用退出前调用 `flushPendingPasswordSaves()` 立即落盘；写入失败同样会显示可见警告。
+- 未签名的本地调试构建也能使用默认钥匙串；正式发布仍应使用签名后的 `.app`，避免每次构建被系统视为不同应用。
 
 ## 7. 当前项目怎么打包
 
@@ -180,12 +240,13 @@ macOS 会把 SSID 和 Wi-Fi 扫描结果视作定位相关信息，所以项目�
 
 这个仓库没有现成的 Xcode 工程或 CI 打包流程，因此当前打包方式是：
 
-1. 用 SwiftPM 构建 release 可执行文件
-2. 组装 `.app` bundle 目录
-3. 写入 `Info.plist`
-4. 生成 `.icns` 图标
-5. 可选地进行 codesign
-6. 输出 zip 包
+1. 用 Cargo 构建共享策略核心 `libautowifi_core.dylib`
+2. 用 SwiftPM 构建 release 可执行文件
+3. 组装 `.app` bundle 目录，把动态库放进 `Contents/Frameworks/`
+4. 写入 `Info.plist`
+5. 生成 `.icns` 图标
+6. 先签名动态库，再签名 App
+7. 输出 zip 包
 
 我已经把这套流程整理成脚本：
 
@@ -205,8 +266,10 @@ scripts/package-app.sh
 
 默认行为：
 
+- 先构建 release 策略核心，并复制到 `dist/libautowifi_core.dylib`
 - 构建 `release`
 - 输出到 `dist/AutoWifi.app`
+- 动态库嵌入 `Contents/Frameworks/libautowifi_core.dylib`
 - 生成 `dist/AutoWifi-macos.zip`
 - 使用 ad-hoc 签名（`SIGN_IDENTITY=-`）
 
@@ -307,6 +370,14 @@ VERSION="1.0.1" BUILD_NUMBER="12" scripts/package-app.sh
 4. 再跑一次 `swift test`
 5. 需要体验真实行为时运行 `swift run AutoWifi`
 6. 需要交付测试包时执行 `scripts/package-app.sh`
+
+UI 调整还应检查：
+
+- 中文和英文状态是否都能完整显示。
+- 四个模块的颜色是否仍可明确区分。
+- 最右侧按钮的 hover 提示是否保持在面板范围内。
+- 帮助 Popover 是否使用深色背景且正文可以滚动。
+- 扫描前、扫描中和扫描后的第三个状态单元是否正确变化。
 
 ## 11. 常见排查思路
 

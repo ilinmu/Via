@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "AutoWifi";
+"NSLocationUsageDescription" = "AutoWifi needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.";
+"NSLocationWhenInUseUsageDescription" = "AutoWifi needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.";

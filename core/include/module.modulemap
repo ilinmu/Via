@@ -1,0 +1,4 @@
+module CAutoWifiCore {
+    header "autowifi_core.h"
+    export *
+}

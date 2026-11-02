@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "AutoWifi", targets: ["AutoWifi"]),
+        .executable(name: "PolicySmoke", targets: ["PolicySmoke"]),
         .library(name: "AutoWifiCore", targets: ["AutoWifiCore"])
     ],
     targets: [
@@ -17,9 +18,22 @@ let package = Package(
             name: "AutoWifi",
             dependencies: ["AutoWifiCore"]
         ),
+        .systemLibrary(
+            name: "CAutoWifiCore",
+            path: "core/include"
+        ),
+        .executableTarget(
+            name: "PolicySmoke",
+            dependencies: ["AutoWifiCore"],
+            path: "Tools/PolicySmoke"
+        ),
         .target(
             name: "AutoWifiCore",
-            dependencies: []
+            dependencies: ["CAutoWifiCore"],
+            linkerSettings: [
+                .linkedFramework("SystemConfiguration"),
+                .linkedFramework("Security")
+            ]
         ),
         .testTarget(
             name: "AutoWifiTests",

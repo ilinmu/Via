@@ -10,8 +10,11 @@ APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
+CORE_DYLIB="$ROOT_DIR/core/target/$CONFIGURATION/libautowifi_core.dylib"
 INFO_PLIST_TEMPLATE="$ROOT_DIR/AutoWifi/Info.plist"
 ENTITLEMENTS_PATH="$ROOT_DIR/AutoWifi/AutoWifi.entitlements"
+PRIVACY_MANIFEST="$ROOT_DIR/AutoWifi/PrivacyInfo.xcprivacy"
 ICON_SOURCE="$ROOT_DIR/AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
 BUNDLE_ID="${BUNDLE_ID:-com.linmu.AutoWifi}"
 VERSION="${VERSION:-1.0}"
@@ -23,6 +26,34 @@ TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/autowifi-package.XXXXXX")"
 
 cleanup() {
   rm -rf "$TMP_DIR"
+}
+
+# Command Line Tools can ship a SDK whose SwiftUI declares @State as a macro
+# while omitting the SwiftUIMacros plugin (that plugin ships with Xcode). In
+# that setup, fall back to the newest installed SDK that still uses the
+# property-wrapper implementation.
+select_swift_sdk() {
+  if [[ -n "${SDKROOT:-}" ]]; then
+    return
+  fi
+
+  local swift_bin plugins_dir
+  swift_bin="$(xcrun --find swift 2>/dev/null || true)"
+  [[ -n "$swift_bin" ]] || return
+  plugins_dir="$(cd "$(dirname "$swift_bin")/../lib/swift/host/plugins" 2>/dev/null && pwd || true)"
+  if [[ -n "$plugins_dir" && -e "$plugins_dir/libSwiftUIMacros.dylib" ]]; then
+    return
+  fi
+
+  local sdk interface
+  while IFS= read -r sdk; do
+    interface="$sdk/System/Library/Frameworks/SwiftUICore.framework/Modules/SwiftUICore.swiftmodule/arm64e-apple-macos.swiftinterface"
+    if [[ -f "$interface" ]] && ! grep -q 'macro State' "$interface"; then
+      export SDKROOT="$sdk"
+      echo "==> SwiftUIMacros is unavailable; building with SDK at $sdk"
+      return
+    fi
+  done < <(ls -d /Library/Developer/CommandLineTools/SDKs/MacOSX*.sdk 2>/dev/null | sort -r)
 }
 
 show_help() {
@@ -71,23 +102,35 @@ if [[ "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
+echo "==> Building the shared policy core ($CONFIGURATION)"
+"$ROOT_DIR/scripts/build-core.sh" "$CONFIGURATION"
+
+select_swift_sdk
+
 echo "==> Building $APP_NAME ($CONFIGURATION)"
 (
   cd "$ROOT_DIR"
   swift build -c "$CONFIGURATION"
 )
 
-EXECUTABLE_PATH="$(find "$ROOT_DIR/.build" -path "*/$CONFIGURATION/$APP_NAME" -type f | head -n 1)"
-if [[ -z "$EXECUTABLE_PATH" ]]; then
-  echo "Could not find built executable for $APP_NAME." >&2
+BIN_PATH="$(cd "$ROOT_DIR" && swift build -c "$CONFIGURATION" --show-bin-path)"
+EXECUTABLE_PATH="$BIN_PATH/$APP_NAME"
+if [[ ! -f "$EXECUTABLE_PATH" ]]; then
+  echo "Could not find built executable for $APP_NAME at $EXECUTABLE_PATH." >&2
   exit 1
 fi
 
 echo "==> Preparing app bundle at $APP_DIR"
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 cp "$EXECUTABLE_PATH" "$MACOS_DIR/$APP_NAME"
 chmod +x "$MACOS_DIR/$APP_NAME"
+
+if [[ ! -f "$CORE_DYLIB" ]]; then
+  echo "Could not find the policy core at $CORE_DYLIB." >&2
+  exit 1
+fi
+cp "$CORE_DYLIB" "$FRAMEWORKS_DIR/libautowifi_core.dylib"
 
 INFO_PLIST_PATH="$CONTENTS_DIR/Info.plist"
 cp "$INFO_PLIST_TEMPLATE" "$INFO_PLIST_PATH"
@@ -99,6 +142,17 @@ set_plist_string "$INFO_PLIST_PATH" "CFBundleVersion" "$BUILD_NUMBER"
 set_plist_string "$INFO_PLIST_PATH" "LSMinimumSystemVersion" "$MIN_SYSTEM_VERSION"
 set_plist_string "$INFO_PLIST_PATH" "CFBundleIconFile" "AppIcon"
 /usr/libexec/PlistBuddy -c "Delete :NSMainStoryboardFile" "$INFO_PLIST_PATH" >/dev/null 2>&1 || true
+
+if [[ -f "$PRIVACY_MANIFEST" ]]; then
+  cp "$PRIVACY_MANIFEST" "$RESOURCES_DIR/PrivacyInfo.xcprivacy"
+fi
+
+for localization in en zh-Hans; do
+  source_dir="$ROOT_DIR/AutoWifi/$localization.lproj"
+  if [[ -d "$source_dir" ]]; then
+    cp -R "$source_dir" "$RESOURCES_DIR/"
+  fi
+done
 
 if [[ -f "$ICON_SOURCE" ]]; then
   echo "==> Building app icon"
@@ -118,8 +172,13 @@ if [[ -f "$ICON_SOURCE" ]]; then
 fi
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
+  echo "==> Signing policy core"
+  codesign --force --sign "$SIGN_IDENTITY" "$FRAMEWORKS_DIR/libautowifi_core.dylib"
+
   echo "==> Signing app bundle ($SIGN_IDENTITY)"
-  codesign --force --deep --sign "$SIGN_IDENTITY" \
+  # The embedded policy core is signed above; sign the app itself rather than
+  # using the discouraged --deep flag.
+  codesign --force --sign "$SIGN_IDENTITY" \
     --entitlements "$ENTITLEMENTS_PATH" \
     "$APP_DIR"
 else

@@ -10,7 +10,7 @@
 - `Sources/AutoWifi/main.swift`
 - `Sources/AutoWifiCore/AppState.swift`
 - `Sources/AutoWifiCore/WifiManager.swift`
-- `Sources/AutoWifiCore/SettingsView.swift`
+- `Sources/AutoWifi/SettingsView.swift`
 - `Sources/AutoWifiCore/LocalizationManager.swift`
 - `Sources/AutoWifiCore/LaunchAtLoginManager.swift`
 - `Tests/AutoWifiTests/AutoWifiTests.swift`
@@ -18,9 +18,10 @@
 - `AutoWifi/Info.plist`
 - `AutoWifi/AutoWifi.entitlements`
 - `scripts/package-app.sh`
+- `docs/UI_DESIGN.md`
 - README 和 `docs` 下已有文档
 
-说明：仓库中的 README 和旧评审文档有少量内容已经落后于当前实现。本文档在相关章节中会明确指出差异，并以源码行为作为最终依据。
+界面视觉和交互规范另见 `docs/UI_DESIGN.md`。本文档与 README、项目评审记录已按当前实现同步；源码仍是最终依据。
 
 ## 2. 应用定位与核心规则
 
@@ -34,8 +35,11 @@ AutoWifi 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两�
 1. 只要扫描结果中存在 P，就优先连接 P。
 2. P 不存在时，如果当前不在 B，并且扫描结果中存在 B，则连接 B。
 3. 当前在 B 时继续定时扫描；P 恢复后切回 P。
-4. 切到配置的 B 属于正常托管流程，不会关闭自动切换。
-5. 用户切到 P/B 之外的网络时，代码通过启发式规则判断这是手动覆盖还是系统回退：
+4. P 断开时立即扫描 B：B 可见则主动连接 B；B 也不可见时才交由 macOS 自行选择网络。
+5. 切到配置的 B 时，按上下文判断是自动回退还是手动切换：
+   - 扫描中 P 不可见，属于系统回退（P 丢失后落到 B），保持自动切换。
+   - 扫描中 P 仍可见，视为手动切换，停止自动切换（图标显示红点）。
+6. 用户切到 P/B 之外的网络时，代码通过启发式规则判断这是手动覆盖还是系统回退：
    - 判断为手动覆盖时停止自动切换。
    - 判断为系统回退时保持自动切换，并尝试恢复到当前配置的 B。
 
@@ -43,15 +47,24 @@ AutoWifi 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两�
 
 ### 3.1 Swift Package 目标
 
-`Package.swift` 定义三个目标：
+`Package.swift` 定义以下目标：
 
 | 目标 | 类型 | 职责 |
 | --- | --- | --- |
-| `AutoWifi` | executable | 应用入口、菜单栏图标、浮动面板和应用生命周期 |
-| `AutoWifiCore` | library | 状态、Wi-Fi、设置界面、本地化和登录启动逻辑 |
+| `AutoWifi` | executable | 应用入口、菜单栏图标、浮动面板、设置界面和应用生命周期 |
+| `AutoWifiCore` | library | 状态、Wi-Fi、本地化和登录启动逻辑（不依赖 SwiftUI） |
 | `AutoWifiTests` | test | 核心状态和 Wi-Fi 分支的单元/回归测试 |
+| `CAutoWifiCore` | system library | Rust 策略核心的 C 模块声明（`core/include`） |
+| `PolicySmoke` | executable | 通过 C ABI 验证策略核心的冒烟程序 |
 
 最低平台声明为 macOS 13，Swift tools version 为 6.0。
+
+策略核心本身是 `core/` 下的 Rust workspace：
+
+| crate | 职责 |
+| --- | --- |
+| `autowifi-domain` | 平台无关的状态机，无第三方依赖、无 I/O |
+| `autowifi-ffi` | C ABI 导出层，产物为 `libautowifi_core.dylib` / `.a` |
 
 ### 3.2 主要对象关系
 
@@ -59,7 +72,8 @@ AutoWifi 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两�
 NSApplication / AppDelegate
 ├── AppState
 │   ├── 配置与运行状态
-│   ├── UserDefaults 持久化
+│   ├── UserDefaults 配置持久化
+│   ├── CredentialStore（Keychain）
 │   └── LaunchServiceProtocol
 ├── WifiManager
 │   ├── CWWiFiClient / CWInterface
@@ -74,6 +88,29 @@ NSApplication / AppDelegate
 ```
 
 `AppState` 和 `WifiManager` 都标记为 `@MainActor`。CoreWLAN 和 CoreLocation 的回调通过 `Task { @MainActor in ... }` 回到主 Actor 后更新状态。
+
+### 3.3 共享策略核心接入
+
+`WifiManager` 持有一个可选的 `WifiPolicyEngine`：
+
+```text
+WifiManager
+└── WifiPolicyEngine（可选）
+    └── dlopen("libautowifi_core.dylib")
+        └── AwEngine（Rust 状态机）
+```
+
+- `WifiPolicy.swift` 用 `dlopen`/`dlsym` 查找动态库，路径顺序为
+  `AUTOWIFI_CORE_PATH`、`Contents/Frameworks/`、bundle 根目录、当前目录向上的
+  `core/target/{release,debug}/`。
+- 动态库不存在时 `policy` 为 `nil`，`WifiManager` 使用原有 Swift 逻辑，应用不会
+  崩溃。
+- 当前已接入：配置同步、启动/停止、关联开始与结果、迟到结果、程序化切换意图
+  与冷却判断、关联代次校验。
+- 尚未接入：`check_begin`、`scan_result`、`classification_result`、
+  `backup_scan_result`、`observed_change` 等主检查分支。
+
+核心的输入输出约定、所有权和线程要求见 [core/README.md](/Users/linmu/git/auto-wifi/core/README.md)。
 
 ## 4. 应用启动与菜单栏生命周期
 
@@ -92,19 +129,19 @@ NSApplication / AppDelegate
 7. 订阅网络类型和监控开关，用于更新菜单栏图标。
 8. 注册全局鼠标点击监听；面板显示时，应用外部的全局左/右键点击会关闭面板。
 
-### 4.2 启动时不会自动开启 Wi-Fi 自动切换
+### 4.2 启动时恢复自动切换意图
 
-`AppState.isRunning` 的默认值固定为 `false`，且没有保存到 `UserDefaults`。`AppDelegate` 启动时只创建 `WifiManager`，没有调用 `startMonitoring()`。
+`AppState.isRunning` 保存到 `UserDefaults`。`AppDelegate` 创建 `WifiManager` 后，如果上次保存的值为 `true`，会调用 `startMonitoring()`。
 
 因此：
 
-- 即使上次退出前自动切换处于开启状态，再次启动也会恢复为关闭。
-- “登录时启动应用”只负责启动应用本身，不等于自动开启 Wi-Fi 切换。
-- 用户需要在每次应用启动后手动点击“开启自动切换”。
+- 上次退出前自动切换开启时，再次启动会尝试恢复监控。
+- 配合“登录时启动应用”，登录后可以继续自动切换。
+- 如果 P/B 配置已失效或为空，`startMonitoring()` 会停止并把持久化状态改回关闭。
 
 ### 4.3 浮动面板
 
-面板宽度固定为 360 点，高度按 SwiftUI 内容测量结果动态调整，最低高度为 360 点。
+面板宽度固定为 400 点，高度按 SwiftUI 内容测量结果动态调整，最低高度为 360 点。
 
 打开面板时：
 
@@ -125,35 +162,36 @@ NSApplication / AppDelegate
 
 ### 5.1 持久化字段
 
-`AppState` 使用 `UserDefaults` 保存以下字段：
+`AppState` 使用 `UserDefaults` 保存非敏感配置，密码单独保存在 macOS 钥匙串：
 
-| 字段 | Key | 默认值 | 写入时机 |
+| 字段 | 存储位置 / Key | 默认值 | 写入时机 |
 | --- | --- | --- | --- |
-| 优先 SSID | `ssidP` | 空字符串 | 属性变化时立即写入 |
-| 优先密码 | `passwordP` | 空字符串 | 属性变化时立即写入；空值时删除 Key |
-| 备用 SSID | `ssidB` | 空字符串 | 属性变化时立即写入 |
-| 备用密码 | `passwordB` | 空字符串 | 属性变化时立即写入；空值时删除 Key |
-| 检查间隔 | `checkInterval` | 60 秒 | 属性变化并规范化后写入 |
+| 优先 SSID | Defaults `ssidP` | 空字符串 | 属性变化时立即写入 |
+| 优先密码 | Keychain `passwordP` | 空字符串 | 属性变化后防抖 400ms 写入；空值时删除该项 |
+| 备用 SSID | Defaults `ssidB` | 空字符串 | 属性变化时立即写入 |
+| 备用密码 | Keychain `passwordB` | 空字符串 | 属性变化后防抖 400ms 写入；空值时删除该项 |
+| 检查间隔 | Defaults `checkInterval` | 60 秒 | 属性变化并规范化后写入 |
+| 自动切换意图 | Defaults `isRunning` | false | 开启、停止或异常停止时写入 |
 
 语言由 `LocalizationManager` 使用独立 Key `AppLanguage` 保存，默认是简体中文 `zh-Hans`。
+
+旧版本留在 Defaults `passwordP` / `passwordB` 中的明文密码，会在初始化时迁移到钥匙串：写入后回读确认值一致，才删除对应 Defaults Key。写入或回读失败时保留旧明文，并设置 `credentialStorageWarning` 供界面显示。
 
 ### 5.2 不持久化的运行字段
 
 以下字段只存在于当前进程内：
 
-- `isRunning`：自动切换是否开启。
-- `currentStatus`：最后一条业务状态消息，不含时间戳。
-- `lastLog`：最后一条带时间戳的日志。
-- `currentNetworkName`：当前显示的网络名或状态文本。
-- `connectedNetworkType`：当前网络分类。
+- `currentStatus`：最后一条业务状态消息，不含时间戳（非 `@Published`）。
+- `lastLog`：最后一条带时间戳的日志（非 `@Published`）。
+- `networkStatus`：唯一的网络状态来源，取值为 `.connected(ssid:role:)`、`.notConnected`、`.permissionPending`、`.permissionDenied`、`.noInterface`。
+- `currentNetworkName` / `connectedNetworkType`：由 `networkStatus` 派生的兼容访问器，不再单独赋值。
 - `nextCheckTime`：下次定时检查时间。
-- `currentCheckInterval`：当前定时器采用的间隔。
 
 应用退出后这些值不会恢复。
 
 ### 5.3 检查间隔规范化
 
-默认间隔为 60 秒，最小间隔为 5 秒。
+默认间隔为 60 秒，最小间隔为 5 秒，最大间隔为 3600 秒。
 
 规范化分支如下：
 
@@ -162,19 +200,20 @@ NSApplication / AppDelegate
 | 未保存过 | 60 |
 | `NaN`、正/负无穷等非有限数 | 60 |
 | 小于 5，包括负数和 0 | 5 |
-| 大于等于 5 的有限数 | 原值 |
+| 大于 3600 | 3600 |
+| 5 到 3600 之间的有限数 | 原值 |
 
-当属性被设置为过小值时，`didSet` 会再次把属性改成规范化值；第二次 `didSet` 才真正写入 `UserDefaults`。
+当属性被设置为越界值时，`didSet` 会再次把属性改成规范化值；第二次 `didSet` 才真正写入 `UserDefaults`。
 
 初始化时如果读到的是无效已存值，只会把规范化结果放入当前 `AppState`，不会立刻回写修复磁盘上的旧值；不过每次启动都会重新规范化，所以运行时仍使用安全值。用户后续修改间隔时才会保存规范化后的新值。
 
-已经启动的当前一次定时器不会因为用户修改间隔而立刻重建。新间隔会在下一次 `scheduleTimer()` 时生效，通常是当前计时结束并完成一次检查之后，或者用户停止再重新开启监控之后。
+`WifiManager` 订阅 `appState.$checkInterval`。用户在界面中提交新间隔后，如果监控正在运行，会立即重建定时器，不再等待当前计时结束。
 
 ### 5.4 密码存储
 
-当前实现把两个 Wi-Fi 密码直接保存在应用的 `UserDefaults` 中，没有使用 Keychain，也没有应用层加密。
+当前实现通过 `CredentialStore` 抽象把两个 Wi-Fi 密码保存到 macOS 钥匙串；生产实现为 `KeychainCredentialStore`（`Security` 框架，service `com.linmu.AutoWifi`），测试使用内存实现。
 
-因此它的准确安全语义是“只在本机应用偏好中保存，不上传”，而不是“安全加密存储”。删除输入内容时会删除对应的 Defaults Key。
+密码只供本机 Wi-Fi 关联使用，应用没有上传逻辑。写入空字符串会删除对应钥匙串项。输入采用 400ms 防抖，`flushPendingPasswordSaves()` 会在退出前同步写入。旧版本位于 Defaults `passwordP` / `passwordB` 的明文密码会在首次启动时迁移到钥匙串；只有写入后回读校验一致才删除旧键，迁移失败会保留旧值并显示警告。`CredentialStore` 的读写方法会抛出错误，便于迁移和界面区分“不存在”和“读取失败”。
 
 ### 5.5 日志行为
 
@@ -188,7 +227,7 @@ NSApplication / AppDelegate
 
 只保留最后一条日志，没有日志列表、磁盘日志或历史持久化。
 
-当前设置面板没有展示 `currentStatus` 和 `lastLog`。虽然本地化表中存在“运行状态”和“最近日志”文案，测试也会检查这些属性，但 UI 代码没有对应状态卡。这与旧评审文档中“已新增状态卡”的描述不一致。
+当前设置面板不直接展示 `currentStatus` 和 `lastLog`。这是有意的产品取舍：原始业务日志和 CoreWLAN 接口诊断继续保留在状态对象、标准输出和 OSLog 中，首页改为展示结构化且已本地化的连接角色、自动切换状态、下次检查和扫描结果，避免把英文内部日志直接暴露给用户。
 
 ## 6. 当前网络状态分类
 
@@ -232,9 +271,10 @@ NSApplication / AppDelegate
 1. 保存 `AppState`、Wi-Fi Client、Location Manager。
 2. 记录初始化时配置的 B 到 `trackedBackupSSID`。
 3. 读取当前 Wi-Fi 接口。
-4. 把自己设置为定位和 Wi-Fi Client 的 delegate。
-5. 注册 `.ssidDidChange` 事件监听。
-6. 异步执行一次 `refreshStatus()`。
+4. 创建 `WifiPolicyEngine`（动态库加载失败时为 `nil`）。
+5. 把自己设置为定位和 Wi-Fi Client 的 delegate。
+6. 注册 `.ssidDidChange` 事件监听。
+7. 异步执行一次 `refreshStatus()`。
 
 注册 SSID 事件失败时只通过 `print` 输出：
 
@@ -265,8 +305,8 @@ Failed to start monitoring SSID changes: <error>
 | 条件 | `currentNetworkName` | 网络类型 | 其它动作 |
 | --- | --- | --- | --- |
 | 权限 `.denied` / `.restricted` | `Location Permission Denied` | `.none` | 写警告日志并返回 |
-| 有接口且能读到 SSID=P | P 名称 | `.priority` | 清除最近受管断开上下文 |
-| 有接口且能读到 SSID=B | B 名称 | `.backup` | 清除最近受管断开上下文 |
+| 有接口且能读到 SSID=P | P 名称 | `.priority` | 无额外动作 |
+| 有接口且能读到 SSID=B | B 名称 | `.backup` | 无额外动作 |
 | 有接口且能读到其它 SSID | 该 SSID | `.other` | 无额外动作 |
 | 有接口、SSID=nil、权限未决定 | 本地化的“等待权限” | `.none` | 再次请求权限 |
 | 有接口、SSID=nil、权限已决定且非拒绝 | `Not Connected` | `.none` | 无额外动作 |
@@ -301,11 +341,19 @@ Failed to start monitoring SSID changes: <error>
 
 1. 取消上一只 Timer。
 2. 从 `appState.checkInterval` 读取间隔。
-3. 更新 `currentCheckInterval` 和 `nextCheckTime`。
+3. 更新 `nextCheckTime`。
 4. Timer 到期后执行 `checkConnection()`。
 5. 如果仍在运行，则再次调用 `scheduleTimer()` 创建下一只 Timer。
 
-这种设计保证每次检查完成后再开始下一周期，不会使用固定重复 Timer 直接重叠调度。但 Wi-Fi 扫描本身在主 Actor 路径上同步调用，扫描耗时时可能影响 UI 响应。
+这种设计保证每次检查完成后再开始下一周期，不会使用固定重复 Timer 直接重叠调度。Wi-Fi 扫描和关联通过后台 Task 执行，主 Actor 只负责状态决策和 UI 更新；同时 `isCheckingConnection` 阻止多次检查重叠。
+
+除并发互斥外，关联还受到两层保护：
+
+- 同一时间最多只有一个 `associate` 在途；关联期间到达的 SSID 事件只刷新状态并等待结果，不会再次发起连接。
+- 关联失败或超时后进入 90 秒冷却窗口，冷却状态写入 `UserDefaults` 并跨重启保留。冷却按目标网络记忆：冷却期内只有对同一目标网络的重连会被跳过，切换到其他网络（例如定时检查发现 P 可见）不受影响。
+- 关联成功、已连回 P、或用户手动停止后再次开启自动切换时，冷却会被清除，确保新一轮检查立即按优先级网络执行。
+
+用户手动连回 P、或关联成功时，冷却窗口会被清除。
 
 ### 10.3 停止自动切换
 
@@ -314,7 +362,6 @@ Failed to start monitoring SSID changes: <error>
 - 取消 Timer。
 - 清空 Timer 引用和 `nextCheckTime`。
 - 设置 `isRunning = false`。
-- 清除最近受管网络断开上下文。
 - 如果之前确实在运行或仍有 Timer，则记录 `Stopped monitoring.`。
 
 内部也可以传入具体停止原因。例如判断用户切到未管理网络时，会保留包含网络名和判断原因的日志，而不是再被通用停止日志覆盖。
@@ -329,9 +376,9 @@ P、B、密码和间隔在界面上始终可以修改，没有“运行时锁定
 - 修改 B：`syncConfiguredNetworks()` 会把上一版 B 保存到 `previousBackupSSID`，以便识别系统随后连接旧 B 的情况。
 - 修改密码：下一次连接尝试直接使用新密码。
 - 修改间隔：当前已安排的 Timer 不变，下一轮调度才使用新间隔。
-- 把 P 或 B 清空：后续周期检查只记录“SSID 未配置”，但不会自动把 `isRunning` 设为 false，Timer 仍会继续安排下一轮。
+- 把 P 或 B 清空：后续周期检查记录配置错误并停止监控。
 
-最后一个分支还有一个 UI 细节：控制按钮在 P/B 任一为空时整体禁用。如果用户在监控运行中把某个 SSID 清空，界面上的“停止自动切换”按钮也会被禁用，无法通过该按钮停止；需要先恢复非空配置或通过其它生命周期方式结束运行。这是当前实现的边界缺陷。
+控制按钮只在“尚未运行且 P/B 任一为空”时禁用。监控运行期间即使清空配置，用户仍可以点击停止；自动检查也会主动结束监控。
 
 如果 P 和 B 被配置成相同 SSID，代码会优先把它分类为 P；扫描和连接也优先使用 `passwordP`，B 分支实际不会发挥备用作用。
 
@@ -404,42 +451,42 @@ Scan failed: <系统错误描述>
 
 处理：
 
-- 清除最近受管断开记录。
 - 记录已连接 P、自动切换仍有效。
 - 刷新状态。
 - 保持 `isRunning = true`。
 
 ### 12.4 新 SSID 为 nil
 
-这通常代表断网或切网过程中的瞬态。
+如果断开前是 P，则区分两种情况：
 
-处理：
+1. 等待无线网卡稳定后重扫 P，若 P 仍可见，说明这是手动切网的瞬态，等待后续 SSID 事件，不提前连接。
+2. 若 P 已不可见，说明 P 丢失，立即扫描并主动连接 B，避免 macOS 自行漫游到其它已保存网络 X；只有 B 也不可见时才交由系统选择网络。
 
-1. 如果事件前的 SSID 是 P、当前 B 或上一版 B，则记录本次受管网络断开时间。
-2. 记录 `Network disconnected. Waiting...`。
-3. 刷新状态。
-4. 保持监控，不立即在这个事件分支中扫描或连接。
+如果断开前不是 P，则记录 `Network disconnected. Waiting...`，刷新状态并等待后续 SSID 事件。
 
 是否重连由后续 SSID 事件或定时检查驱动。
 
 ### 12.5 新 SSID 是当前配置的 B
 
-切到配置的 B 永远被视为受管自动切换流程，不会停止监控。
+切到配置的 B 时按两步判断：
+
+1. 如果应用刚刚主动发起过连接 B（`lastProgrammaticBackupAt` 在 15 秒窗口内），直接视为自动回退并保持监控。
+2. 否则等待无线网卡稳定（`observedChangeSettleDelay`，默认 1 秒）后重扫 P，再按“P 是否可见”判断。
 
 事件处理会先扫描一次，然后按上下文记录不同日志：
 
 | 条件 | 解释/日志语义 |
 | --- | --- |
-| 12 秒内刚从受管网络断开 | 视为网络丢失后的系统切换，保持监控 |
-| 没有最近断开，但扫描到 P | P 已恢复，准备立即回切，同时保持监控 |
-| 没有最近断开且扫描不到 P | 视为系统回退到 B，保持监控 |
+| 应用刚主动连过 B | 自动回退，保持监控 |
+| 稳定后扫描中 P 可见 | 手动切换，停止自动切换并记录原因，菜单栏图标显示红色圆点 |
+| 稳定后扫描中 P 不可见 | 系统回退到 B（P 已丢失），保持监控 |
 
-随后把本次扫描结果传给 `checkConnection()`：
+系统回退（P 不可见）时，把本次扫描结果传给 `checkConnection()`：
 
 - 扫描中有 P：立即连接 P。
 - 扫描中无 P：保持在 B。
 
-因此当前代码与 README 中“切到 B 且 P 可见时会停止监控”的旧描述不一致。当前实际行为是立即回到 P，并保持自动切换开启。
+手动切到 B（P 仍可见）会停止自动切换，不再由 B 事件驱动回 P；之后若用户重新开启自动切换，定时检查发现 P 可见时会正常切回 P。
 
 ### 12.6 新 SSID 是上一版备用网络
 
@@ -463,11 +510,10 @@ Scan failed: <系统错误描述>
 
 | 顺序 | 条件 | 判断 | 动作 |
 | --- | --- | --- | --- |
-| 1 | 12 秒内刚从受管网络断开 | 系统回退 | 保持监控，尝试连接当前 B |
-| 2 | 无最近受管断开，且扫描中 P 可见 | 用户手动覆盖 | 停止监控，保留具体原因日志 |
-| 3 | 无最近受管断开，且扫描中 P 不可见 | 系统回退 | 保持监控，尝试连接当前 B |
+| 1 | 稳定后扫描中 P 可见 | 用户手动覆盖 | 停止监控，保留具体原因日志 |
+| 2 | 稳定后扫描中 P 不可见 | 系统回退 | 保持监控，尝试连接当前 B |
 
-这里的“手动切网”不是由系统提供的明确用户操作标志，而是启发式判断：切到未管理网络时，如果 P 仍可见且没有刚刚发生受管断开，就假设用户主动选择了别的网络。
+这里的“手动切网”不是由系统提供的明确用户操作标志，而是启发式判断：切到未管理网络时，先等待无线网卡稳定再重扫，如果 P 仍可见，就假设用户主动选择了别的网络。
 
 ### 12.8 判断切网原因时扫描失败
 
@@ -479,35 +525,14 @@ Scan failed: <系统错误描述>
 - 外层事件处理随后仍会调用 `refreshStatus()`。
 - 后续依赖定时检查再次处理。
 
-## 13. 最近受管断开窗口
-
-`managedDisconnectWindow` 固定为 12 秒。
-
-当从以下网络收到 `SSID=nil` 事件时，会保存断开时间：
-
-- 当前 P。
-- 当前 B。
-- 上一版 B。
-
-后续 12 秒内切到其它网络，会优先被判断为系统断网后的回退，而不是用户手动切网。
-
-断开上下文在以下情况清除：
-
-- 状态刷新确认当前连接 P 或当前 B。
-- 成功主动连接 P 或当前 B。
-- 停止/重置监控。
-- 恢复函数确认已经在当前 B。
-
-超过 12 秒后 `hasRecentManagedDisconnect` 返回 false，但旧时间值不会主动设为 nil；它只是不再影响判断，直到后续清理。
-
-## 14. 恢复到当前备用网络
+## 13. 恢复到当前备用网络
 
 `recoverToConfiguredBackupIfNeeded` 用于旧 B、系统回退到未管理网络等分支。
 
 | 条件 | 动作 |
 | --- | --- |
 | 当前 B 配置为空 | 记录未配置并返回 |
-| 当前已经在 B | 记录自动切换继续，清除断开上下文 |
+| 当前已经在 B | 记录自动切换继续 |
 | 当前不在 B，扫描中找到 B | 使用 B 密码连接信号最强的 B |
 | 当前不在 B，扫描中找不到 B | 记录等待下次检查 |
 
@@ -515,7 +540,7 @@ Scan failed: <系统错误描述>
 
 ## 15. 主动连接处理
 
-连接前设置 `isSwitchingNetwork = true`，2 秒后通过主队列异步恢复为 false，用于覆盖程序连接引发的 SSID 通知窗口。
+连接前设置 `isSwitchingNetwork = true`，并在关联真正结束后恢复为 false，用于覆盖程序连接和权限等待期间产生的 SSID 通知。
 
 成功分支：
 
@@ -529,9 +554,11 @@ Scan failed: <系统错误描述>
 
 - 记录目标 SSID 和错误描述。
 - 不停止监控。
-- 不立即重试。
-- `isSwitchingNetwork` 仍会在原定 2 秒后恢复。
-- 后续由 Timer 再次尝试。
+- 不立即重试，并启动 90 秒关联冷却（按失败目标网络记忆）。
+- 冷却期内只跳过对同一目标网络的关联；定时检查发现 P 可见时不受冷却影响，可立即回切。
+- 关联成功、已连回 P，或用户停止后重新开启自动切换时清除冷却。
+
+关联在途期间 `isSwitchingNetwork` 保持为真，SSID 事件不会把权限弹窗阶段的变化误判为“手动切网”。
 
 如果连接函数执行时接口引用为 nil，函数直接返回，不写日志。不过正常入口通常已经在扫描或检查阶段验证过接口。
 
@@ -570,18 +597,33 @@ UI 分支：
 
 ### 17.1 顶部操作
 
-- 登录启动：电脑图标；开启时蓝色，关闭时灰色。
+- 登录启动：电脑图标；开启时使用青色信号，关闭时使用低对比灰色。
 - 语言切换：中文状态显示 `EN`，英文状态显示 `中`，表示点击后的目标语言。
-- 帮助：弹出 300×250 的可滚动说明。
+- 帮助：弹出 350×390 的深色科技风可滚动说明，标题为 `SYS / HELP CENTER`，包含网格背景和“仅本机”状态标识。
 - 退出：直接调用 `NSApplication.shared.terminate(nil)`。
 
-四个按钮都使用系统 `.help` 和自定义悬浮胶囊提示。自定义提示位于面板右上区域，同一时间只显示一个。
+四个按钮使用自定义局部悬浮胶囊提示。提示锚定在各自图标下方；最右侧退出按钮向左收口以避免越界。系统 `.help` Tooltip 已移除，避免出现两套提示。
 
 ### 17.2 当前网络与扫描卡片
 
-显示 `currentNetworkName`。只有扫描得到非空列表时才显示“找到 N 个网络”。
+当前网络模块标识为 `00 / LINK STATUS`，固定使用电光蓝信号色。它显示当前网络名和本地化网络角色，不会因为当前连接 P 而改成 `PRIMARY` 模块的青色。
+
+模块第二行有三个等宽区域：
+
+- 自动切换：运行中或已暂停。
+- 下次检查：运行时显示倒计时；暂停时显示控制模式。
+- 网络发现：点击执行扫描；扫描中显示旋转动画；完成后直接显示“发现 N 个网络”。
+
+`Not Connected`、`Location Permission Denied`、`No Interface` 和权限等待状态会在显示层映射为当前语言。原始接口诊断和英文运行日志不在该卡片展示。
 
 ### 17.3 P/B 配置卡片
+
+两个模块分别标识为：
+
+- `01 / PRIMARY`：青色，优先网络 P。
+- `02 / BACKUP`：紫色，备用网络 B。
+
+这里使用 `BACKUP` 而不是 `FAILOVER`，因为模块配置的是备用网络实体；`Failover` 只描述故障发生后的切换行为。
 
 每张卡包括：
 
@@ -594,21 +636,37 @@ UI 分支：
 
 ### 17.4 自动切换控制
 
-- P/B 任一为空时按钮禁用。
-- 关闭状态：蓝色按钮，播放图标，文案“开启自动切换”。
-- 开启状态：红色按钮，停止图标，文案“停止自动切换”。
-- 运行且存在 `nextCheckTime` 时，用 `TimelineView` 显示向下取到 0 的剩余秒数。
+- 模块标识为 `03 / AUTOMATION`，固定使用绿色信号色。
+- 尚未运行且 P/B 任一为空时，开启按钮禁用；运行期间停止按钮保持可用。
+- 关闭状态：绿色描边按钮，播放图标，文案“开启自动切换”。
+- 开启状态：红色警示描边按钮，停止图标，文案“停止自动切换”。
+- 检查频率使用深色内嵌数值区域，并显示最小间隔提示。
+- 运行且存在 `nextCheckTime` 时，倒计时显示在 `00 / LINK STATUS` 的状态行中。
 
-### 17.5 本地化范围
+### 17.5 视觉系统
+
+面板背景使用深空蓝黑渐变、低对比网格和局部环境光。各模块使用统一深色面板、细描边、短光条和状态光点，但拥有固定信号色：
+
+| 模块 | 信号色 |
+| --- | --- |
+| `00 / LINK STATUS` | 电光蓝 |
+| `01 / PRIMARY` | 青色 |
+| `02 / BACKUP` | 紫色 |
+| `03 / AUTOMATION` | 绿色 |
+
+详细规范见 `docs/UI_DESIGN.md`。
+
+### 17.6 本地化范围
 
 界面支持简体中文和英文，语言切换会持久化。
 
 未完全本地化的内容包括：
 
 - 多数 `WifiManager` 运行日志是英文。
-- `Ready`、`Not Connected`、`No Interface`、`Location Permission Denied` 等部分状态文本是英文常量。
+- `Ready` 等内部初始状态以及多数运行日志仍是英文常量；首页会对 `Not Connected`、`No Interface`、`Location Permission Denied` 和权限等待状态做显示层本地化映射。
 - 密码字段右键菜单固定为英文 Cut/Copy/Paste/Select All。
 - 菜单栏 Tooltip 前缀固定为 `Auto-Wifi`。
+- `LINK STATUS`、`PRIMARY`、`BACKUP`、`AUTOMATION` 和 `SYS / HELP CENTER` 是稳定的控制台导航标识；对应用户可读标题和状态仍跟随语言切换。
 
 找不到本地化 Key 时，会直接显示 Key 本身。
 
@@ -616,9 +674,11 @@ UI 分支：
 
 macOS 13 及以上使用 `SMAppService.mainApp`：
 
-- `isEnabled` 只在状态为 `.enabled` 时返回 true。
+- `LaunchAtLoginStatus` 区分 `.notRegistered`、`.enabled`、`.requiresApproval` 和 `.notFound`。
+- `launchAtLogin` 只在 `.enabled` 时为 true；`.requiresApproval` 会保留在 `launchAtLoginStatus` 中。
 - 开启调用 `register()`。
 - 关闭调用 `unregister()`。
+- 点击处于待批准状态的图标会打开系统“登录项”设置；应用重新激活时会刷新真实状态。
 
 `AppState` 初始化时会读取服务真实状态并同步 UI。同步期间通过 `isSynchronizingLaunchAtLogin` 防止 `didSet` 再次触发注册/注销。
 
@@ -629,12 +689,11 @@ macOS 13 及以上使用 `SMAppService.mainApp`：
 | 正在同步系统状态 | 不调用服务 |
 | 没有服务对象 | 直接返回 |
 | 服务状态已经等于目标状态 | 直接返回 |
-| 注册/注销成功 | 记录成功日志 |
+| 注册成功且状态 `.enabled` | 记录成功日志 |
+| 注册成功但状态 `.requiresApproval` | 记录待批准日志，界面显示橙色警示条 |
 | 注册/注销失败 | 记录失败日志，并把 UI 回滚到服务当前真实状态 |
 
 `LaunchAtLoginManager` 自身还会把失败打印到标准输出，然后继续向上抛出。
-
-虽然代码保留了旧系统使用 `MockLaunchService` 的分支，但 Package 最低平台就是 macOS 13，该分支在正式支持范围内不会使用。
 
 ## 19. 系统配置、权限和沙箱
 
@@ -647,19 +706,21 @@ macOS 13 及以上使用 `SMAppService.mainApp`：
 Entitlements：
 
 - 开启 App Sandbox。
-- 允许网络 Client。
+- 允许网络 Client，保证沙箱内 CoreWLAN 可以枚举、扫描和关联 Wi-Fi。
 - 允许访问定位信息。
 
 源码以代码方式启动，不需要 Storyboard。模板 `Info.plist` 中仍有 `NSMainStoryboardFile=Main`，但打包脚本会删除该 Key。若绕过脚本手工组装 App，需要同样处理。
 
 ## 20. CLI 版本
 
-`auto-wifi-cli.swift` 是独立实现，不复用 `AutoWifiCore`。
+`auto-wifi-cli.swift` 是独立实现，不复用 `AutoWifiCore`；它只用于本地诊断，不参与 SwiftPM 构建、应用打包或发布流程。
 
 支持两种配置方式：
 
-1. 命令行参数：`P SSID`、`P 密码`、`B SSID`、`B 密码`、可选间隔。
+1. 命令行参数：`SSID-P`、`SSID-B`、可选间隔。
 2. 参数不足时进入交互输入。
+
+密码始终通过隐藏回显的终端输入读取，不接受命令行密码参数。传入旧式“密码作为参数”的调用会被拒绝，避免密码出现在 `ps` 或 Shell 历史中。
 
 CLI 核心规则与通用周期检查相似：
 
@@ -675,12 +736,11 @@ CLI 与 GUI 的重要差异：
 
 - 没有 SSID 事件监听。
 - 没有手动切网识别和自动停止逻辑。
-- 没有 12 秒断开窗口或旧 B 迁移逻辑。
+- 没有旧 B 迁移逻辑。
 - 没有配置持久化、登录启动、菜单栏 UI 和本地化。
 - 扫描和连接错误统一记录为 `Error: ...`。
 - 初始化时只获取一次 `CWInterface`，后续不会重新获取接口引用。
-- 命令行直接传密码时，密码可能出现在 Shell 历史或进程参数中。
-- 交互密码使用普通 `readLine()`，输入不会隐藏。
+- 密码不接受命令行参数，交互输入会关闭终端回显。
 
 ## 21. 构建和打包
 
@@ -706,10 +766,10 @@ CLI 与 GUI 的重要差异：
 
 ## 22. 测试覆盖
 
-测试使用 Mock Wi-Fi 网络、接口、Client、Location Manager 和登录启动服务。当前共有 16 个测试，覆盖：
+测试使用 Mock Wi-Fi 网络、接口、Client、Location Manager、凭据存储和登录启动服务。测试文件当前共有 37 个测试，覆盖：
 
-1. 从 `UserDefaults` 加载 SSID、密码、间隔。
-2. 配置持久化和最小间隔规范化。
+1. 从 `UserDefaults` / Keychain 加载 SSID、密码、间隔和自动切换意图，以及旧明文密码迁移。
+2. 配置持久化和检查间隔上下限规范化。
 3. 登录启动失败后的 UI 状态回滚。
 4. WifiManager 初始化时注册 SSID 变化监听。
 5. 定位权限拒绝时清除网络类型。
@@ -717,13 +777,28 @@ CLI 与 GUI 的重要差异：
 7. P 不存在时连接 B。
 8. 手动扫描结果去重、过滤 nil 并排序。
 9. 监控关闭时 SSID 变化仍更新显示状态。
-10. 切到 B 且 P 可见时立即回 P，并保持监控。
+10. 切到 B 且 P 可见时视为手动切换，停止监控并显示红点。
 11. 切到 B 且 P 缺失时留在 B，并保持监控。
-12. 发生断网事件后切到 B、P 可见时回 P。
-13. 完整验证“P 丢失 → B → P 恢复 → P”，全程不关闭开关。
+12. 发生断网事件后切到 B、P 可见时视为手动切换，停止监控。
+13. 完整验证“P 丢失 → B（系统回退）→ P 恢复可见时定时检查回 P”，全程不关闭开关。
 14. B 配置变化后连到旧 B 时，恢复到当前 B。
 15. 旧 B 和 P 同时可见时仍恢复到当前 B。
 16. 切到未管理网络且 P 可见时停止监控。
+17. 恢复监控时配置缺失会停止并清除持久化运行状态。
+18. 默认 Wi-Fi 接口为空时，从系统接口列表识别当前连接。
+19. 默认接口为空时，仍能使用系统接口列表扫描并切回 P。
+20. 默认接口未连接时，优先选择接口列表中已连接的接口。
+21. Wi-Fi 扫描和关联操作不在主线程执行。
+22. 使用仅能按接口名解析的 CoreWLAN Client 时仍可扫描并自动关联 P。
+23. 冷却窗口内不会对同一目标网络再次发起关联；其他网络的关联（例如 P 恢复回切）不受冷却限制。
+24. 关联在途时多个 SSID 事件不会产生重复关联。
+25. 手动切 B（P → nil → B，P 可见）停止监控并显示红点。
+26. 自动回退到 B（P 不可见）保持监控，P 恢复可见后定时检查切回 P。
+27. 旧明文密码迁移失败时保留旧值并显示警告。
+28. 密码写入失败显示警告，后续成功写入后清除警告。
+29. 登录启动进入系统“需要批准”状态时，UI 读取到 `.requiresApproval`。
+30. 关联超时后底层调用迟到成功，仍按程序发起处理并保持监控。
+31. 扫描期间 P 配置被修改时，不按旧 SSID 发起关联，而是重新检查。
 
 尚未被单元测试直接覆盖的关键分支包括：
 
@@ -732,7 +807,6 @@ CLI 与 GUI 的重要差异：
 - 扫描抛错及定位错误文本二次提示。
 - 连接抛错后的状态和后续重试。
 - 程序主动连接产生的两秒通知窗口。
-- 12 秒窗口过期前后的边界值。
 - 未管理网络且 P 不可见时恢复 B。
 - 当前 B 也不可见时的等待分支。
 - P/B 配置为空或相同的业务行为。
@@ -750,7 +824,7 @@ CLI 与 GUI 的重要差异：
 | 没有 Wi-Fi 接口 | 显示 `No Interface` 并记录错误 | 否 | 下个周期重新获取接口 |
 | SSID 事件注册失败 | 只打印到控制台 | 否 | 定时检查仍可用 |
 | 扫描失败 | 记录扫描错误 | 否 | 下个周期重试 |
-| 连接失败 | 记录目标网络和错误 | 否 | 下个周期重试 |
+| 连接失败/超时 | 记录目标网络和错误，进入 90 秒冷却（按目标网络） | 否 | 冷却结束后重试；其他网络不受影响 |
 | 手动扫描为空/失败 | UI 显示权限提示 | 不影响当前开关 | 用户可再次扫描 |
 | 登录启动注册/注销失败 | 记录错误并回滚按钮 | 不影响 Wi-Fi 开关 | 保持系统真实启动项状态 |
 | 用户切到未管理网络且 P 可见 | 记录手动覆盖判断 | 是 | 需用户重新开启 |
@@ -763,32 +837,28 @@ CLI 与 GUI 的重要差异：
 
 以下内容不是代码注释中的设想，而是从当前实现可以确认的限制：
 
-1. 自动切换开关不持久化，应用重启后默认关闭。
-2. 登录启动不会顺带开启自动切换。
-3. 密码存储在 `UserDefaults`，不是 Keychain 或加密存储。
-4. 只支持一个 P 和一个 B，不支持多级优先列表。
-5. 只用 SSID 和 RSSI 选择网络，不判断 BSSID、安全类型、频段或网络可用性。
-6. “P 可见”只代表扫描结果中有同名 SSID，不代表互联网连通、信号足够好或认证一定成功。
-7. 没有 RSSI 阈值、迟滞策略、连接失败退避，弱 P 只要可见也优先于强 B。
-8. 手动切网判断是启发式，存在误判可能。
-9. 切到配置 B 永远保持托管，用户若确实手动选择 B，只要自动切换开启，P 可见时仍会被切回 P。
-10. Wi-Fi 扫描和关联调用位于主 Actor 流程，耗时操作可能影响界面响应。
-11. 运行日志没有完全本地化，且只保留最后一条。
-12. `currentStatus/lastLog` 当前未显示在设置面板。
-13. 手动扫描失败和真实空列表在 UI 上不可区分。
-14. 当前只跟踪上一版 B；连续多次修改 B 后，更早的旧 B 会被当成普通未管理网络。
-15. 没有显式处理睡眠/唤醒、Wi-Fi 开关开闭、网络服务重建等生命周期事件，只依赖接口重取、SSID 事件和 Timer。
-16. 没有网络连通性检测；连接到 SSID 成功即视为成功。
-17. 没有公证发布流程，默认产物只是 ad-hoc 签名。
-18. 运行中清空 P/B 不会自动停止 Timer，却会让 UI 的启停按钮禁用。
-19. P/B 可以配置成相同值，代码没有校验；此时 P 分支和 P 密码优先。
+1. 自动切换开关会持久化；应用重启和登录启动时会尝试恢复。
+2. 密码保存在 macOS 钥匙串；旧版本的 Defaults 明文密码只用于一次性迁移。
+3. 只支持一个 P 和一个 B，不支持多级优先列表。
+4. 只用 SSID 和 RSSI 选择网络，不判断 BSSID、安全类型、频段或网络可用性。
+5. “P 可见”只代表扫描结果中有同名 SSID，不代表互联网连通、信号足够好或认证一定成功。
+6. 没有 RSSI 阈值或迟滞策略；连接失败有 90 秒冷却（按目标网络）和单关联互斥，但弱 P 只要可见仍优先于强 B。
+7. 手动切网判断是启发式，存在误判可能。
+8. 切到配置 B 永远保持托管，用户若确实手动选择 B，只要自动切换开启，P 可见时仍会被切回 P。
+9. Wi-Fi 扫描和关联已移出主线程，并增加单关联互斥和按目标网络的失败冷却；CoreWLAN 本身的系统行为和权限响应时间仍不可控。
+10. 运行日志没有完全本地化，且只保留最后一条。
+11. `currentStatus/lastLog` 不直接显示在设置面板；首页只呈现结构化语义状态，排障仍需查看日志。
+12. 手动扫描失败和真实空列表在 UI 上不可区分。
+13. 当前只跟踪上一版 B；连续多次修改 B 后，更早的旧 B 会被当成普通未管理网络。
+14. 没有显式处理睡眠/唤醒、Wi-Fi 开关开闭、网络服务重建等生命周期事件，只依赖接口重取、SSID 事件和 Timer；解锁带来的事件风暴由单关联互斥和失败冷却吸收。
+15. 没有网络连通性检测；连接到 SSID 成功即视为成功。
+16. 普通分发脚本默认只做 ad-hoc 签名；Mac App Store 需要单独使用 Store 构建脚本和开发者账号证书。
+17. P/B 可以配置成相同值，代码没有校验；此时 P 分支和 P 密码优先。
 
-## 25. 现有文档与当前代码的已知差异
+## 25. 文档维护约定
 
-维护时应以本文档和源码为准，以下旧描述已经不准确：
-
-- README 仍写着“切到 B 且 P 可见时认为是手动覆盖并停止监控”。当前代码会保持监控并立即回 P。
-- `docs/PROJECT_REVIEW.md` 写着 UI 已新增运行状态卡。当前 `SettingsView` 没有渲染 `currentStatus` 或 `lastLog`。
-- 帮助文案写着“手动切换网络会停止监控”，实际只在启发式判断为手动切到未管理网络时停止；切到配置 B 不停止。
-
-如果后续继续维护项目，建议同步修正 README、帮助文案和旧评审文档，避免产品说明与实际状态机再次分叉。
+- 业务状态机和异常分支以本文档及源码为准。
+- UI 模块、色彩、术语、帮助面板和 hover 行为以 `docs/UI_DESIGN.md` 为准。
+- `P` 始终称为 Priority/优先网络，`B` 始终称为 Backup/备用网络；不要把备用网络配置模块命名为 `Failover`。
+- 修改用户可见文案时同步更新 `LocalizationManager.swift`、README、帮助正文和 App Store 元数据。
+- 修改布局或交互后同步更新本文档第 17 节和 `docs/UI_DESIGN.md`。

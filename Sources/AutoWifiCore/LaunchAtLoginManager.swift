@@ -1,24 +1,51 @@
 import Foundation
 import ServiceManagement
 
+public enum LaunchAtLoginStatus: Equatable, Sendable {
+    case notRegistered
+    case enabled
+    case requiresApproval
+    case notFound
+
+    public var isEnabled: Bool {
+        self == .enabled
+    }
+}
+
 @MainActor
 public protocol LaunchServiceProtocol {
-    var isEnabled: Bool { get }
+    var status: LaunchAtLoginStatus { get }
     func enable() throws
     func disable() throws
 }
 
-@available(macOS 13.0, *)
+public extension LaunchServiceProtocol {
+    var isEnabled: Bool {
+        status == .enabled
+    }
+}
+
 @MainActor
 public class LaunchAtLoginManager: LaunchServiceProtocol {
     public static let shared = LaunchAtLoginManager()
-    
+
     private let service = SMAppService.mainApp
-    
-    public var isEnabled: Bool {
-        return service.status == .enabled
+
+    public var status: LaunchAtLoginStatus {
+        switch service.status {
+        case .enabled:
+            return .enabled
+        case .requiresApproval:
+            return .requiresApproval
+        case .notFound:
+            return .notFound
+        case .notRegistered:
+            return .notRegistered
+        @unknown default:
+            return .notRegistered
+        }
     }
-    
+
     public func enable() throws {
         do {
             try service.register()
@@ -27,7 +54,7 @@ public class LaunchAtLoginManager: LaunchServiceProtocol {
             throw error
         }
     }
-    
+
     public func disable() throws {
         do {
             try service.unregister()
@@ -36,26 +63,8 @@ public class LaunchAtLoginManager: LaunchServiceProtocol {
             throw error
         }
     }
-}
 
-// Mock for testing or older macOS versions (though we target 13+)
-public class MockLaunchService: LaunchServiceProtocol {
-    public var isEnabled: Bool = false
-    public var shouldFail: Bool = false
-    
-    public init() {}
-    
-    public func enable() throws {
-        if shouldFail {
-            throw NSError(domain: "MockLaunchService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock failure"])
-        }
-        isEnabled = true
-    }
-    
-    public func disable() throws {
-        if shouldFail {
-            throw NSError(domain: "MockLaunchService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock failure"])
-        }
-        isEnabled = false
+    public static func openSystemSettings() {
+        SMAppService.openSystemSettingsLoginItems()
     }
 }
