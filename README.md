@@ -1,6 +1,8 @@
 # AutoWifi
 
-AutoWifi 是一个面向 macOS 的菜单栏 Wi-Fi 自动切换工具。它允许用户配置一个优先网络 `P` 和一个备用网络 `B`，在优先网络不可用时自动连接备用网络，并在优先网络恢复后切回去。
+AutoWifi 是一个跨平台的 Wi-Fi 自动切换工具，目前提供 macOS、Windows、iOS 和 Android 客户端。它允许用户配置一个优先网络 `P` 和一个备用网络 `B`，在优先网络不可用时自动连接备用网络，并在优先网络恢复后切回去。
+
+四个平台共用 `core/` 中的 Rust 策略状态机；平台层只负责扫描、关联、授权和界面。各平台受系统 API 限制的能力差异见 [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md)。
 
 ## 项目用途
 
@@ -46,10 +48,40 @@ AutoWifi 是一个面向 macOS 的菜单栏 Wi-Fi 自动切换工具。它允许
 - `Sources/AutoWifiCore/WifiPolicy.swift`：macOS 的 Swift 封装，通过 `dlopen`
   加载动态库；找不到核心时退回原有 Swift 逻辑。
 
-这套结构是为后续 macOS、Windows、Android、iOS 共用同一套切换策略准备的。
-平台差异只体现在“如何扫描、如何关联、如何授权”，策略决定保持一致。
-当前 macOS 已接入关联生命周期和程序化切换意图，完整检查流程仍在迁移中。
-详见 [core/README.md](core/README.md)。
+四个客户端都通过这套核心执行同一套切换策略；平台差异只体现在“如何扫描、如何关联、如何授权”。
+详见 [core/README.md](core/README.md) 和 [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md)。
+
+## 平台客户端
+
+| 平台 | 目录 | 说明 |
+| --- | --- | --- |
+| macOS | `Sources/` | 菜单栏应用，CoreWLAN，完整扫描与主动切换 |
+| Windows | `platforms/windows/` | WPF 托盘应用，WlanAPI，Windows Credential Manager |
+| iOS | `platforms/ios/` | SwiftUI，Hotspot Configuration；无公开扫描 API，仅前台监控 |
+| Android | `platforms/android/` | Kotlin + Compose，前台服务；通过系统 Wi-Fi 建议切换 |
+
+构建命令：
+
+```bash
+# macOS
+cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+scripts/package-app.sh
+
+# iOS
+scripts/build-ios-core.sh
+cd platforms/ios && xcodegen generate && cd ../..
+
+# Android
+scripts/build-android-core.sh
+cd platforms/android && gradle assembleDebug && cd ../..
+
+# Windows（在 Windows 上）
+./scripts/build-windows-core.ps1
+dotnet publish platforms/windows/AutoWifi.Windows.csproj -c Release -r win-x64 --self-contained false -o dist/windows
+```
+
+GitHub Actions 工作流 `.github/workflows/cross-platform.yml` 会在 push 和 pull
+request 时先运行 Rust 与 Swift 测试，再构建四个平台的产物并上传为 artifacts。
 
 ## 权限与安全
 
@@ -73,6 +105,12 @@ AutoWifi 是一个面向 macOS 的菜单栏 Wi-Fi 自动切换工具。它允许
   跨平台自动切换状态机。
 - `core/crates/autowifi-ffi/`
   C ABI 导出层。
+- `core/crates/autowifi-jni/`
+  Android JNI 桥接层。
+- `platforms/windows/`、`platforms/ios/`、`platforms/android/`
+  Windows、iOS、Android 客户端。
+- `.github/workflows/cross-platform.yml`
+  测试与四平台构建工作流。
 - `Sources/AutoWifi/SettingsView.swift`
   SwiftUI 配置界面。
 - `docs/UI_DESIGN.md`

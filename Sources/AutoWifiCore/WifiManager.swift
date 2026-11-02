@@ -308,7 +308,10 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
 
         updateInterfaceStatus(interface)
         let currentSSID = interface.ssid()
-        lastObservedSSID = currentSSID
+        // Do not mirror the current SSID into `lastObservedSSID` here: a
+        // refresh may be scheduled after an SSID-change event has already been
+        // delivered, which would erase the previous network the event handler
+        // needs in order to classify a disconnect as P disappearing.
 
         if let ssid = currentSSID {
             appState.setNetworkStatus(.connected(ssid: ssid, role: networkRole(for: ssid)))

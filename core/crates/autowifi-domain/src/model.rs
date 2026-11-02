@@ -101,7 +101,10 @@ pub enum AssociationOutcome {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     Scan(ScanPurpose),
-    Associate { ssid: String, role: Role },
+    Associate {
+        ssid: String,
+        role: Role,
+    },
     /// Run the regular check again as soon as the current call returns.
     CheckNow,
     Stop(StopReason),
