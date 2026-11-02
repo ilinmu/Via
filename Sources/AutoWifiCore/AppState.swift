@@ -133,6 +133,10 @@ public class AppState: ObservableObject {
     private var passwordSaveTasks: [String: Task<Void, Never>] = [:]
     private var launchService: LaunchServiceProtocol?
     private var isSynchronizingLaunchAtLogin = false
+    /// Swift calls `didSet` for assignments made late in `init`, so loading the
+    /// stored passwords would otherwise schedule keychain writes on every
+    /// launch. Skip persistence until initialization has finished.
+    private var isLoadingConfiguration = true
 
     public var associationCooldownUntil: Date? {
         get {
@@ -220,6 +224,7 @@ public class AppState: ObservableObject {
 
         // Sync launch state
         syncLaunchAtLogin(self.launchService?.status ?? .notRegistered)
+        isLoadingConfiguration = false
     }
 
     private func toggleLaunchAtLoginIfNeeded() {
@@ -297,6 +302,7 @@ public class AppState: ObservableObject {
     /// Keychain writes are coalesced so typing a password does not issue one
     /// keychain update per keystroke. App termination flushes pending writes.
     private func persistPassword(_ password: String, account: String) {
+        guard !isLoadingConfiguration else { return }
         passwordSaveTasks[account]?.cancel()
         let store = credentialStore
         passwordSaveTasks[account] = Task { [weak self] in
