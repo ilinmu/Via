@@ -29,8 +29,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var passwordP by mutableStateOf(store.passwordP)
     var passwordB by mutableStateOf(store.passwordB)
     var language by mutableStateOf(store.language)
+        private set
     var intervalText by mutableStateOf(store.intervalSeconds.toString())
     var launchAtBoot by mutableStateOf(store.launchAtBoot)
+        private set
 
     var currentSsid by mutableStateOf<String?>(null)
         private set
