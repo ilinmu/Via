@@ -3,7 +3,9 @@ using System.Windows;
 
 namespace AutoWifi.Windows;
 
-public partial class App : Application
+// UseWindowsForms adds an implicit `System.Windows.Forms` using, which makes
+// the unqualified `Application` name ambiguous.
+public partial class App : System.Windows.Application
 {
     private Mutex? _mutex;
     private TrayService? _tray;

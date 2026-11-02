@@ -37,13 +37,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# `xcodebuild -create-xcframework` rejects two separate libraries that both
+# identify as `ios-simulator`, so merge the simulator slices into one fat
+# archive first.
+SIM_LIB="$TMP_DIR/libautowifi_core_simulator.a"
+xcrun lipo -create \
+  "$ROOT_DIR/core/target/$SIM_ARM_TARGET/release/libautowifi_core.a" \
+  "$ROOT_DIR/core/target/$SIM_X86_TARGET/release/libautowifi_core.a" \
+  -output "$SIM_LIB"
+
 TMP_XCFRAMEWORK="$TMP_DIR/AutoWifiCore.xcframework"
 xcodebuild -create-xcframework \
   -library "$ROOT_DIR/core/target/$DEVICE_TARGET/release/libautowifi_core.a" \
   -headers "$HEADERS_DIR" \
-  -library "$ROOT_DIR/core/target/$SIM_ARM_TARGET/release/libautowifi_core.a" \
-  -headers "$HEADERS_DIR" \
-  -library "$ROOT_DIR/core/target/$SIM_X86_TARGET/release/libautowifi_core.a" \
+  -library "$SIM_LIB" \
   -headers "$HEADERS_DIR" \
   -output "$TMP_XCFRAMEWORK"
 

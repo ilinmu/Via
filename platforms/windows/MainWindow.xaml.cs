@@ -54,7 +54,7 @@ public partial class MainWindow : Window
         _allowClose = true;
         _monitor.Dispose();
         _tray?.Dispose();
-        Application.Current.Shutdown();
+        System.Windows.Application.Current.Shutdown();
     }
 
     private void LoadSettingsIntoUi()
