@@ -595,13 +595,13 @@ private fun SettingsTab(
             )
             FilterChip(
                 selected = viewModel.language == "zh",
-                onClick = { viewModel.setLanguage("zh") },
+                onClick = { viewModel.chooseLanguage("zh") },
                 label = { Text("中文") },
             )
             Spacer(Modifier.width(8.dp))
             FilterChip(
                 selected = viewModel.language == "en",
-                onClick = { viewModel.setLanguage("en") },
+                onClick = { viewModel.chooseLanguage("en") },
                 label = { Text("English") },
             )
         }
@@ -646,7 +646,7 @@ private fun SettingsTab(
             }
             Switch(
                 checked = viewModel.launchAtBoot,
-                onCheckedChange = { viewModel.setLaunchAtBoot(it) },
+                onCheckedChange = { viewModel.updateLaunchAtBoot(it) },
             )
         }
 

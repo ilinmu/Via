@@ -81,12 +81,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setLanguage(value: String) {
+    fun chooseLanguage(value: String) {
         language = value
         store.language = value
     }
 
-    fun setLaunchAtBoot(value: Boolean) {
+    fun updateLaunchAtBoot(value: Boolean) {
         launchAtBoot = value
         store.launchAtBoot = value
     }
