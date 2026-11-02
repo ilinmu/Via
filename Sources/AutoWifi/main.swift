@@ -52,6 +52,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var cancellables = Set<AnyCancellable>()
     var eventMonitor: Any?
     var preferredPanelHeight: CGFloat = 440
+    let panelMetrics = PanelMetrics()
+    var panelModel: PanelModel!
     private var statusImageCache: [StatusImageKey: NSImage] = [:]
 
     private struct StatusImageKey: Hashable {
@@ -70,17 +72,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
+        updatePanelMetrics()
+        panelModel = PanelModel(appState: appState, wifiManager: wifiManager)
+
         // Create the SwiftUI view
         let contentView = SettingsView(
             appState: appState,
-            wifiManager: wifiManager
+            wifiManager: wifiManager,
+            metrics: panelMetrics,
+            model: panelModel
         ) { [weak self] newHeight in
             self?.updateWindowHeight(to: newHeight)
         }
 
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.frame.size.width = SettingsView.panelWidth
-        preferredPanelHeight = max(ceil(hostingView.fittingSize.height), 360)
+        preferredPanelHeight = min(
+            max(ceil(hostingView.fittingSize.height), PanelLayout.minHeight),
+            panelMetrics.maxHeight
+        )
 
         // Create the window at its final fitted height. This prevents the first
         // presentation from showing a clipped lower section and then jumping
@@ -145,16 +155,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.updateStatusItemImage()
             }
             .store(in: &cancellables)
-            
+
+        NotificationCenter.default.publisher(
+            for: NSApplication.didChangeScreenParametersNotification
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.updatePanelMetrics()
+        }
+        .store(in: &cancellables)
+
         // Monitor clicks outside to close
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, self.window.isVisible else { return }
             self.closePopover(sender: event)
         }
     }
-    
+
     func applicationDidBecomeActive(_ notification: Notification) {
         appState.refreshLaunchAtLoginStatus()
+        wifiManager?.refreshStatus()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -308,15 +328,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor @objc func togglePopover(_ sender: AnyObject?) {
-        if window.isVisible {
+        if isContextClick {
+            showStatusMenu()
+        } else if window.isVisible {
             closePopover(sender: sender)
         } else {
             showPopover(sender: sender)
         }
     }
+
+    private var isContextClick: Bool {
+        guard let event = NSApp.currentEvent else { return false }
+        return event.type == .rightMouseUp
+            || (event.type == .leftMouseUp && event.modifierFlags.contains(.control))
+    }
+
+    private func showStatusMenu() {
+        let menu = NSMenu()
+        let quitItem = NSMenuItem(
+            title: LocalizationManager.shared.localizedString("quit_app"),
+            action: #selector(quitApplication(_:)),
+            keyEquivalent: ""
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        // Temporarily install the menu so AppKit anchors it to the status item,
+        // then restore the left-click action.
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    @objc private func quitApplication(_ sender: Any?) {
+        NSApplication.shared.terminate(nil)
+    }
     
     func showPopover(sender: AnyObject?) {
+        updatePanelMetrics()
         updatePreferredPanelHeightFromContent()
+        preferredPanelHeight = min(
+            max(preferredPanelHeight, PanelLayout.minHeight),
+            panelMetrics.maxHeight
+        )
 
         var frame = window.frame
         frame.size = NSSize(width: SettingsView.panelWidth, height: preferredPanelHeight)
@@ -340,7 +394,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.window != nil else { return }
 
-            let targetHeight = max(ceil(measuredHeight), 360)
+            let targetHeight = min(
+                max(ceil(measuredHeight), PanelLayout.minHeight),
+                self.panelMetrics.maxHeight
+            )
             self.preferredPanelHeight = targetHeight
 
             guard abs(self.window.frame.height - targetHeight) > 1 else { return }
@@ -360,7 +417,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let contentView = window.contentView else { return }
         let fittedHeight = contentView.fittingSize.height
         guard fittedHeight.isFinite, fittedHeight > 0 else { return }
-        preferredPanelHeight = max(ceil(fittedHeight), 360)
+        preferredPanelHeight = min(
+            max(ceil(fittedHeight), PanelLayout.minHeight),
+            panelMetrics.maxHeight
+        )
+    }
+
+    private func updatePanelMetrics() {
+        let screen = statusItem?.button?.window?.screen ?? NSScreen.main
+        let visibleHeight = screen?.visibleFrame.height ?? 900
+        panelMetrics.maxHeight = max(
+            min(PanelLayout.defaultMaxHeight, visibleHeight - 24),
+            PanelLayout.minHeight
+        )
     }
 
     private func panelOrigin(for size: NSSize) -> NSPoint? {

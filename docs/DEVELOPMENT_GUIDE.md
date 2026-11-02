@@ -101,6 +101,14 @@ swift build
 
 调试构建产物一般会在 `.build/.../debug/AutoWifi`。
 
+如果当前 Command Line Tools 的 SDK 缺少 `libSwiftUIMacros.dylib`，SwiftUI 宏会在编译时报错。可以手动指定较旧的 SDK：
+
+```bash
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk swift build
+```
+
+`scripts/package-app.sh` 会自动检测并回退到可用 SDK，本地打包时不需要手动设置。
+
 ### 4.3 启动应用做联调
 
 可以直接运行可执行文件：
@@ -177,23 +185,24 @@ swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 
 优先看：
 
-- [Sources/AutoWifi/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/SettingsView.swift)
-- [Sources/AutoWifi/main.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/main.swift)
+- [Sources/AutoWifi/SettingsView.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/SettingsView.swift)：面板外壳、Tab 栏、横幅、路由和高度测量
+- [Sources/AutoWifi/main.swift](/Users/linmu/git/auto-wifi/Sources/AutoWifi/main.swift)：菜单栏图标、窗口、面板高度上限和 App 生命周期
+- [Sources/AutoWifi/Models/](/Users/linmu/git/auto-wifi/Sources/AutoWifi/Models)：`PanelModel`、`NetworkDraft`、`PanelMetrics`
+- [Sources/AutoWifi/Tabs/](/Users/linmu/git/auto-wifi/Sources/AutoWifi/Tabs) 与 [Sources/AutoWifi/Onboarding/](/Users/linmu/git/auto-wifi/Sources/AutoWifi/Onboarding)
 
-前者是弹出面板内容，后者是菜单栏图标、窗口和 App 生命周期。
-
-当前 UI 采用深色科技控制台设计。修改前先阅读：
+当前 UI 跟随系统外观，按三个 Tab 组织，并在配置不完整时显示三步向导。修改前先阅读：
 
 - [docs/UI_DESIGN.md](/Users/linmu/git/auto-wifi/docs/UI_DESIGN.md)
 
 需要保持的约束包括：
 
-- 面板宽度为 400 点，高度动态测量。
-- `00 / LINK STATUS`、`01 / PRIMARY`、`02 / BACKUP`、`03 / AUTOMATION` 使用各自固定信号色。
-- `BACKUP` 是备用网络模块的统一术语，不使用 `FAILOVER` 作为配置模块名。
-- 扫描网络、自动切换和下次检查位于当前网络模块的同一行。
-- 顶部 hover 提示应锚定各自按钮，帮助面板应沿用主界面配色。
-- 底层接口名和原始运行日志不应直接作为首页状态文案。
+- 面板宽度为 400 点，高度动态测量，最低 360 点，最高取屏幕可用高度且不超过 680 点。
+- 只使用系统语义颜色和 `DesignSystem/PanelLayout.swift` 中的令牌；系统蓝是唯一强调色。
+- 功能属于“状态 / 网络 / 设置”三个 Tab 之一，不新增固定模块或深色主题。
+- 网络编辑走 `NetworkDraft` + 显式保存；不要改回每个按键直接写 `AppState`。
+- 自动切换的开始操作以“配置完整 + 定位权限始终”为前提；`isStarting` 用于防重入。
+- 底层接口名和原始运行日志不应直接作为状态 Tab 的文案。
+- 新增或修改文案时同步补齐中英文 Key；缺失 Key 会直接显示 Key。
 
 ### 5.4 改文案与多语言
 
@@ -373,11 +382,15 @@ VERSION="1.0.1" BUILD_NUMBER="12" scripts/package-app.sh
 
 UI 调整还应检查：
 
-- 中文和英文状态是否都能完整显示。
-- 四个模块的颜色是否仍可明确区分。
-- 最右侧按钮的 hover 提示是否保持在面板范围内。
-- 帮助 Popover 是否使用深色背景且正文可以滚动。
-- 扫描前、扫描中和扫描后的第三个状态单元是否正确变化。
+- 首次启动（配置不完整）是否出现三步向导；授权、选择 P/B、开启、仅保存、跳过都能走通。
+- 跳过后的“设置未完成”横幅能否回到向导；设置页的“重新运行设置向导”是否可用。
+- 三个 Tab 切换是否正常；扫描结果和未保存草稿在切换后是否保留。
+- 保存前不写入 `AppState`；保存后状态 Tab 和菜单栏图标是否更新。
+- 中文和英文文案是否完整；是否出现原始本地化 Key。
+- 浅色和深色外观下是否都保持可读对比，是否混入硬编码颜色。
+- 面板在各个 Tab 和向导下是否被裁切；小屏上是否可滚动且不超过可用高度。
+- 定位权限被拒绝时，状态 Tab、网络 Tab 和向导是否都有可理解的提示和系统设置入口。
+- 密码显示/隐藏、粘贴/复制、登录启动、检查间隔、帮助展开和退出是否正常。
 
 ## 11. 常见排查思路
 

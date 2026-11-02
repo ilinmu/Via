@@ -11,6 +11,8 @@
 - `Sources/AutoWifiCore/AppState.swift`
 - `Sources/AutoWifiCore/WifiManager.swift`
 - `Sources/AutoWifi/SettingsView.swift`
+- `Sources/AutoWifi/Models/`（`PanelModel`、`NetworkDraft`、`PanelMetrics`、`PanelTab`）
+- `Sources/AutoWifi/DesignSystem/`、`Components/`、`Tabs/`、`Onboarding/`
 - `Sources/AutoWifiCore/LocalizationManager.swift`
 - `Sources/AutoWifiCore/LaunchAtLoginManager.swift`
 - `Tests/AutoWifiTests/AutoWifiTests.swift`
@@ -80,11 +82,15 @@ NSApplication / AppDelegate
 │   ├── CLLocationManager
 │   ├── SSID 变化事件
 │   └── 定时检查
+├── PanelMetrics（面板最大高度）
+├── PanelModel（路由、Tab、草稿、扫描、启动中）
+│   ├── NetworkDraft
+│   └── PanelRoute / PanelTab / SetupStep / ScanOutcome
 └── SettingsView
-    ├── 配置输入
-    ├── 扫描入口
-    ├── 自动切换开关
-    └── 登录启动、语言、帮助、退出
+    ├── PanelTabBar 与权限/设置横幅
+    ├── StatusTabView / NetworksTabView / SettingsTabView
+    ├── OnboardingView（授权 → 网络 → 完成）
+    └── DesignSystem / Components
 ```
 
 `AppState` 和 `WifiManager` 都标记为 `@MainActor`。CoreWLAN 和 CoreLocation 的回调通过 `Task { @MainActor in ... }` 回到主 Actor 后更新状态。
@@ -122,12 +128,14 @@ WifiManager
 
 1. 创建 `AppState`。
 2. 创建 `WifiManager`，注入 `AppState`。
-3. 创建 `SettingsView`。
-4. 创建透明、无边框、可获得键盘焦点的 `FocusablePanel`。
-5. 创建菜单栏 `NSStatusItem`。
-6. 订阅当前网络名，用于更新菜单栏提示文字。
-7. 订阅网络类型和监控开关，用于更新菜单栏图标。
-8. 注册全局鼠标点击监听；面板显示时，应用外部的全局左/右键点击会关闭面板。
+3. 计算 `PanelMetrics.maxHeight`，创建持有 UI 状态的 `PanelModel`。
+4. 创建 `SettingsView`，注入 `AppState`、`WifiManager`、`PanelMetrics` 和 `PanelModel`。
+5. 创建透明、无边框、可获得键盘焦点的 `FocusablePanel`。
+6. 创建菜单栏 `NSStatusItem`。
+7. 订阅当前网络名，用于更新菜单栏提示文字。
+8. 订阅网络类型、监控开关、语言和应用外观，用于更新菜单栏图标和提示。
+9. 监听屏幕参数变化，重新计算面板最大高度。
+10. 注册全局鼠标点击监听；面板显示时，应用外部的全局左/右键点击会关闭面板。
 
 ### 4.2 启动时恢复自动切换意图
 
@@ -141,16 +149,15 @@ WifiManager
 
 ### 4.3 浮动面板
 
-面板宽度固定为 400 点，高度按 SwiftUI 内容测量结果动态调整，最低高度为 360 点。
+面板宽度固定为 400 点，高度按 SwiftUI 内容测量结果动态调整，最低 360 点。`PanelMetrics.maxHeight` 取状态栏所在屏幕 `visibleFrame.height - 24`，上限 680 点；`SettingsView` 的根滚动区域和 `AppDelegate` 的窗口高度更新都按该上限钳制。
 
 打开面板时：
 
 - 根据菜单栏按钮的屏幕坐标，将面板水平居中放在按钮下方。
+- 按屏幕可见区域修正 x/y，避免多显示器或靠近屏幕边缘时超出边界。
 - 调用 `makeKeyAndOrderFront`，并激活应用。
 
 关闭面板时只执行 `orderOut`，应用继续在菜单栏运行。
-
-代码当前没有做屏幕可见区域边界修正。因此在多显示器或菜单栏按钮靠近屏幕边缘时，面板理论上可能部分超出屏幕。
 
 ### 4.4 文本快捷键
 
@@ -227,7 +234,7 @@ WifiManager
 
 只保留最后一条日志，没有日志列表、磁盘日志或历史持久化。
 
-当前设置面板不直接展示 `currentStatus` 和 `lastLog`。这是有意的产品取舍：原始业务日志和 CoreWLAN 接口诊断继续保留在状态对象、标准输出和 OSLog 中，首页改为展示结构化且已本地化的连接角色、自动切换状态、下次检查和扫描结果，避免把英文内部日志直接暴露给用户。
+当前设置面板不直接展示 `currentStatus` 和 `lastLog`。这是有意的产品取舍：原始业务日志和 CoreWLAN 接口诊断继续保留在状态对象、标准输出和 OSLog 中，状态 Tab 改为展示结构化且已本地化的连接角色、自动切换状态、下次检查和扫描结果，避免把英文内部日志直接暴露给用户。
 
 ## 6. 当前网络状态分类
 
@@ -564,14 +571,14 @@ Scan failed: <系统错误描述>
 
 ## 16. 手动扫描功能
 
-点击“扫描网络”时：
+点击“扫描网络”时，`PanelModel.scan()` 按定位权限分支：
 
-1. 请求定位权限。
-2. 设置 `isScanning = true`。
-3. 清空上次网络列表。
-4. 写入本地化的“扫描中”日志。
-5. 调用 `WifiManager.getAvailableNetworks()`。
-6. 完成后更新网络列表并停止旋转动画。
+1. `.notDetermined`：标记 `.permissionPending` 并请求权限，不开始扫描。
+2. 其它非 `.authorizedAlways` 状态：标记 `.permissionDenied`，不开始扫描。
+3. `.authorizedAlways`：设置 `isScanning = true`、状态 `.scanning`，写入本地化的“扫描中”日志，然后调用 `WifiManager.getAvailableNetworks()`。
+4. 完成后停止旋转；有结果时替换建议列表并标记 `.success(count)`，空结果标记 `.empty` 并保留上一次的建议列表。
+
+用户授权后，`PanelModel.handleAuthorizationChange(_:)` 会在条件满足时自动补一次扫描；权限被拒绝时把待定状态改成 `.permissionDenied`。
 
 扫描结果处理：
 
@@ -580,95 +587,120 @@ Scan failed: <系统错误描述>
 - 用 `Set` 去重。
 - 按字符串升序排序。
 
-UI 分支：
+UI 分支（`PanelModel.scan()`）：
 
-- 未扫描到列表时，P/B 都使用可自由输入的 `TextField`。
-- 有扫描列表时，P/B 都切换为 Picker；包含一个空值“选择网络”选项。
-- 扫描中禁用扫描按钮并旋转图标。
+- 权限为 `.notDetermined` 时先请求权限，并把结果标为 `.permissionPending`。
+- 权限不是 `.authorizedAlways` 时标为 `.permissionDenied`，不发起扫描。
+- 有权限时异步扫描，状态从 `.scanning` 进入 `.success(count)` 或 `.empty`。
+- P/B 编辑器始终是可自由输入的 `TextField`；有扫描结果时右侧提供展开按钮，展开后以可滚动列表展示全部扫描结果，选中即回填。
+- 扫描中禁用扫描按钮并显示进度指示。
 
 异常处理：
 
 - Wi-Fi 扫描错误会记录 `❌ Scan error: ...` 并返回空数组。
 - 如果错误描述包含小写字符串 `location`，再记录一次定位权限建议。该判断依赖错误文本和大小写，不是结构化错误判断。
-- UI 无法区分“周围确实没有网络”和“扫描失败”，两者最终都会显示定位权限提示。
-- 第二条 UI 提示日志会覆盖 `lastLog/currentStatus` 中前一条具体扫描错误；具体错误仍只留在标准输出中。
+- `getAvailableNetworks()` 对“周围确实没有网络、无权限、无接口、扫描失败”都返回空数组；UI 只在有权限时显示中性的“未发现网络”，权限状态单独由横幅和提示表达。
+- 扫描失败时保留上一次的成功建议列表。
+- 具体扫描错误仍只留在标准输出和日志中。
 
 ## 17. 设置界面功能
 
-### 17.1 顶部操作
+UI 由 `SettingsView` 外壳、三个 Tab 和首次向导组成。`PanelModel` 持有跨视图的 UI 状态（当前路由、Tab、向导步骤、网络草稿、扫描结果、间隔草稿和启动中标记），`AppDelegate` 创建并持有它，再以 `@ObservedObject` 传入 `SettingsView`。
 
-- 登录启动：电脑图标；开启时使用青色信号，关闭时使用低对比灰色。
-- 语言切换：中文状态显示 `EN`，英文状态显示 `中`，表示点击后的目标语言。
-- 帮助：弹出 350×390 的深色科技风可滚动说明，标题为 `SYS / HELP CENTER`，包含网格背景和“仅本机”状态标识。
-- 退出：直接调用 `NSApplication.shared.terminate(nil)`。
+### 17.1 面板外壳与路由
 
-四个按钮使用自定义局部悬浮胶囊提示。提示锚定在各自图标下方；最右侧退出按钮向左收口以避免越界。系统 `.help` Tooltip 已移除，避免出现两套提示。
+`SettingsView` 只负责：
 
-### 17.2 当前网络与扫描卡片
+- 顶部标题栏：`wifi` 图标、应用标题；Tab 模式不额外放置设置入口，向导模式在右侧显示 `1 / 3` 和“跳过”。
+- Tab 模式下的 `PanelTabBar`（分段 `Picker`），不使用 SwiftUI `TabView`，避免 macOS 自带 chrome 影响 400 点无边框面板。
+- 条件横幅：定位权限未就绪、网络设置未完成。
+- 按 `PanelRoute` 和 `PanelTab` 切换内容。
+- 固定顶部区域与滚动内容的测高、`PanelMetrics.maxHeight` 钳制和 `onHeightChange` 回调。
 
-当前网络模块标识为 `00 / LINK STATUS`，固定使用电光蓝信号色。它显示当前网络名和本地化网络角色，不会因为当前连接 P 而改成 `PRIMARY` 模块的青色。
+`PanelRoute` 只有 `.onboarding` 和 `.tabs`。`PanelModel.init` 根据 `ssidP`、`ssidB` 去空白后是否都非空决定初始路由，之后只由“完成/跳过/重新运行向导”改变。这样编辑过程中清空字段不会突然切回向导并丢失焦点。
 
-模块第二行有三个等宽区域：
+菜单栏图标左键打开或关闭面板；右键或 Control-点击弹出系统菜单，当前只包含本地化的“退出应用”，不会打开面板。
 
-- 自动切换：运行中或已暂停。
-- 下次检查：运行时显示倒计时；暂停时显示控制模式。
-- 网络发现：点击执行扫描；扫描中显示旋转动画；完成后直接显示“发现 N 个网络”。
+`applicationDidBecomeActive` 会刷新登录启动状态和 Wi-Fi 状态；屏幕参数变化时重新计算 `PanelMetrics.maxHeight`。
 
-`Not Connected`、`Location Permission Denied`、`No Interface` 和权限等待状态会在显示层映射为当前语言。原始接口诊断和英文运行日志不在该卡片展示。
+### 17.2 状态 Tab
 
-### 17.3 P/B 配置卡片
+`StatusTabView` 包含：
 
-两个模块分别标识为：
+- `ConnectionSummary`：当前 SSID、本地化网络角色、运行状态徽标。状态徽标高度与 40 点 Wi-Fi 图标一致，文字使用 `.body`，始终带文字：运行中（绿色）、等待定位权限（橙色）、正在开启（蓝色 + 进度）、已暂停（次级灰）。
+- 自动切换 `Toggle`：未运行时要求配置完整且权限为 `.authorizedAlways`；运行中始终允许停止。`isStarting` 期间禁用并显示进度。
+- 下次检查：运行且有 `nextCheckTime` 时用 `TimelineView` 每秒更新倒计时；启动检查期间显示“正在检查”；权限未就绪时显示“等待定位权限”。
+- 未保存草稿提示：点击切到网络 Tab。
+- P/B 摘要：显示 SSID 或“未设置”，点击切到网络 Tab。
+- `扫描网络`、`刷新状态`，以及扫描结果反馈。
 
-- `01 / PRIMARY`：青色，优先网络 P。
-- `02 / BACKUP`：紫色，备用网络 B。
+状态页不展示 `currentStatus`、`lastLog` 或 CoreWLAN 接口诊断；这些信息仍保留在状态对象、标准输出和 OSLog 中。
 
-这里使用 `BACKUP` 而不是 `FAILOVER`，因为模块配置的是备用网络实体；`Failover` 只描述故障发生后的切换行为。
+### 17.3 网络 Tab 与草稿
 
-每张卡包括：
+`NetworksTabView` 使用 `NetworkSetupForm` 编辑 P/B，并复用同一组件于向导第 2 步。
 
-- SSID 手动输入或扫描结果 Picker。
-- 密码输入框。
-- 明文/密文切换按钮。
-- 原生编辑快捷键和右键菜单。
+编辑不直接写 `AppState`：
 
-明文和密文切换会在 `NSTextField` 与 `NSSecureTextField` 两种原生控件之间重建视图，但都绑定同一个密码字符串。
+- `NetworkDraft` 保存 P/B 的 SSID 和密码，并记录原始快照用于 `hasChanges`。
+- 点击“保存更改”才调用 `commit(to:)`，SSID 去首尾空白后一次性写入 `AppState`。
+- 校验：两个 SSID 非空且不区分大小写不相同；密码可为空，适用于开放网络。
+- 保存按钮只在没有改动时禁用；无效输入点击后显示具体错误，不静默禁用。
+- 切换 Tab 不会丢失草稿或扫描结果。
 
-### 17.4 自动切换控制
+这样可以避免用户编辑到一半清空 SSID 时，`checkConnection` 因空配置停止监控。
 
-- 模块标识为 `03 / AUTOMATION`，固定使用绿色信号色。
-- 尚未运行且 P/B 任一为空时，开启按钮禁用；运行期间停止按钮保持可用。
-- 关闭状态：绿色描边按钮，播放图标，文案“开启自动切换”。
-- 开启状态：红色警示描边按钮，停止图标，文案“停止自动切换”。
-- 检查频率使用深色内嵌数值区域，并显示最小间隔提示。
-- 运行且存在 `nextCheckTime` 时，倒计时显示在 `00 / LINK STATUS` 的状态行中。
+扫描由 `PanelModel.scan()` 统一管理，状态为 `ScanOutcome`：`.idle`、`.scanning`、`.success(count)`、`.empty`、`.permissionPending`、`.permissionDenied`。P/B 输入框始终可手动输入，有建议列表时在输入框右侧提供菜单。
 
-### 17.5 视觉系统
+### 17.4 设置 Tab
 
-面板背景使用深空蓝黑渐变、低对比网格和局部环境光。各模块使用统一深色面板、细描边、短光条和状态光点，但拥有固定信号色：
+`SettingsTabView` 分为三个无卡片背景的分区：
 
-| 模块 | 信号色 |
-| --- | --- |
-| `00 / LINK STATUS` | 电光蓝 |
-| `01 / PRIMARY` | 青色 |
-| `02 / BACKUP` | 紫色 |
-| `03 / AUTOMATION` | 绿色 |
+1. 通用：登录时启动开关、语言下拉选择器、内联使用说明 `DisclosureGroup`、重新运行设置向导。
+2. 自动切换：检查间隔输入框和“秒”；回车或失焦提交，经 `AppState` 归一化到 5–3600；下方显示范围提示。
+3. 关于：版本号和构建号、本地隐私说明、红色“退出应用”。
 
-详细规范见 `docs/UI_DESIGN.md`。
+登录启动处于 `.requiresApproval` 时开关禁用，显示警告横幅和“打开登录项设置”，避免开关回弹。
 
-### 17.6 本地化范围
+### 17.5 首次向导
 
-界面支持简体中文和英文，语言切换会持久化。
+`SetupStep` 为 `.permission`、`.networks`、`.finish`，`OnboardingView` 负责进度指示和底部导航。
 
-未完全本地化的内容包括：
+1. 授权定位：`.authorizedAlways` 显示已授权；`.notDetermined` 提供“授权定位”；其它状态提供“打开系统设置”和“需要允许‘始终’访问”的提示，并说明可以跳过、手动输入 SSID。
+2. 选择网络：复用 `NetworkSetupForm`；只有草稿有效时才能进入下一步。
+3. 完成：展示 P/B/权限摘要。`开启自动切换` 要求配置有效且权限为 `.authorizedAlways`，`仅保存` 在配置有效时可用。完成后提交草稿、切换到 Tab 模式并停在状态 Tab。
 
-- 多数 `WifiManager` 运行日志是英文。
-- `Ready` 等内部初始状态以及多数运行日志仍是英文常量；首页会对 `Not Connected`、`No Interface`、`Location Permission Denied` 和权限等待状态做显示层本地化映射。
-- 密码字段右键菜单固定为英文 Cut/Copy/Paste/Select All。
-- 菜单栏 Tooltip 前缀固定为 `Auto-Wifi`。
-- `LINK STATUS`、`PRIMARY`、`BACKUP`、`AUTOMATION` 和 `SYS / HELP CENTER` 是稳定的控制台导航标识；对应用户可读标题和状态仍跟随语言切换。
+跳过会把路由切到 `.tabs` 并选中网络 Tab，保留草稿；顶部“设置未完成 / 继续设置”横幅可重新进入向导。设置页的“重新运行设置向导”使用同一入口。
 
-找不到本地化 Key 时，会直接显示 Key 本身。
+### 17.6 设计系统与视觉
+
+面板跟随系统浅色/深色外观：
+
+- 背景 `windowBackgroundColor`，输入框 `textBackgroundColor`，分隔线 `separatorColor`。
+- 系统蓝是唯一强调色；橙色/红色只表达警告和错误。
+- 单色 SF Symbols，无渐变、网格、发光和卡片阴影。
+- 输入框、按钮和面板使用 8/12 点圆角；间距取 4/8/12/16/20。
+
+设计令牌位于 `DesignSystem/PanelLayout.swift`；共享组件包括 `PanelTabBar`、`SettingsSection`、`SettingsRow`、`FieldContainer`、`StatusBadge`、`WarningBanner`、`ScanButton`、`NetworkSetupForm` 和 `ConnectionSummary`。
+
+### 17.7 本地化范围
+
+界面支持简体中文和英文，语言切换会持久化。Tab 名称、状态、网络配置、权限提示、向导、设置项、帮助正文、密码右键菜单和菜单栏右键退出项都通过 `LocalizationManager` 取文案；找不到 Key 时直接显示 Key 本身。
+
+仍未本地化的内容：
+
+- 多数 `WifiManager` 运行日志是英文，仅用于标准输出和 OSLog 排障。
+- 菜单栏 Tooltip 前缀固定为 `Auto-Wifi`（品牌名）。
+- 语言选项使用“中文”和“English”的自称，便于在任何界面语言下识别。
+
+### 17.8 状态模型
+
+- `PanelModel`：`@MainActor ObservableObject`，持有 `route`、`tab`、`step`、`draft`、`intervalDraft`、`availableNetworks`、`isScanning`、`scanOutcome`、`isStarting`；提供 `scan()`、`startMonitoring()`、`stopMonitoring()`、`commitDraft()`、`commitInterval()`、`refreshAll()`、`handleAuthorizationChange(_:)` 和向导导航方法。
+- `NetworkDraft`：`@MainActor struct`，保存草稿、校验、提交和重新加载。
+- `PanelMetrics`：`@MainActor ObservableObject`，保存面板最大高度。
+- `PanelTab.swift`：定义 `PanelRoute`、`PanelTab`、`SetupStep`、`ScanOutcome`。
+
+`isStarting` 是唯一可靠的“开启中”信号：`startMonitoring()` 可能等待关联最多 15 秒，而 `isAssociating` 没有发布。开始操作以 `canAutomate` 为前提；`startMonitoring()` 在权限不足时仍可能把 `isRunning` 置 true 且没有定时器，因此 UI 还要单独展示“等待定位权限”。
 
 ## 18. 登录启动
 
@@ -847,7 +879,7 @@ CLI 与 GUI 的重要差异：
 8. 切到配置 B 永远保持托管，用户若确实手动选择 B，只要自动切换开启，P 可见时仍会被切回 P。
 9. Wi-Fi 扫描和关联已移出主线程，并增加单关联互斥和按目标网络的失败冷却；CoreWLAN 本身的系统行为和权限响应时间仍不可控。
 10. 运行日志没有完全本地化，且只保留最后一条。
-11. `currentStatus/lastLog` 不直接显示在设置面板；首页只呈现结构化语义状态，排障仍需查看日志。
+11. `currentStatus/lastLog` 不直接显示在设置面板；状态 Tab 只呈现结构化语义状态，排障仍需查看日志。
 12. 手动扫描失败和真实空列表在 UI 上不可区分。
 13. 当前只跟踪上一版 B；连续多次修改 B 后，更早的旧 B 会被当成普通未管理网络。
 14. 没有显式处理睡眠/唤醒、Wi-Fi 开关开闭、网络服务重建等生命周期事件，只依赖接口重取、SSID 事件和 Timer；解锁带来的事件风暴由单关联互斥和失败冷却吸收。
@@ -858,7 +890,7 @@ CLI 与 GUI 的重要差异：
 ## 25. 文档维护约定
 
 - 业务状态机和异常分支以本文档及源码为准。
-- UI 模块、色彩、术语、帮助面板和 hover 行为以 `docs/UI_DESIGN.md` 为准。
+- 三 Tab 结构、设计令牌、状态文案、无障碍和首次向导以 `docs/UI_DESIGN.md` 为准。
 - `P` 始终称为 Priority/优先网络，`B` 始终称为 Backup/备用网络；不要把备用网络配置模块命名为 `Failover`。
 - 修改用户可见文案时同步更新 `LocalizationManager.swift`、README、帮助正文和 App Store 元数据。
 - 修改布局或交互后同步更新本文档第 17 节和 `docs/UI_DESIGN.md`。
