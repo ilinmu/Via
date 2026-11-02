@@ -1,7 +1,10 @@
 #!/usr/bin/env swift
 
+// Local diagnostic script for exercising the switching rules without UI.
+// It is not part of the SwiftPM targets, the app bundle, or the release flow.
 import Foundation
 import CoreWLAN
+import Darwin
 
 // Simple command-line version that doesn't require SwiftUI/Cocoa
 class SimpleWifiMonitor {
@@ -9,7 +12,7 @@ class SimpleWifiMonitor {
     private var interface: CWInterface?
     
     var ssidP: String = ""
-    var passwordA: String = ""
+    var passwordP: String = ""
     var ssidB: String = ""
     var passwordB: String = ""
     var checkInterval: Double = 60.0
@@ -50,10 +53,9 @@ class SimpleWifiMonitor {
         log("Scanning...")
         do {
             let networks = try interface.scanForNetworks(withSSID: nil)
-            let networkMap = Dictionary(grouping: networks, by: { $0.ssid ?? "" })
             
             // Check for P
-            if let networksP = networkMap[ssidP], let targetNetworkP = networksP.first {
+            if let targetNetworkP = strongestNetwork(named: ssidP, from: networks) {
                 log("Found network P (\(ssidP)). Connecting...")
                 try interface.associate(to: targetNetworkP, password: passwordP)
                 log("Successfully connected to \(ssidP).")
@@ -62,7 +64,7 @@ class SimpleWifiMonitor {
             
             // If P not found and not connected to B, check for B
             if currentSSID != ssidB {
-                if let networksB = networkMap[ssidB], let targetNetworkB = networksB.first {
+                if let targetNetworkB = strongestNetwork(named: ssidB, from: networks) {
                     log("Network P not found. Found network B (\(ssidB)). Connecting...")
                     try interface.associate(to: targetNetworkB, password: passwordB)
                     log("Successfully connected to \(ssidB).")
@@ -80,6 +82,7 @@ class SimpleWifiMonitor {
     }
     
     func start() {
+        checkInterval = max(5.0, checkInterval)
         log("Auto-Wifi Monitor Started")
         log("Priority Network (P): \(ssidP)")
         log("Backup Network (B): \(ssidB)")
@@ -95,38 +98,73 @@ class SimpleWifiMonitor {
         // Run immediately
         checkAndConnect()
         
-        // Run in loop
-        RunLoop.current.run()
-        Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
+        // Keep the timer alive on the main run loop.
+        _ = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
             self?.checkAndConnect()
         }
         RunLoop.current.run()
     }
+
+    private func strongestNetwork(named ssid: String, from networks: Set<CWNetwork>) -> CWNetwork? {
+        networks
+            .filter { $0.ssid == ssid }
+            .max(by: { $0.rssiValue < $1.rssiValue })
+    }
+}
+
+/// Reads a password without echoing it to the terminal or writing it to shell
+/// history. Passwords are never accepted as command-line arguments because
+/// those are visible to other local processes through `ps`.
+func readPassword(prompt: String) -> String {
+    print(prompt, terminator: " ")
+    fflush(stdout)
+
+    var original = termios()
+    guard tcgetattr(STDIN_FILENO, &original) == 0 else {
+        return readLine() ?? ""
+    }
+
+    var hidden = original
+    hidden.c_lflag &= ~tcflag_t(ECHO)
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &hidden)
+    defer {
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &original)
+        print("")
+    }
+
+    return readLine() ?? ""
 }
 
 // Parse command line arguments or use default values
 let monitor = SimpleWifiMonitor()
+let arguments = Array(CommandLine.arguments.dropFirst())
 
-// Read configuration from command line or use interactive mode
-if CommandLine.arguments.count >= 5 {
-    monitor.ssidP = CommandLine.arguments[1]
-    monitor.passwordA = CommandLine.arguments[2]
-    monitor.ssidB = CommandLine.arguments[3]
-    monitor.passwordB = CommandLine.arguments[4]
-    if CommandLine.arguments.count >= 6 {
-        monitor.checkInterval = Double(CommandLine.arguments[5]) ?? 60.0
+if arguments.count >= 3, Double(arguments[2]) == nil {
+    fputs(
+        "Passwords are not accepted as command-line arguments. "
+            + "Usage: auto-wifi-cli <SSID-P> <SSID-B> [interval-seconds]\n",
+        stderr
+    )
+    exit(2)
+}
+
+if arguments.count >= 2 {
+    monitor.ssidP = arguments[0]
+    monitor.ssidB = arguments[1]
+    if arguments.count >= 3, let interval = Double(arguments[2]) {
+        monitor.checkInterval = interval
     }
+    monitor.passwordP = readPassword(prompt: "Priority Network (P) Password:")
+    monitor.passwordB = readPassword(prompt: "Backup Network (B) Password:")
 } else {
     print("Auto-Wifi Monitor - Command Line Version")
     print("=========================================")
     print("Enter Priority Network (P) SSID:")
     monitor.ssidP = readLine() ?? ""
-    print("Enter Priority Network (P) Password:")
-    monitor.passwordA = readLine() ?? ""
     print("Enter Backup Network (B) SSID:")
     monitor.ssidB = readLine() ?? ""
-    print("Enter Backup Network (B) Password:")
-    monitor.passwordB = readLine() ?? ""
+    monitor.passwordP = readPassword(prompt: "Priority Network (P) Password:")
+    monitor.passwordB = readPassword(prompt: "Backup Network (B) Password:")
     print("Enter Check Interval in seconds (default 60):")
     if let input = readLine(), let interval = Double(input) {
         monitor.checkInterval = interval

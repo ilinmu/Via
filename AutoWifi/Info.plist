@@ -6,6 +6,8 @@
 	<string>en</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>AutoWifi</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
@@ -18,18 +20,33 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+	</array>
+	<key>ITSApplicationUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2025 Linmu. All rights reserved.</string>
+	<string>Copyright © 2026 Linmu. All rights reserved.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSLocationUsageDescription</key>
+	<string>AutoWifi needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Auto-Wifi needs access to your location to scan for available Wi-Fi networks and determine the current SSID. This data is processed locally and never uploaded.</string>
-	<key>NSMainStoryboardFile</key>
-	<string>Main</string>
+	<string>AutoWifi needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
