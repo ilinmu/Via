@@ -558,7 +558,10 @@ private fun NetworkEditor(
             )
             ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false },
+                onDismissRequest = {
+                    expanded = false
+                    releaseInputFocus()
+                },
             ) {
                 if (networks.isEmpty()) {
                     DropdownMenuItem(
