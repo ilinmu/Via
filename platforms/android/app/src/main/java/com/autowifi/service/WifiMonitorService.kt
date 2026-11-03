@@ -13,9 +13,9 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
-import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.autowifi.L10n
 import com.autowifi.MainActivity
 import com.autowifi.R
 import com.autowifi.data.NetworkCredential
@@ -51,6 +51,10 @@ class WifiMonitorService : Service() {
 
     private var loop: Job? = null
     private var engine: PolicyEngine? = null
+
+    // Notification content only changes when the role or connection changes,
+    // not on every policy tick.
+    private var notificationKey: String? = null
 
     @Volatile
     private var refreshRequested = false
@@ -287,18 +291,27 @@ class WifiMonitorService : Service() {
 
     private fun publish(snapshot: com.autowifi.policy.PolicySnapshot?, nextCheckAtMs: Long = 0L) {
         val current = snapshot ?: stoppedSnapshot()
-        MonitorStateBus.publish(
-            MonitorState(
-                running = current.running,
-                currentSsid = current.currentSsid ?: repository.currentSsid(),
-                role = current.role,
-                permission = current.permission,
-                lastEvent = logs.firstOrNull(),
-                nextCheckAtMs = nextCheckAtMs,
-                logs = logs.toList(),
-                updatedAtMs = System.currentTimeMillis(),
-            )
+        val state = MonitorState(
+            running = current.running,
+            currentSsid = current.currentSsid ?: repository.currentSsid(),
+            role = current.role,
+            permission = current.permission,
+            lastEvent = logs.firstOrNull(),
+            nextCheckAtMs = nextCheckAtMs,
+            logs = logs.toList(),
+            updatedAtMs = System.currentTimeMillis(),
         )
+        MonitorStateBus.publish(state)
+        updateNotification(state)
+    }
+
+    private fun updateNotification(state: MonitorState) {
+        val key = "${settings.language}|${state.running}|${state.role}|${state.currentSsid}"
+        if (key == notificationKey) return
+        notificationKey = key
+
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        runCatching { manager.notify(NOTIFICATION_ID, buildNotification(state)) }
     }
 
     private fun publishStopped() {
@@ -329,27 +342,53 @@ class WifiMonitorService : Service() {
     }
 
     private fun startForegroundCompat() {
+        val initial = MonitorState(
+            running = true,
+            currentSsid = runCatching { repository.currentSsid() }.getOrNull(),
+        )
+        notificationKey =
+            "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}"
+
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            buildNotification(initial),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+        )
+    }
+
+    /**
+     * The notification is the Android counterpart of the macOS menu bar icon:
+     * its small icon tracks running/paused and the connected role, and the
+     * text names the current network.
+     */
+    private fun buildNotification(state: MonitorState): Notification {
+        val language = settings.language
+        val text = when {
+            !state.running -> L10n.t("status_paused", language)
+            state.currentSsid.isNullOrBlank() -> L10n.t("status_not_connected", language)
+            else -> "${state.currentSsid} · ${L10n.role(state.role, language)}"
+        }
+
         val openIntent = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
-            .setSmallIcon(R.drawable.ic_notification)
-            .setOngoing(true)
-            .setContentIntent(openIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
 
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            notification,
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-        )
+        // The platform builder is used because NotificationCompat has no
+        // Icon overload for the small icon; minSdk 29 covers this API.
+        return Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(text)
+            .setSmallIcon(StatusIconRenderer.smallIcon(this, state.running, state.role))
+            .setLargeIcon(StatusIconRenderer.largeIcon(this, state.running, state.role))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(openIntent)
+            .setPriority(Notification.PRIORITY_LOW)
+            .build()
     }
 
     companion object {

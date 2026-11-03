@@ -55,9 +55,11 @@ private struct StatusView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top, spacing: 14) {
-                        Image(systemName: "wifi")
-                            .font(.system(size: 34, weight: .medium))
-                            .foregroundStyle(.tint)
+                        StatusIcon(
+                            role: controller.role,
+                            isRunning: controller.isRunning,
+                            size: 32
+                        )
                         VStack(alignment: .leading, spacing: 4) {
                             Text(L10n.t("current_network", controller.language))
                                 .font(.caption)
