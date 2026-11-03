@@ -134,10 +134,18 @@ Rust 构建用 `Swatinem/rust-cache` 缓存，.NET 用 `actions/cache` 缓存 Nu
 Gradle 由 `gradle/actions/setup-gradle` 缓存依赖和构建结果。Android SDK、NDK 和
 `cargo-ndk` 直接使用 runner 镜像自带的版本，缺省时再下载预编译二进制。
 
+`master` 上的每次完整构建还会运行 `release` job：它汇总四个平台的产物，创建
+标签为 `v<版本>.<运行号>` 的 GitHub Release，例如 `v1.0.42`。标签随运行号递增，
+不同构建不会互相覆盖；版本号来自工作流的 `APP_VERSION`。PR 构建只上传
+artifacts，不会创建 Release。
+
 所有构建产物通过 `actions/upload-artifact` 保留 14 天。可以手动触发
 `workflow_dispatch` 重新运行。
 
 ## 发布说明
+
+`master` 每次构建都会在 GitHub Releases 中生成一个版本，包含四个平台的压缩包
+或安装包。这些是未签名的自动构建，适合内部测试；正式发布仍需要下面的签名流程。
 
 - Windows 产物未签名，首次运行可能出现 SmartScreen 提示；正式发布需要代码签名证书。
 - iOS 归档未签名，仅用于验证编译；上架或真机安装需要 Apple Developer 团队和描述文件。
