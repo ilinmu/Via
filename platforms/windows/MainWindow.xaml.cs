@@ -46,7 +46,7 @@ public partial class MainWindow : Window
     /// <summary>Opens the setup wizard on the first launch after installation.</summary>
     public void ShowFirstRunSetupIfNeeded()
     {
-        if (!_settings.SetupCompleted)
+        if (!_settings.SetupCompleted || !_settings.IsComplete)
         {
             ShowSetup();
         }

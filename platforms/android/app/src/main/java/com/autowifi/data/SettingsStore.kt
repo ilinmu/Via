@@ -60,6 +60,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SETUP_COMPLETED, false)
         set(value) = prefs.edit().putBoolean(KEY_SETUP_COMPLETED, value).apply()
 
+    /** Both networks configured; a stale "completed" flag cannot hide the wizard. */
+    val hasConfiguration: Boolean
+        get() = ssidP.isNotBlank() && ssidB.isNotBlank()
+
     var passwordP: String
         get() = secure?.getString(KEY_PASSWORD_P, "").orEmpty()
         set(value) = writeSecret(KEY_PASSWORD_P, value)

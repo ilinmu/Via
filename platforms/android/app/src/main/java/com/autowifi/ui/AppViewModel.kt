@@ -50,8 +50,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     // The wizard runs until it is finished or skipped once; afterwards it is
-    // available from Settings ("Run setup again").
-    var showWizard by mutableStateOf(!store.setupCompleted)
+    // available from Settings ("Run setup again"). A restored or stale
+    // "completed" flag must not skip setup when no networks are configured.
+    var showWizard by mutableStateOf(!store.setupCompleted || !store.hasConfiguration)
     var wizardStep by mutableStateOf(0)
 
     init {

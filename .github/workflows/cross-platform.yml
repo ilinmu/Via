@@ -454,7 +454,7 @@ jobs:
           由 master 自动构建：${GITHUB_SHA}
 
           - macOS：AutoWifi-macos.zip（未签名）
-          - Windows：AutoWifi-windows-portable.exe（免安装，自带运行时）；
+          - Windows：AutoWifi-windows-portable.exe（免安装，无需预装 .NET 运行时）；
             AutoWifi-windows-setup.exe（安装程序）
           - iOS：AutoWifi-ios.xcarchive.zip（未签名）
           - Android：AutoWifi-android.apk（R8 压缩，debug 签名）
