@@ -10,6 +10,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
@@ -59,6 +63,18 @@ class WifiMonitorService : Service() {
     @Volatile
     private var refreshRequested = false
 
+    // The countdown is kept across intermediate publishes (actions log,
+    // refresh status) so the chronometer does not blink on every check.
+    @Volatile
+    private var scheduledNextCheckAtMs = 0L
+
+    // Last SSID the service acted on; the network callback compares against it
+    // so only real connection changes wake the policy loop.
+    @Volatile
+    private var lastSeenSsid: String? = null
+
+    private var wifiCallback: ConnectivityManager.NetworkCallback? = null
+
     private val logs = ArrayDeque<String>()
 
     override fun onCreate() {
@@ -67,6 +83,7 @@ class WifiMonitorService : Service() {
         repository = WifiRepository(this)
         createNotificationChannel()
         startForegroundCompat()
+        registerWifiCallback()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -87,6 +104,7 @@ class WifiMonitorService : Service() {
     }
 
     override fun onDestroy() {
+        unregisterWifiCallback()
         loop?.cancel()
         loop = null
         scope.cancel()
@@ -147,6 +165,7 @@ class WifiMonitorService : Service() {
                     PolicyEngine.PERMISSION_DENIED
                 }
                 val current = repository.currentSsid()
+                lastSeenSsid = current
                 val now = System.currentTimeMillis()
 
                 val result = if (firstRun) {
@@ -163,6 +182,7 @@ class WifiMonitorService : Service() {
 
                 val intervalMs = settings.intervalSeconds * 1000L
                 val nextAt = System.currentTimeMillis() + intervalMs
+                scheduledNextCheckAtMs = nextAt
                 publish(policy.snapshot(), nextCheckAtMs = nextAt)
                 waitForNextTick(intervalMs)
             }
@@ -254,6 +274,7 @@ class WifiMonitorService : Service() {
                 "stop" -> {
                     settings.running = false
                     addLog("stopped")
+                    scheduledNextCheckAtMs = 0L
                     publish(policy.snapshot()?.copy(running = false) ?: stoppedSnapshot(), nextCheckAtMs = 0L)
                     stopSelf()
                     return
@@ -298,12 +319,21 @@ class WifiMonitorService : Service() {
         while (logs.size > MAX_LOGS) logs.removeLast()
     }
 
-    private fun publish(snapshot: com.autowifi.policy.PolicySnapshot?, nextCheckAtMs: Long = 0L) {
+    private fun publish(
+        snapshot: com.autowifi.policy.PolicySnapshot?,
+        nextCheckAtMs: Long = scheduledNextCheckAtMs,
+    ) {
         val current = snapshot ?: stoppedSnapshot()
+        // The policy snapshot only knows the SSID it last checked. While the
+        // system is roaming (or after it joined another suggestion on its
+        // own), that value is stale, so the notification and the in-app state
+        // follow the live connection and derive the role from it.
+        val liveSsid = runCatching { repository.currentSsid() }.getOrNull()
+        val ssid = liveSsid ?: current.currentSsid
         val state = MonitorState(
             running = current.running,
-            currentSsid = current.currentSsid ?: repository.currentSsid(),
-            role = current.role,
+            currentSsid = ssid,
+            role = roleFor(ssid),
             permission = current.permission,
             lastEvent = logs.firstOrNull(),
             nextCheckAtMs = nextCheckAtMs,
@@ -312,6 +342,14 @@ class WifiMonitorService : Service() {
         )
         MonitorStateBus.publish(state)
         updateNotification(state)
+    }
+
+    /** Same mapping as the shared core: which configured network is joined. */
+    private fun roleFor(ssid: String?): String = when {
+        ssid.isNullOrBlank() -> "none"
+        ssid == settings.ssidP.trim() -> "priority"
+        ssid == settings.ssidB.trim() -> "backup"
+        else -> "other"
     }
 
     private fun updateNotification(state: MonitorState) {
@@ -328,6 +366,54 @@ class WifiMonitorService : Service() {
 
     private fun publishStopped() {
         MonitorStateBus.markStopped()
+    }
+
+    /**
+     * Android does not tell a suggestion app why it joined a network, but the
+     * connectivity callbacks do report that the Wi-Fi connection changed. The
+     * policy loop is woken from its wait so the notification stops showing the
+     * previous network within a fraction of a second instead of after the
+     * whole check interval.
+     */
+    private fun registerWifiCallback() {
+        if (wifiCallback != null) {
+            return
+        }
+
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = onWifiChanged()
+            override fun onLost(network: Network) = onWifiChanged()
+            override fun onCapabilitiesChanged(
+                network: Network,
+                capabilities: NetworkCapabilities,
+            ) = onWifiChanged()
+        }
+
+        runCatching { manager.registerNetworkCallback(request, callback) }
+            .onSuccess { wifiCallback = callback }
+    }
+
+    private fun unregisterWifiCallback() {
+        val callback = wifiCallback ?: return
+        wifiCallback = null
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return
+        runCatching { manager.unregisterNetworkCallback(callback) }
+    }
+
+    private fun onWifiChanged() {
+        // Capability callbacks also fire for signal changes; only a different
+        // SSID is worth interrupting the policy loop for.
+        val ssid = runCatching { repository.currentSsid() }.getOrNull()
+        if (ssid == lastSeenSsid) {
+            return
+        }
+
+        lastSeenSsid = ssid
+        refreshRequested = true
     }
 
     private fun stoppedSnapshot() = com.autowifi.policy.PolicySnapshot(
@@ -354,9 +440,11 @@ class WifiMonitorService : Service() {
     }
 
     private fun startForegroundCompat() {
+        val ssid = runCatching { repository.currentSsid() }.getOrNull()
         val initial = MonitorState(
             running = true,
-            currentSsid = runCatching { repository.currentSsid() }.getOrNull(),
+            currentSsid = ssid,
+            role = roleFor(ssid),
         )
         notificationKey =
             "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}|0"
