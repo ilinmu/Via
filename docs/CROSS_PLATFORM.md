@@ -5,9 +5,9 @@ AutoWifi 目前在四个平台上提供客户端：
 | 平台 | 目录 | 技术栈 | 产物 |
 | --- | --- | --- | --- |
 | macOS | 仓库根目录 `Sources/` | SwiftUI + AppKit + CoreWLAN | `dist/AutoWifi-macos.zip` |
-| Windows | `platforms/windows/` | WPF (.NET 8) + WlanAPI | `dist/windows/AutoWifi.exe` |
+| Windows | `platforms/windows/` | WPF (.NET 8) + WlanAPI | `AutoWifi-windows-portable.exe`、`AutoWifi-windows-setup.exe` |
 | iOS | `platforms/ios/` | SwiftUI + NetworkExtension | `AutoWifi-ios.xcarchive`（未签名） |
-| Android | `platforms/android/` | Kotlin + Jetpack Compose | `app-debug.apk` |
+| Android | `platforms/android/` | Kotlin + Jetpack Compose | `AutoWifi-android.apk`（release，R8） |
 
 四个客户端共用 `core/crates/autowifi-domain` 中的策略状态机。平台层只负责
 “读取当前网络、扫描、发起关联、保存密码和展示状态”，不做切换决策。
@@ -78,8 +78,20 @@ scripts/package-app.sh
 
 ```powershell
 ./scripts/build-windows-core.ps1
+
+# 免安装单文件（自带 .NET 运行时，不需要安装 .NET Desktop Runtime）
 dotnet publish platforms/windows/AutoWifi.Windows.csproj `
-  -c Release -r win-x64 --self-contained false -o dist/windows
+  -c Release -r win-x64 -p:PublishSingleFile=true `
+  -p:IncludeAllContentForSelfExtract=true `
+  -p:IncludeNativeLibrariesForSelfExtract=true `
+  -p:EnableCompressionInSingleFile=true -p:DebugType=none `
+  -o dist/windows-portable
+
+# 安装程序：先发布自带运行时的目录，再用 Inno Setup 打包
+dotnet publish platforms/windows/AutoWifi.Windows.csproj `
+  -c Release -r win-x64 --self-contained true -p:DebugType=none `
+  -o dist/windows-app
+ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
 
 ### iOS
@@ -134,9 +146,9 @@ swift scripts/generate-app-icons.swift
 
 - macOS：菜单栏图标，图标与文字随菜单栏明暗切换黑/白。
 - Windows：通知区域（托盘）图标，随任务栏明暗切换黑/白，悬停显示当前网络与角色。
-- Android：前台服务通知的小图标（状态栏）在关闭时显示斜杠、连接 P/B 时显示字母；
-  通知的大图标使用蓝色 Wi-Fi 和红点/字母。系统会给小图标统一着色，所以状态栏里
-  不能显示红色，红色只出现在大图标。
+- Android：通知栏只使用应用自己的普通通知小图标，不再叠加 P/B 或红点；当前网络
+  和角色由通知文字表达。运行时通知显示距离下次检查的倒计时，倒计时由系统的
+  `Chronometer` 绘制，应用不需要每秒刷新通知。
 - iOS：系统不允许第三方应用在状态栏放图标，因此在应用内“当前连接”卡片使用同一套
   状态图标；状态栏仍由系统显示原生 Wi-Fi 图标。
 

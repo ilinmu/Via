@@ -1,6 +1,7 @@
 package com.autowifi.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -36,7 +39,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.autowifi.BuildConfig
@@ -134,8 +137,6 @@ private fun MainTabs(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatusGlyph(running = state.running, role = state.role)
-            Spacer(Modifier.width(8.dp))
             Text(
                 text = viewModel.t("app_name"),
                 style = MaterialTheme.typography.titleMedium,
@@ -177,41 +178,6 @@ private fun MainTabs(
                     hasPermission = hasPermission,
                     onRequestPermission = onRequestPermission,
                     onOpenAppSettings = onOpenAppSettings,
-                )
-            }
-        }
-    }
-}
-
-/** Same state rules as the macOS menu bar icon: red dot when stopped, P/B while running. */
-@Composable
-private fun StatusGlyph(running: Boolean, role: String) {
-    Box(modifier = Modifier.size(24.dp)) {
-        Icon(
-            imageVector = Icons.Filled.Wifi,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp).align(Alignment.BottomStart),
-        )
-        if (!running) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .align(Alignment.TopEnd)
-                    .background(Color.Red, CircleShape),
-            )
-        } else {
-            val letter = when (role) {
-                "priority" -> "P"
-                "backup" -> "B"
-                else -> null
-            }
-            if (letter != null) {
-                Text(
-                    text = letter,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.BottomEnd),
                 )
             }
         }
@@ -625,6 +591,87 @@ private fun NetworkEditor(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LanguageDropdown(viewModel: AppViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    val current = if (viewModel.language == "en") "English" else "中文"
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = Modifier.width(140.dp),
+    ) {
+        OutlinedTextField(
+            value = current,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            listOf("zh" to "中文", "en" to "English").forEach { (value, text) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        viewModel.chooseLanguage(value)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The interval field is deliberately shorter than a Material text field so the
+ * label, input and unit fit on one line.
+ */
+@Composable
+private fun CompactNumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onCommit: () -> Unit,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        ),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier
+            .width(72.dp)
+            .height(36.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(8.dp),
+            )
+            .onFocusChanged { focus ->
+                if (!focus.isFocused) onCommit()
+            },
+        decorationBox = { inner ->
+            Box(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                inner()
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsTab(
     viewModel: AppViewModel,
@@ -652,35 +699,20 @@ private fun SettingsTab(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            FilterChip(
-                selected = viewModel.language == "zh",
-                onClick = { viewModel.chooseLanguage("zh") },
-                label = { Text("中文") },
-            )
-            Spacer(Modifier.width(8.dp))
-            FilterChip(
-                selected = viewModel.language == "en",
-                onClick = { viewModel.chooseLanguage("en") },
-                label = { Text("English") },
-            )
+            LanguageDropdown(viewModel)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = viewModel.t("check_frequency"),
-                style = MaterialTheme.typography.bodyMedium,
-            )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
+                Text(
+                    text = viewModel.t("check_frequency"),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                CompactNumberField(
                     value = viewModel.intervalText,
                     onValueChange = { viewModel.onIntervalChanged(it) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier
-                        .width(120.dp)
-                        .onFocusChanged { focus ->
-                            if (!focus.isFocused) viewModel.commitInterval()
-                        },
+                    onCommit = { viewModel.commitInterval() },
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(

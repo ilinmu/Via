@@ -73,6 +73,12 @@ object L10n {
         "missing_primary" to ("请填写优先网络" to "Enter the priority network"),
         "missing_backup" to ("请填写备用网络" to "Enter the backup network"),
         "same_network_error" to ("优先和备用网络不能相同" to "Priority and backup must be different"),
+        // Android only accepts WPA2 passphrases of 8-63 characters in a
+        // network suggestion; shorter ones are silently unusable.
+        "invalid_password" to (
+            "密码需为 8–63 个字符，或留空表示开放网络" to
+                "A password must be 8–63 characters, or blank for an open network"
+        ),
         "storage_error" to ("无法写入加密存储" to "Unable to write encrypted storage"),
         "networks_found" to ("发现 %d 个网络" to "%d networks found"),
 
@@ -137,7 +143,9 @@ object L10n {
         "event_treatingAsFallback" to ("作为回退网络处理" to "Treating it as a fallback network"),
         "event_cooldownSkipped" to ("冷却中，暂时跳过" to "Cooling down; skipping this round"),
         "event_associationSuccess" to ("连接成功" to "Connection succeeded"),
-        "event_associationTimeout" to ("连接超时" to "Connection timed out"),
+        "event_associationTimeout" to (
+            "连接超时，请检查密码和信号" to "Connection timed out — check the password and signal"
+        ),
         "event_associationFailure" to ("连接失败" to "Connection failed"),
         "event_associationLateSuccess" to ("连接稍后成功" to "Connection succeeded later"),
         "event_associationLateFailure" to ("连接稍后失败" to "Connection failed later"),

@@ -224,7 +224,9 @@ private struct SettingsView: View {
                         Text("中文").tag("zh")
                         Text("English").tag("en")
                     }
-                    .pickerStyle(.segmented)
+                    // A menu picker matches macOS: one row showing the current
+                    // language that opens a list, instead of side-by-side chips.
+                    .pickerStyle(.menu)
 
                     Stepper(
                         value: $controller.checkInterval,
