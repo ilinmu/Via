@@ -1,6 +1,10 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+// UseWindowsForms adds an implicit `System.Drawing` using, which also defines
+// a Brush type.
+using Brush = System.Windows.Media.Brush;
 
 namespace AutoWifi.Windows;
 
@@ -74,6 +78,7 @@ public partial class MainWindow : Window
             _syncingUi = true;
             AutoSwitchCheckBox.IsChecked = true;
             _syncingUi = false;
+            UpdateStatusBadge(true);
         }
     }
 
@@ -121,12 +126,13 @@ public partial class MainWindow : Window
         SettingsTab.Header = L10n.T("tab_settings");
 
         CurrentSsidLabel.Text = L10n.T("current_network");
-        AutoSwitchCheckBox.Content = L10n.T("auto_switch");
+        AutoSwitchTitle.Text = L10n.T("auto_switch");
         AutoSwitchHint.Text = L10n.T("auto_switch_hint");
         NextCheckLabel.Text = L10n.T("next_check");
         ScanButton.Content = L10n.T("scan_networks");
         RefreshButton.Content = L10n.T("refresh_status");
 
+        NetworksTitle.Text = L10n.T("tab_networks");
         NetworksDescription.Text = L10n.T("networks_description");
         PriorityLabel.Text = L10n.T("priority_network");
         BackupLabel.Text = L10n.T("backup_network");
@@ -136,11 +142,12 @@ public partial class MainWindow : Window
         SaveButton.Content = L10n.T("save_changes");
         NetworkHint.Text = L10n.T("password_optional");
 
+        SettingsTitle.Text = L10n.T("tab_settings");
         GeneralLabel.Text = L10n.T("settings_general");
         LanguageLabel.Text = L10n.T("language");
         IntervalLabel.Text = L10n.T("interval");
         SecondsLabel.Text = L10n.T("seconds");
-        LaunchAtLoginCheckBox.Content = L10n.T("launch_at_login");
+        LaunchAtLoginTitle.Text = L10n.T("launch_at_login");
         LaunchAtLoginHint.Text = L10n.T("launch_at_login_hint");
         AboutLabel.Text = L10n.T("about");
         VersionLabel.Text = L10n.T("version");
@@ -150,6 +157,21 @@ public partial class MainWindow : Window
 
         RoleValue.Text = $"{L10n.T("role")}: {RoleText(WifiRole.None)}";
         LastMessageText.Text = L10n.T("windows_limit_hint");
+        UpdateStatusBadge(AutoSwitchCheckBox.IsChecked == true);
+    }
+
+    private void UpdateStatusBadge(bool running)
+    {
+        StatusBadgeText.Text = L10n.T(running ? "status_running" : "status_paused");
+        StatusDot.Fill = (Brush)FindResource(running ? "SuccessBrush" : "TertiaryTextBrush");
+    }
+
+    /// <summary>Validation text is red for errors and secondary for confirmations.</summary>
+    private void SetValidation(string text, bool error)
+    {
+        ValidationText.Text = text;
+        ValidationText.Foreground = (Brush)FindResource(
+            error ? "DangerBrush" : "SecondaryTextBrush");
     }
 
     private void AutoSwitch_Changed(object sender, RoutedEventArgs e)
@@ -173,6 +195,7 @@ public partial class MainWindow : Window
             SettingsStore.Save(_settings);
             _monitor.Configure(_settings);
             _monitor.Start();
+            UpdateStatusBadge(true);
         }
         else
         {
@@ -180,6 +203,7 @@ public partial class MainWindow : Window
             _settings.Running = false;
             SettingsStore.Save(_settings);
             _tray?.UpdateStatus(null, WifiRole.None, false);
+            UpdateStatusBadge(false);
         }
     }
 
@@ -228,7 +252,7 @@ public partial class MainWindow : Window
             ScanStatusText.Text = networks.Count == 0
                 ? L10n.T("no_networks")
                 : string.Format(L10n.T("networks_found_format"), networks.Count);
-            ValidationText.Text = "";
+            SetValidation("", false);
         }
         finally
         {
@@ -284,7 +308,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ValidationText.Text = exception.Message;
+            SetValidation(exception.Message, true);
         }
     }
 
@@ -300,19 +324,19 @@ public partial class MainWindow : Window
 
         if (ssidP.Length == 0)
         {
-            ValidationText.Text = L10n.T("missing_primary");
+            SetValidation(L10n.T("missing_primary"), true);
             return false;
         }
 
         if (ssidB.Length == 0)
         {
-            ValidationText.Text = L10n.T("missing_backup");
+            SetValidation(L10n.T("missing_backup"), true);
             return false;
         }
 
         if (string.Equals(ssidP, ssidB, StringComparison.OrdinalIgnoreCase))
         {
-            ValidationText.Text = L10n.T("same_network");
+            SetValidation(L10n.T("same_network"), true);
             return false;
         }
 
@@ -335,12 +359,12 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ValidationText.Text = exception.Message;
+            SetValidation(exception.Message, true);
             return false;
         }
 
         IntervalBox.Text = _settings.CheckInterval.ToString();
-        ValidationText.Text = L10n.T("saved");
+        SetValidation(L10n.T("saved"), false);
         _monitor.Configure(_settings);
         return true;
     }
@@ -364,6 +388,7 @@ public partial class MainWindow : Window
             _syncingUi = true;
             AutoSwitchCheckBox.IsChecked = status.Running;
             _syncingUi = false;
+            UpdateStatusBadge(status.Running);
         });
     }
 

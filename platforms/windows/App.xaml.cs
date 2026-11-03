@@ -14,6 +14,9 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        Theme.Apply();
+        Theme.Watch();
+
         _mutex = new Mutex(true, "AutoWifi.Windows.SingleInstance", out var created);
         if (!created)
         {

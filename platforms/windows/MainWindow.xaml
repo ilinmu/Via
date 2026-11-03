@@ -4,108 +4,293 @@
         Title="Auto-Wifi"
         Icon="Assets/app.ico"
         Width="440"
-        Height="640"
+        Height="660"
         MinWidth="420"
         MinHeight="560"
+        Background="{DynamicResource BackgroundBrush}"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
-  <Grid Margin="20">
+  <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <StackPanel Grid.Row="0" Margin="0,0,0,14">
-      <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" Text="Auto-Wifi" />
-      <TextBlock x:Name="SubtitleText" Foreground="Gray" Margin="0,4,0,0" />
-    </StackPanel>
+    <!-- Header: app mark and title, matching the macOS panel header. -->
+    <Grid Grid.Row="0" Margin="20,16,20,12">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Text="&#xE701;"
+                   FontFamily="Segoe MDL2 Assets"
+                   FontSize="17"
+                   Foreground="{DynamicResource AccentBrush}"
+                   VerticalAlignment="Center" />
+        <StackPanel Margin="9,0,0,0" VerticalAlignment="Center">
+          <TextBlock x:Name="TitleText" Style="{StaticResource HeaderTitle}" />
+          <TextBlock x:Name="SubtitleText" Style="{StaticResource Caption}" Margin="0,1,0,0" />
+        </StackPanel>
+      </StackPanel>
+    </Grid>
 
-    <TabControl Grid.Row="1" x:Name="Tabs">
-      <TabItem x:Name="StatusTab" Header="Status">
+    <TabControl Grid.Row="1" x:Name="Tabs" Style="{StaticResource SegmentedTabControl}">
+      <TabItem x:Name="StatusTab" Style="{StaticResource SegmentTabItem}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="4,16,4,4">
-            <TextBlock x:Name="CurrentSsidLabel" Foreground="Gray" />
-            <TextBlock x:Name="CurrentSsidValue" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
-            <TextBlock x:Name="RoleValue" Foreground="Gray" Margin="0,4,0,0" />
+          <StackPanel Margin="20,6,20,20">
+            <Border Style="{StaticResource Card}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                  <TextBlock x:Name="CurrentSsidLabel" Style="{StaticResource Caption}" />
+                  <TextBlock x:Name="CurrentSsidValue"
+                             Style="{StaticResource SsidValue}"
+                             TextWrapping="Wrap"
+                             Margin="0,2,0,0" />
+                  <TextBlock x:Name="RoleValue" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+                </StackPanel>
+                <Border Grid.Column="1"
+                        Style="{StaticResource Badge}"
+                        VerticalAlignment="Top"
+                        Margin="12,2,0,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="StatusDot"
+                             Width="8"
+                             Height="8"
+                             Fill="{DynamicResource TertiaryTextBrush}"
+                             VerticalAlignment="Center"
+                             Margin="0,0,6,0" />
+                    <TextBlock x:Name="StatusBadgeText" Style="{StaticResource BadgeText}" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Border>
 
-            <Separator Margin="0,14" />
+            <Border Style="{StaticResource Divider}" Margin="0,16" />
 
-            <CheckBox x:Name="AutoSwitchCheckBox"
-                      Checked="AutoSwitch_Changed"
-                      Unchecked="AutoSwitch_Changed"
-                      FontWeight="SemiBold" />
-            <TextBlock x:Name="AutoSwitchHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" />
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0">
+                <TextBlock x:Name="AutoSwitchTitle" Style="{StaticResource RowTitle}" />
+                <TextBlock x:Name="AutoSwitchHint"
+                           Style="{StaticResource Caption}"
+                           TextWrapping="Wrap"
+                           Margin="0,2,0,0" />
+              </StackPanel>
+              <CheckBox x:Name="AutoSwitchCheckBox"
+                        Grid.Column="1"
+                        Style="{StaticResource SwitchCheckBox}"
+                        VerticalAlignment="Center"
+                        Margin="12,0,0,0"
+                        Checked="AutoSwitch_Changed"
+                        Unchecked="AutoSwitch_Changed" />
+            </Grid>
 
-            <TextBlock x:Name="NextCheckLabel" Foreground="Gray" Margin="0,14,0,0" />
-            <TextBlock x:Name="NextCheckValue" FontSize="16" />
+            <Grid Margin="0,14,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock x:Name="NextCheckLabel"
+                         Style="{StaticResource Caption}"
+                         VerticalAlignment="Center" />
+              <TextBlock x:Name="NextCheckValue"
+                         Grid.Column="1"
+                         Style="{StaticResource MonoValue}"
+                         VerticalAlignment="Center" />
+            </Grid>
 
-            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-              <Button x:Name="ScanButton" Click="ScanButton_Click" />
-              <Button x:Name="RefreshButton" Click="RefreshButton_Click" />
+            <Border Style="{StaticResource Divider}" Margin="0,16" />
+
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="ScanButton"
+                      Style="{StaticResource BorderedButton}"
+                      Click="ScanButton_Click" />
+              <Button x:Name="RefreshButton"
+                      Style="{StaticResource BorderedButton}"
+                      Margin="8,0,0,0"
+                      Click="RefreshButton_Click" />
             </StackPanel>
 
-            <TextBlock x:Name="LastMessageText" Foreground="Gray" TextWrapping="Wrap" Margin="0,14,0,0" />
+            <TextBlock x:Name="LastMessageText"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       Margin="0,12,0,0" />
           </StackPanel>
         </ScrollViewer>
       </TabItem>
 
-      <TabItem x:Name="NetworksTab" Header="Networks">
+      <TabItem x:Name="NetworksTab" Style="{StaticResource SegmentTabItem}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="4,16,4,4">
-            <TextBlock x:Name="NetworksDescription" TextWrapping="Wrap" Foreground="Gray" />
+          <StackPanel Margin="20,6,20,20">
+            <TextBlock x:Name="NetworksTitle" Style="{StaticResource PageTitle}" />
+            <TextBlock x:Name="NetworksDescription"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
 
-            <TextBlock x:Name="PriorityLabel" FontWeight="SemiBold" Margin="0,16,0,0" />
-            <ComboBox x:Name="PrioritySsidBox" IsEditable="True" Margin="0,4,0,10" />
-            <PasswordBox x:Name="PriorityPasswordBox" />
+            <Grid Margin="0,16,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock x:Name="ScanHint"
+                         Style="{StaticResource Caption}"
+                         TextWrapping="Wrap"
+                         VerticalAlignment="Center"
+                         Margin="0,0,12,0" />
+              <Button x:Name="ScanNetworksButton"
+                      Grid.Column="1"
+                      Style="{StaticResource BorderedButton}"
+                      Click="ScanNetworksButton_Click" />
+            </Grid>
+            <TextBlock x:Name="ScanStatusText"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       Margin="0,6,0,0" />
 
-            <TextBlock x:Name="BackupLabel" FontWeight="SemiBold" Margin="0,8,0,0" />
-            <ComboBox x:Name="BackupSsidBox" IsEditable="True" Margin="0,4,0,10" />
-            <PasswordBox x:Name="BackupPasswordBox" />
+            <TextBlock x:Name="PriorityLabel"
+                       Style="{StaticResource SectionHeader}"
+                       Margin="0,18,0,0" />
+            <ComboBox x:Name="PrioritySsidBox"
+                      Style="{StaticResource RoundedComboBox}"
+                      IsEditable="True"
+                      Margin="0,6,0,0" />
+            <PasswordBox x:Name="PriorityPasswordBox"
+                         Style="{StaticResource RoundedPasswordBox}"
+                         Margin="0,8,0,0" />
+
+            <TextBlock x:Name="BackupLabel"
+                       Style="{StaticResource SectionHeader}"
+                       Margin="0,16,0,0" />
+            <ComboBox x:Name="BackupSsidBox"
+                      Style="{StaticResource RoundedComboBox}"
+                      IsEditable="True"
+                      Margin="0,6,0,0" />
+            <PasswordBox x:Name="BackupPasswordBox"
+                         Style="{StaticResource RoundedPasswordBox}"
+                         Margin="0,8,0,0" />
 
             <CheckBox x:Name="ShowPasswordsCheckBox"
+                      Style="{StaticResource SmallCheckBox}"
+                      Margin="0,12,0,0"
                       Checked="ShowPasswords_Changed"
-                      Unchecked="ShowPasswords_Changed"
-                      Margin="0,0,0,8" />
+                      Unchecked="ShowPasswords_Changed" />
 
-            <TextBlock x:Name="ScanHint" Foreground="Gray" TextWrapping="Wrap" />
-            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-              <Button x:Name="ScanNetworksButton" Click="ScanNetworksButton_Click" />
-              <TextBlock x:Name="ScanStatusText" Foreground="Gray" VerticalAlignment="Center" TextWrapping="Wrap" />
-            </StackPanel>
+            <Border Style="{StaticResource Divider}" Margin="0,16" />
 
-            <Button x:Name="SaveButton" Click="SaveButton_Click" Margin="0,16,0,0" />
-            <TextBlock x:Name="ValidationText" Foreground="IndianRed" TextWrapping="Wrap" Margin="0,8,0,0" />
-            <TextBlock x:Name="NetworkHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,8,0,0" />
+            <Button x:Name="SaveButton"
+                    Style="{StaticResource PrimaryButton}"
+                    HorizontalAlignment="Right"
+                    Click="SaveButton_Click" />
+            <TextBlock x:Name="ValidationText"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       Margin="0,8,0,0" />
+            <TextBlock x:Name="NetworkHint"
+                       Style="{StaticResource TertiaryCaption}"
+                       TextWrapping="Wrap"
+                       Margin="0,8,0,0" />
           </StackPanel>
         </ScrollViewer>
       </TabItem>
 
-      <TabItem x:Name="SettingsTab" Header="Settings">
+      <TabItem x:Name="SettingsTab" Style="{StaticResource SegmentTabItem}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="4,16,4,4">
-            <TextBlock x:Name="GeneralLabel" FontWeight="SemiBold" />
-            <TextBlock x:Name="LanguageLabel" Foreground="Gray" Margin="0,14,0,0" />
-            <ComboBox x:Name="LanguageCombo" Width="180" SelectionChanged="LanguageCombo_SelectionChanged" />
+          <StackPanel Margin="20,6,20,20">
+            <TextBlock x:Name="SettingsTitle" Style="{StaticResource PageTitle}" />
 
-            <TextBlock x:Name="IntervalLabel" Foreground="Gray" Margin="0,14,0,0" />
-            <StackPanel Orientation="Horizontal">
-              <TextBox x:Name="IntervalBox" Width="100" />
-              <TextBlock x:Name="SecondsLabel" Foreground="Gray" VerticalAlignment="Center" Margin="8,0,0,10" />
-            </StackPanel>
+            <TextBlock x:Name="GeneralLabel"
+                       Style="{StaticResource SectionHeader}"
+                       Margin="0,18,0,0" />
 
-            <CheckBox x:Name="LaunchAtLoginCheckBox"
-                      Checked="LaunchAtLogin_Changed"
-                      Unchecked="LaunchAtLogin_Changed" />
-            <TextBlock x:Name="LaunchAtLoginHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" />
+            <Grid Margin="0,10,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0">
+                <TextBlock x:Name="LaunchAtLoginTitle" Style="{StaticResource RowTitle}" />
+                <TextBlock x:Name="LaunchAtLoginHint"
+                           Style="{StaticResource Caption}"
+                           TextWrapping="Wrap"
+                           Margin="0,2,0,0" />
+              </StackPanel>
+              <CheckBox x:Name="LaunchAtLoginCheckBox"
+                        Grid.Column="1"
+                        Style="{StaticResource SwitchCheckBox}"
+                        VerticalAlignment="Center"
+                        Margin="12,0,0,0"
+                        Checked="LaunchAtLogin_Changed"
+                        Unchecked="LaunchAtLogin_Changed" />
+            </Grid>
 
-            <Button x:Name="RerunSetupButton" Click="RerunSetupButton_Click" Margin="0,14,0,0" />
+            <Border Style="{StaticResource Divider}" Margin="0,12" />
 
-            <Separator Margin="0,18" />
-            <TextBlock x:Name="AboutLabel" FontWeight="SemiBold" />
-            <TextBlock x:Name="VersionLabel" Foreground="Gray" Margin="0,12,0,0" />
-            <TextBlock x:Name="VersionValue" />
-            <TextBlock x:Name="PrivacyText" Foreground="Gray" TextWrapping="Wrap" Margin="0,12,0,0" />
-            <Button x:Name="QuitButton" Click="QuitButton_Click" Foreground="IndianRed" Margin="0,18,0,0" />
+            <Grid>
+              <TextBlock x:Name="LanguageLabel"
+                         Style="{StaticResource RowTitle}"
+                         VerticalAlignment="Center" />
+              <ComboBox x:Name="LanguageCombo"
+                        Style="{StaticResource RoundedComboBox}"
+                        Width="140"
+                        HorizontalAlignment="Right"
+                        SelectionChanged="LanguageCombo_SelectionChanged" />
+            </Grid>
+
+            <Border Style="{StaticResource Divider}" Margin="0,12" />
+
+            <Grid>
+              <TextBlock x:Name="IntervalLabel"
+                         Style="{StaticResource RowTitle}"
+                         VerticalAlignment="Center" />
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <TextBox x:Name="IntervalBox"
+                         Style="{StaticResource RoundedTextBox}"
+                         Width="72"
+                         TextAlignment="Center" />
+                <TextBlock x:Name="SecondsLabel"
+                           Style="{StaticResource Caption}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0" />
+              </StackPanel>
+            </Grid>
+
+            <Button x:Name="RerunSetupButton"
+                    Style="{StaticResource LinkButton}"
+                    HorizontalAlignment="Left"
+                    Margin="0,14,0,0"
+                    Click="RerunSetupButton_Click" />
+
+            <Border Style="{StaticResource Divider}" Margin="0,16" />
+
+            <TextBlock x:Name="AboutLabel" Style="{StaticResource SectionHeader}" />
+
+            <Grid Margin="0,10,0,0">
+              <TextBlock x:Name="VersionLabel" Style="{StaticResource RowTitle}" />
+              <TextBlock x:Name="VersionValue"
+                         Style="{StaticResource RowTitle}"
+                         Foreground="{DynamicResource SecondaryTextBrush}"
+                         HorizontalAlignment="Right" />
+            </Grid>
+
+            <TextBlock x:Name="PrivacyText"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       Margin="0,10,0,0" />
+
+            <Button x:Name="QuitButton"
+                    Style="{StaticResource DangerLinkButton}"
+                    HorizontalAlignment="Left"
+                    Margin="0,14,0,0"
+                    Click="QuitButton_Click" />
           </StackPanel>
         </ScrollViewer>
       </TabItem>

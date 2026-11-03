@@ -4,76 +4,179 @@
         Title="Auto-Wifi"
         Icon="Assets/app.ico"
         Width="460"
-        Height="580"
+        Height="600"
         MinWidth="420"
         MinHeight="520"
+        Background="{DynamicResource BackgroundBrush}"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize">
-  <Grid Margin="24">
+  <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <StackPanel Grid.Row="0">
-      <TextBlock x:Name="WizardTitle" FontSize="22" FontWeight="SemiBold" />
-      <TextBlock x:Name="StepText" Foreground="Gray" Margin="0,6,0,0" />
-      <ProgressBar x:Name="Progress" Height="4" Margin="0,12,0,0" Minimum="0" Maximum="3" />
+    <StackPanel Grid.Row="0" Margin="24,18,24,0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="&#xE701;"
+                     FontFamily="Segoe MDL2 Assets"
+                     FontSize="17"
+                     Foreground="{DynamicResource AccentBrush}"
+                     VerticalAlignment="Center" />
+          <TextBlock x:Name="WizardTitle"
+                     Style="{StaticResource HeaderTitle}"
+                     Margin="9,0,0,0"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock x:Name="StepText"
+                   Grid.Column="1"
+                   Style="{StaticResource Caption}"
+                   VerticalAlignment="Center" />
+      </Grid>
+      <ProgressBar x:Name="Progress"
+                   Style="{StaticResource ThinProgressBar}"
+                   Margin="0,12,0,0"
+                   Minimum="0"
+                   Maximum="3" />
     </StackPanel>
 
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="24,18,24,0">
       <Grid>
         <StackPanel x:Name="StepWelcome">
-          <TextBlock x:Name="WelcomeTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-          <TextBlock x:Name="WelcomeBody" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <TextBlock x:Name="WelcomeTitle"
+                     Style="{StaticResource PageTitle}"
+                     TextWrapping="Wrap" />
+          <TextBlock x:Name="WelcomeBody"
+                     Style="{StaticResource Caption}"
+                     TextWrapping="Wrap"
+                     Margin="0,10,0,0" />
         </StackPanel>
 
         <StackPanel x:Name="StepNetworks" Visibility="Collapsed">
-          <TextBlock x:Name="NetworksTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-          <TextBlock x:Name="NetworksBody" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <TextBlock x:Name="NetworksTitle"
+                     Style="{StaticResource PageTitle}"
+                     TextWrapping="Wrap" />
+          <TextBlock x:Name="NetworksBody"
+                     Style="{StaticResource Caption}"
+                     TextWrapping="Wrap"
+                     Margin="0,10,0,0" />
 
-          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-            <Button x:Name="ScanButton" Click="ScanButton_Click" />
-            <TextBlock x:Name="ScanStatus" Foreground="Gray" VerticalAlignment="Center" TextWrapping="Wrap" />
-          </StackPanel>
+          <Grid Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ScanStatus"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0" />
+            <Button x:Name="ScanButton"
+                    Grid.Column="1"
+                    Style="{StaticResource BorderedButton}"
+                    Click="ScanButton_Click" />
+          </Grid>
 
-          <TextBlock x:Name="PriorityLabel" FontWeight="SemiBold" Margin="0,18,0,0" />
-          <ComboBox x:Name="PriorityCombo" IsEditable="True" Margin="0,6,0,0" />
-          <PasswordBox x:Name="PriorityPassword" Margin="0,8,0,0" />
+          <TextBlock x:Name="PriorityLabel"
+                     Style="{StaticResource SectionHeader}"
+                     Margin="0,18,0,0" />
+          <ComboBox x:Name="PriorityCombo"
+                    Style="{StaticResource RoundedComboBox}"
+                    IsEditable="True"
+                    Margin="0,6,0,0" />
+          <PasswordBox x:Name="PriorityPassword"
+                       Style="{StaticResource RoundedPasswordBox}"
+                       Margin="0,8,0,0" />
 
-          <TextBlock x:Name="BackupLabel" FontWeight="SemiBold" Margin="0,14,0,0" />
-          <ComboBox x:Name="BackupCombo" IsEditable="True" Margin="0,6,0,0" />
-          <PasswordBox x:Name="BackupPassword" Margin="0,8,0,0" />
+          <TextBlock x:Name="BackupLabel"
+                     Style="{StaticResource SectionHeader}"
+                     Margin="0,16,0,0" />
+          <ComboBox x:Name="BackupCombo"
+                    Style="{StaticResource RoundedComboBox}"
+                    IsEditable="True"
+                    Margin="0,6,0,0" />
+          <PasswordBox x:Name="BackupPassword"
+                       Style="{StaticResource RoundedPasswordBox}"
+                       Margin="0,8,0,0" />
 
-          <TextBlock x:Name="PasswordHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
-          <TextBlock x:Name="Validation" Foreground="IndianRed" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <TextBlock x:Name="PasswordHint"
+                     Style="{StaticResource TertiaryCaption}"
+                     TextWrapping="Wrap"
+                     Margin="0,10,0,0" />
+          <TextBlock x:Name="Validation"
+                     Style="{StaticResource Caption}"
+                     Foreground="{DynamicResource DangerBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,10,0,0" />
         </StackPanel>
 
         <StackPanel x:Name="StepFinish" Visibility="Collapsed">
-          <TextBlock x:Name="FinishTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-          <TextBlock x:Name="FinishBody" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
-          <TextBlock x:Name="SummaryP" Margin="0,18,0,0" TextWrapping="Wrap" />
-          <TextBlock x:Name="SummaryB" Margin="0,6,0,0" TextWrapping="Wrap" />
-          <TextBlock x:Name="FinishHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,16,0,0" />
+          <TextBlock x:Name="FinishTitle"
+                     Style="{StaticResource PageTitle}"
+                     TextWrapping="Wrap" />
+          <TextBlock x:Name="FinishBody"
+                     Style="{StaticResource Caption}"
+                     TextWrapping="Wrap"
+                     Margin="0,10,0,0" />
+
+          <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+            <StackPanel>
+              <TextBlock x:Name="SummaryP" Style="{StaticResource RowTitle}" TextWrapping="Wrap" />
+              <Border Style="{StaticResource Divider}" Margin="0,10" />
+              <TextBlock x:Name="SummaryB" Style="{StaticResource RowTitle}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock x:Name="FinishHint"
+                     Style="{StaticResource TertiaryCaption}"
+                     TextWrapping="Wrap"
+                     Margin="0,16,0,0" />
         </StackPanel>
       </Grid>
     </ScrollViewer>
 
-    <Grid Grid.Row="2" Margin="0,18,0,0">
+    <Grid Grid.Row="2" Margin="24,18,24,18">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
 
-      <Button x:Name="BackButton" Grid.Column="0" Click="Back_Click" Visibility="Collapsed" />
+      <Button x:Name="BackButton"
+              Grid.Column="0"
+              Style="{StaticResource BorderedButton}"
+              Click="Back_Click"
+              Visibility="Collapsed" />
 
       <StackPanel Grid.Column="2" Orientation="Horizontal">
-        <Button x:Name="SkipButton" Click="Skip_Click" Background="Transparent" BorderThickness="0" Foreground="Gray" />
-        <Button x:Name="NextButton" Click="Next_Click" />
-        <Button x:Name="SaveOnlyButton" Click="SaveOnly_Click" Visibility="Collapsed" />
-        <Button x:Name="StartButton" Click="Start_Click" Visibility="Collapsed" FontWeight="SemiBold" />
+        <Button x:Name="SkipButton"
+                Style="{StaticResource LinkButton}"
+                Foreground="{DynamicResource SecondaryTextBrush}"
+                VerticalAlignment="Center"
+                Margin="0,0,16,0"
+                Click="Skip_Click" />
+        <Button x:Name="NextButton"
+                Style="{StaticResource PrimaryButton}"
+                Click="Next_Click" />
+        <Button x:Name="SaveOnlyButton"
+                Style="{StaticResource BorderedButton}"
+                Visibility="Collapsed"
+                Click="SaveOnly_Click" />
+        <Button x:Name="StartButton"
+                Style="{StaticResource PrimaryButton}"
+                Visibility="Collapsed"
+                Margin="8,0,0,0"
+                Click="Start_Click" />
       </StackPanel>
     </Grid>
   </Grid>
