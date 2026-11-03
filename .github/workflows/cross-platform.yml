@@ -434,14 +434,16 @@ jobs:
           这些构建未做代码签名，仅用于测试；正式发布需要各自平台的签名流程。
           EOF
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --clobber
+          # The job has no checkout, so every gh call needs the repository.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "AutoWifi $TAG" \
               --notes-file notes.md \
               release/*
           fi
           echo "### 已发布 $TAG" >> "$GITHUB_STEP_SUMMARY"
-          gh release view "$TAG" --json url -q .url >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url -q .url >> "$GITHUB_STEP_SUMMARY"
