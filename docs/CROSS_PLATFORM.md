@@ -109,6 +109,25 @@ gradle assembleRelease
 APK 输出在 `platforms/android/app/build/outputs/apk/release/`。release 构建启用 R8
 代码压缩和资源裁剪，并用调试密钥签名（仅用于测试）；需要发布到商店时替换签名配置。
 
+## 应用图标
+
+四个平台共用一套图标：蓝色渐变背景、缩小的 Wi-Fi 标记和“Auto”字样。图标由
+`scripts/generate-app-icons.swift` 统一渲染，输出 macOS 的
+`icon_1024x1024.png`、iOS 的 Asset Catalog、Windows 的 `Assets/app.ico`（多尺寸
+ICO）以及 Android 的自适应图标前景（`mipmap-*/ic_launcher_foreground.png`）。
+修改图标时重新运行该脚本，不要手工编辑各平台副本：
+
+```bash
+swift scripts/generate-app-icons.swift
+```
+
+## 首次运行
+
+macOS、iOS、Android 和 Windows 在配置不完整时都会引导用户完成设置。macOS 和
+iOS 使用面板内的三步向导，Android 使用全屏向导（授权定位 → 选择 P/B → 开启
+监控），Windows 使用独立的设置窗口（欢迎 → 选择网络 → 完成）。完成后向导不再
+自动出现，各平台都可以在设置里重新运行。
+
 ## GitHub Actions
 
 `.github/workflows/cross-platform.yml` 在 push 到 `master`、pull request 和手动触发时

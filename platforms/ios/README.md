@@ -10,6 +10,8 @@ SwiftUI 客户端，使用共享 Rust 策略核心和 `NEHotspotConfigurationMan
 - `AutoWifi/ContentView.swift`：状态 / 网络 / 设置三个 Tab 和三步向导。
 - `AutoWifi/KeychainStore.swift`：钥匙串密码存储。
 - `AutoWifi/AutoWifi.entitlements`：Hotspot Configuration 与 Wi-Fi Info 能力。
+- `AutoWifi/Assets.xcassets/AppIcon.appiconset`：应用图标，由
+  `scripts/generate-app-icons.swift` 生成。
 
 ## 测试
 

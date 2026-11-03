@@ -49,7 +49,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var savedOnce by mutableStateOf(false)
         private set
 
-    var showWizard by mutableStateOf(store.ssidP.isBlank() || store.ssidB.isBlank())
+    // The wizard runs until it is finished or skipped once; afterwards it is
+    // available from Settings ("Run setup again").
+    var showWizard by mutableStateOf(!store.setupCompleted)
     var wizardStep by mutableStateOf(0)
 
     init {
@@ -215,10 +217,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun finishWizard(start: Boolean) {
         if (!save()) return
         if (start) startMonitoring()
+        store.setupCompleted = true
         showWizard = false
     }
 
     fun skipWizard() {
+        store.setupCompleted = true
         showWizard = false
     }
 

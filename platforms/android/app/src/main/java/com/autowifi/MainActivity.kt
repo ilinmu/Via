@@ -41,12 +41,9 @@ class MainActivity : ComponentActivity() {
                 ActivityResultContracts.RequestPermission(),
             ) { }
 
-            androidx.compose.runtime.LaunchedEffect(Unit) {
-                if (!viewModel.hasPermissions()) {
-                    permissionLauncher.launch(requiredPermissions())
-                }
-            }
-
+            // Permissions are requested from the wizard (or the status card)
+            // instead of immediately on launch, so a fresh install opens on
+            // the setup wizard rather than on a system dialog.
             AutoWifiApp(
                 viewModel = viewModel,
                 hasPermission = hasPermission,

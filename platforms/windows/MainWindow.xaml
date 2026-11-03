@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Auto-Wifi"
+        Icon="Assets/app.ico"
         Width="440"
         Height="640"
         MinWidth="420"
@@ -54,11 +55,11 @@
             <TextBlock x:Name="NetworksDescription" TextWrapping="Wrap" Foreground="Gray" />
 
             <TextBlock x:Name="PriorityLabel" FontWeight="SemiBold" Margin="0,16,0,0" />
-            <TextBox x:Name="PrioritySsidBox" />
+            <ComboBox x:Name="PrioritySsidBox" IsEditable="True" Margin="0,4,0,10" />
             <PasswordBox x:Name="PriorityPasswordBox" />
 
             <TextBlock x:Name="BackupLabel" FontWeight="SemiBold" Margin="0,8,0,0" />
-            <TextBox x:Name="BackupSsidBox" />
+            <ComboBox x:Name="BackupSsidBox" IsEditable="True" Margin="0,4,0,10" />
             <PasswordBox x:Name="BackupPasswordBox" />
 
             <CheckBox x:Name="ShowPasswordsCheckBox"
@@ -68,12 +69,8 @@
 
             <TextBlock x:Name="ScanHint" Foreground="Gray" TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-              <ComboBox x:Name="ScanCombo" Width="220" />
               <Button x:Name="ScanNetworksButton" Click="ScanNetworksButton_Click" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-              <Button x:Name="UseForPButton" Click="UseForPButton_Click" />
-              <Button x:Name="UseForBButton" Click="UseForBButton_Click" />
+              <TextBlock x:Name="ScanStatusText" Foreground="Gray" VerticalAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
 
             <Button x:Name="SaveButton" Click="SaveButton_Click" Margin="0,16,0,0" />
@@ -100,6 +97,8 @@
                       Checked="LaunchAtLogin_Changed"
                       Unchecked="LaunchAtLogin_Changed" />
             <TextBlock x:Name="LaunchAtLoginHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+            <Button x:Name="RerunSetupButton" Click="RerunSetupButton_Click" Margin="0,14,0,0" />
 
             <Separator Margin="0,18" />
             <TextBlock x:Name="AboutLabel" FontWeight="SemiBold" />

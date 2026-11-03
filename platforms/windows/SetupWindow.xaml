@@ -1,0 +1,80 @@
+<Window x:Class="AutoWifi.Windows.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Auto-Wifi"
+        Icon="Assets/app.ico"
+        Width="460"
+        Height="580"
+        MinWidth="420"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0">
+      <TextBlock x:Name="WizardTitle" FontSize="22" FontWeight="SemiBold" />
+      <TextBlock x:Name="StepText" Foreground="Gray" Margin="0,6,0,0" />
+      <ProgressBar x:Name="Progress" Height="4" Margin="0,12,0,0" Minimum="0" Maximum="3" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
+      <Grid>
+        <StackPanel x:Name="StepWelcome">
+          <TextBlock x:Name="WelcomeTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock x:Name="WelcomeBody" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+        </StackPanel>
+
+        <StackPanel x:Name="StepNetworks" Visibility="Collapsed">
+          <TextBlock x:Name="NetworksTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock x:Name="NetworksBody" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+
+          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+            <Button x:Name="ScanButton" Click="ScanButton_Click" />
+            <TextBlock x:Name="ScanStatus" Foreground="Gray" VerticalAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <TextBlock x:Name="PriorityLabel" FontWeight="SemiBold" Margin="0,18,0,0" />
+          <ComboBox x:Name="PriorityCombo" IsEditable="True" Margin="0,6,0,0" />
+          <PasswordBox x:Name="PriorityPassword" Margin="0,8,0,0" />
+
+          <TextBlock x:Name="BackupLabel" FontWeight="SemiBold" Margin="0,14,0,0" />
+          <ComboBox x:Name="BackupCombo" IsEditable="True" Margin="0,6,0,0" />
+          <PasswordBox x:Name="BackupPassword" Margin="0,8,0,0" />
+
+          <TextBlock x:Name="PasswordHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <TextBlock x:Name="Validation" Foreground="IndianRed" TextWrapping="Wrap" Margin="0,10,0,0" />
+        </StackPanel>
+
+        <StackPanel x:Name="StepFinish" Visibility="Collapsed">
+          <TextBlock x:Name="FinishTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock x:Name="FinishBody" Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+          <TextBlock x:Name="SummaryP" Margin="0,18,0,0" TextWrapping="Wrap" />
+          <TextBlock x:Name="SummaryB" Margin="0,6,0,0" TextWrapping="Wrap" />
+          <TextBlock x:Name="FinishHint" Foreground="Gray" TextWrapping="Wrap" Margin="0,16,0,0" />
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+
+    <Grid Grid.Row="2" Margin="0,18,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <Button x:Name="BackButton" Grid.Column="0" Click="Back_Click" Visibility="Collapsed" />
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal">
+        <Button x:Name="SkipButton" Click="Skip_Click" Background="Transparent" BorderThickness="0" Foreground="Gray" />
+        <Button x:Name="NextButton" Click="Next_Click" />
+        <Button x:Name="SaveOnlyButton" Click="SaveOnly_Click" Visibility="Collapsed" />
+        <Button x:Name="StartButton" Click="Start_Click" Visibility="Collapsed" FontWeight="SemiBold" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

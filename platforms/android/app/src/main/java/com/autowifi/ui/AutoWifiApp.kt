@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,7 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Wifi
@@ -31,12 +32,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -48,10 +54,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +70,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.autowifi.BuildConfig
 import com.autowifi.service.MonitorState
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -114,7 +120,10 @@ private fun MainTabs(
     onRequestNotifications: () -> Unit,
     onOpenAppSettings: () -> Unit,
 ) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Tabs are pages so they can also be swiped; the tab row and the pager
+    // share the same current page.
+    val pagerState = rememberPagerState(pageCount = { 3 })
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -136,27 +145,28 @@ private fun MainTabs(
                 text = viewModel.t("app_name"),
                 style = MaterialTheme.typography.titleMedium,
             )
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = { tab = 2 }) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = viewModel.t("tab_settings"),
-                )
-            }
         }
 
-        TabRow(selectedTabIndex = tab) {
+        TabRow(selectedTabIndex = pagerState.currentPage) {
             listOf("tab_status", "tab_networks", "tab_settings").forEachIndexed { index, key ->
                 Tab(
-                    selected = tab == index,
-                    onClick = { tab = index },
+                    selected = pagerState.currentPage == index,
+                    onClick = {
+                        scope.launch { pagerState.animateScrollToPage(index) }
+                    },
                     text = { Text(viewModel.t(key)) },
                 )
             }
         }
 
-        Box(modifier = Modifier.weight(1f)) {
-            when (tab) {
+        HorizontalPager(
+            state = pagerState,
+            // Keep neighbouring pages composed so their scroll position and
+            // scan results survive a swipe.
+            beyondViewportPageCount = 2,
+            modifier = Modifier.weight(1f),
+        ) { page ->
+            when (page) {
                 0 -> StatusTab(
                     viewModel = viewModel,
                     state = state,
@@ -391,7 +401,10 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
         )
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { viewModel.scan() }, enabled = !viewModel.isScanning) {
+            OutlinedButton(
+                onClick = { viewModel.scan() },
+                enabled = hasPermission && !viewModel.isScanning,
+            ) {
                 if (viewModel.isScanning) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
@@ -433,36 +446,6 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column {
-                    viewModel.scanResults.forEach { ssid ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = ssid,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            TextButton(onClick = { viewModel.ssidP = ssid }) {
-                                Text("P")
-                            }
-                            TextButton(onClick = { viewModel.ssidB = ssid }) {
-                                Text("B")
-                            }
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                }
-            }
         }
 
         NetworkEditor(
@@ -474,6 +457,7 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
             onPasswordChange = { viewModel.passwordP = it },
             currentSsid = viewModel.currentSsid,
             onUseCurrent = { viewModel.useCurrentNetwork(primary = true) },
+            networks = viewModel.scanResults,
         )
 
         NetworkEditor(
@@ -485,6 +469,7 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
             onPasswordChange = { viewModel.passwordB = it },
             currentSsid = viewModel.currentSsid,
             onUseCurrent = { viewModel.useCurrentNetwork(primary = false) },
+            networks = viewModel.scanResults,
         )
 
         viewModel.saveError?.let { key ->
@@ -511,6 +496,7 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NetworkEditor(
     viewModel: AppViewModel,
@@ -521,21 +507,69 @@ private fun NetworkEditor(
     onPasswordChange: (String) -> Unit,
     currentSsid: String?,
     onUseCurrent: () -> Unit,
+    networks: List<String>,
 ) {
     var visible by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        OutlinedTextField(
-            value = ssid,
-            onValueChange = onSsidChange,
-            label = { Text(viewModel.t("ssid_label")) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // The SSID field doubles as a dropdown of the last scan, so a network
+        // is picked in place instead of through a separate P/B list.
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+        ) {
+            OutlinedTextField(
+                value = ssid,
+                onValueChange = onSsidChange,
+                label = { Text(viewModel.t("ssid_label")) },
+                singleLine = true,
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryEditable),
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                if (networks.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text(viewModel.t("scan_first")) },
+                        onClick = { expanded = false },
+                        enabled = false,
+                    )
+                } else {
+                    networks.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                onSsidChange(option)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+                if (currentSsid != null) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    DropdownMenuItem(
+                        text = {
+                            Text("${viewModel.t("use_current")} · $currentSsid")
+                        },
+                        onClick = {
+                            onUseCurrent()
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
@@ -558,11 +592,6 @@ private fun NetworkEditor(
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        if (currentSsid != null) {
-            TextButton(onClick = onUseCurrent) {
-                Text("${viewModel.t("use_current")} · $currentSsid")
-            }
-        }
     }
 }
 
@@ -825,7 +854,7 @@ private fun SetupWizard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedButton(
                             onClick = { viewModel.scan() },
-                            enabled = !viewModel.isScanning,
+                            enabled = hasPermission && !viewModel.isScanning,
                         ) {
                             if (viewModel.isScanning) {
                                 CircularProgressIndicator(
@@ -844,6 +873,14 @@ private fun SetupWizard(
                                 viewModel.t(if (viewModel.isScanning) "scanning" else "scan_networks"),
                             )
                         }
+                        if (!hasPermission) {
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = viewModel.t("scan_needs_permission"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     viewModel.scanMessage?.let { key ->
                         Text(
@@ -851,40 +888,6 @@ private fun SetupWizard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    }
-                    if (viewModel.scanResults.isNotEmpty()) {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column {
-                                viewModel.scanResults.forEach { ssid ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            text = ssid,
-                                            modifier = Modifier.weight(1f),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        TextButton(onClick = { viewModel.ssidP = ssid }) {
-                                            Text("P")
-                                        }
-                                        TextButton(onClick = { viewModel.ssidB = ssid }) {
-                                            Text("B")
-                                        }
-                                    }
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                }
-                            }
-                        }
                     }
                     NetworkEditor(
                         viewModel = viewModel,
@@ -895,6 +898,7 @@ private fun SetupWizard(
                         onPasswordChange = { viewModel.passwordP = it },
                         currentSsid = viewModel.currentSsid,
                         onUseCurrent = { viewModel.useCurrentNetwork(primary = true) },
+                        networks = viewModel.scanResults,
                     )
                     NetworkEditor(
                         viewModel = viewModel,
@@ -905,6 +909,7 @@ private fun SetupWizard(
                         onPasswordChange = { viewModel.passwordB = it },
                         currentSsid = viewModel.currentSsid,
                         onUseCurrent = { viewModel.useCurrentNetwork(primary = false) },
+                        networks = viewModel.scanResults,
                     )
                     viewModel.saveError?.let { key ->
                         Text(

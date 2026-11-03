@@ -142,6 +142,12 @@ swift run PolicySmoke
 `swift run PolicySmoke` 会通过 C ABI 驱动核心跑一遍启动、扫描、关联和手动覆盖
 流程，输出 `policy smoke ok`。
 
+重新生成四个平台的应用图标：
+
+```bash
+swift scripts/generate-app-icons.swift
+```
+
 检查 CLI 脚本类型：
 
 ```bash

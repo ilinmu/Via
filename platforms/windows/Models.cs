@@ -8,6 +8,7 @@ public sealed class AppSettings
     public bool Running { get; set; }
     public string Language { get; set; } = "zh";
     public bool LaunchAtLogin { get; set; }
+    public bool SetupCompleted { get; set; }
 
     public AppSettings Clone() => (AppSettings)MemberwiseClone();
 

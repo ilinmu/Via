@@ -55,6 +55,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_LAUNCH_AT_BOOT, false)
         set(value) = prefs.edit().putBoolean(KEY_LAUNCH_AT_BOOT, value).apply()
 
+    /** Set once the setup wizard is finished or skipped. */
+    var setupCompleted: Boolean
+        get() = prefs.getBoolean(KEY_SETUP_COMPLETED, false)
+        set(value) = prefs.edit().putBoolean(KEY_SETUP_COMPLETED, value).apply()
+
     var passwordP: String
         get() = secure?.getString(KEY_PASSWORD_P, "").orEmpty()
         set(value) = writeSecret(KEY_PASSWORD_P, value)
@@ -83,6 +88,7 @@ class SettingsStore(context: Context) {
         private const val KEY_LANGUAGE = "language"
         private const val KEY_RUNNING = "running"
         private const val KEY_LAUNCH_AT_BOOT = "launch_at_boot"
+        private const val KEY_SETUP_COMPLETED = "setup_completed"
         private const val KEY_PASSWORD_P = "password_p"
         private const val KEY_PASSWORD_B = "password_b"
     }
