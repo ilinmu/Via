@@ -12,8 +12,11 @@ android {
         applicationId = "com.autowifi"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // CI passes -PbuildNumber=<run number> so the APK version matches the
+        // release tag (v1.0.<run>); local builds fall back to 1.
+        val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -22,7 +25,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Release artifacts are R8-shrunk: without it the unused Material
+            // icons alone add tens of megabytes.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // CI publishes test builds, so the debug key is enough; replace
+            // this with a release keystore before publishing to a store.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

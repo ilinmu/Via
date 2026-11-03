@@ -20,8 +20,12 @@ cargo install cargo-ndk
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 scripts/build-android-core.sh
 cd platforms/android
-gradle assembleDebug
+gradle assembleRelease
 ```
+
+release 构建启用 R8 代码压缩和资源裁剪，并用调试密钥签名（仅用于测试），产物在
+`app/build/outputs/apk/release/`。CI 会传入 `-PbuildNumber=<运行号>`，让 APK 的
+`versionName`（`1.0.<运行号>`）与 Release 标签一致。
 
 `scripts/build-android-core.sh` 生成 `libautowifi_jni.so` 到
 `app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/`。
