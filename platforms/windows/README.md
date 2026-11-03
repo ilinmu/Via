@@ -7,6 +7,7 @@
 
 - `App.xaml.cs`：单实例、托盘和窗口生命周期。
 - `MainWindow.xaml(.cs)`：状态 / 网络 / 设置三个 Tab。
+- `SetupWindow.xaml(.cs)`：首次运行的设置向导（欢迎 → 选择网络 → 完成）。
 - `MonitorService.cs`：策略循环，执行扫描和关联动作。
 - `PolicyEngine.cs`：`autowifi_core.dll` 的 P/Invoke 封装。
 - `WlanApi.cs`：WlanAPI（扫描、当前 SSID、WLAN 配置文件、连接）。
@@ -35,8 +36,15 @@ dotnet publish platforms/windows/AutoWifi.Windows.csproj `
 
 `AutoWifi.Windows.csproj` 会自动复制 `core/target/.../autowifi_core.dll` 到输出目录。
 
+## 界面
+
+首次启动会打开三步设置向导；完成后写入 `SetupCompleted`，之后可在“设置”里
+重新运行。网络页的 P、B 输入框是可编辑下拉框，扫描后可从结果中选择或直接输入。
+
 ## 行为说明
 
+- 应用图标为 `Assets/app.ico`，由 `scripts/generate-app-icons.swift` 生成，同时用于
+  窗口、任务栏和托盘。
 - 密码只写入 Windows Credential Manager（目标名 `AutoWifi/passwordP`、
   `AutoWifi/passwordB`），不写入 JSON 设置。
 - 连接使用 `WlanSetProfile` + `WlanConnect`，随后轮询当前 SSID，超时视为失败。

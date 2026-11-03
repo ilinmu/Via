@@ -34,8 +34,7 @@ public static class L10n
         ["password"] = "密码",
         ["show_passwords"] = "显示密码",
         ["scan_hint"] = "扫描附近网络，或直接输入 SSID。",
-        ["use_for_priority"] = "设为 P",
-        ["use_for_backup"] = "设为 B",
+        ["networks_found_format"] = "发现 {0} 个网络，可从下拉列表选择。",
         ["save_changes"] = "保存更改",
         ["saved"] = "已保存",
         ["missing_primary"] = "请填写优先网络的 SSID。",
@@ -65,7 +64,20 @@ public static class L10n
         ["monitor_stopped"] = "自动切换已停止",
         ["scan_failed"] = "扫描失败，请确认 Wi-Fi 已开启。",
         ["connect_failed"] = "连接失败",
-        ["windows_limit_hint"] = "Windows 由系统选择最终接入的网络；应用会维护 P/B 配置并执行切换。"
+        ["windows_limit_hint"] = "Windows 由系统选择最终接入的网络；应用会维护 P/B 配置并执行切换。",
+        ["rerun_setup"] = "重新运行设置向导",
+        ["wizard_welcome_title"] = "欢迎使用 Auto-Wifi",
+        ["wizard_welcome_body"] = "Auto-Wifi 会在优先网络 P 不可用时自动切换到备用网络 B。接下来用两步完成设置。",
+        ["wizard_networks_title"] = "选择优先和备用网络",
+        ["wizard_networks_body"] = "扫描附近网络后从下拉列表选择，也可以直接输入 SSID。",
+        ["wizard_finish_title"] = "完成",
+        ["wizard_finish_body"] = "配置已保存。开启自动切换后，应用会在通知区域持续运行。",
+        ["wizard_step_format"] = "第 {0} 步，共 3 步",
+        ["wizard_back"] = "上一步",
+        ["wizard_next"] = "下一步",
+        ["wizard_skip"] = "跳过",
+        ["wizard_start"] = "开启自动切换",
+        ["wizard_save_only"] = "仅保存"
     };
 
     private static readonly Dictionary<string, string> English = new()
@@ -92,8 +104,7 @@ public static class L10n
         ["password"] = "Password",
         ["show_passwords"] = "Show passwords",
         ["scan_hint"] = "Scan nearby networks or enter an SSID.",
-        ["use_for_priority"] = "Use for P",
-        ["use_for_backup"] = "Use for B",
+        ["networks_found_format"] = "{0} networks found; pick one from the list.",
         ["save_changes"] = "Save Changes",
         ["saved"] = "Saved",
         ["missing_primary"] = "Enter the Priority network SSID.",
@@ -123,6 +134,19 @@ public static class L10n
         ["monitor_stopped"] = "Auto-switch stopped",
         ["scan_failed"] = "Scan failed. Check that Wi-Fi is enabled.",
         ["connect_failed"] = "Connection failed",
-        ["windows_limit_hint"] = "Windows chooses the final network; the app maintains P/B and drives switching."
+        ["windows_limit_hint"] = "Windows chooses the final network; the app maintains P/B and drives switching.",
+        ["rerun_setup"] = "Run Setup Again",
+        ["wizard_welcome_title"] = "Welcome to Auto-Wifi",
+        ["wizard_welcome_body"] = "Auto-Wifi switches to your backup network B when priority P is unavailable. Two quick steps to set it up.",
+        ["wizard_networks_title"] = "Choose priority and backup networks",
+        ["wizard_networks_body"] = "Scan for nearby networks and pick one from the list, or type an SSID.",
+        ["wizard_finish_title"] = "Finish",
+        ["wizard_finish_body"] = "Settings saved. Once auto-switch is on, the app keeps running in the notification area.",
+        ["wizard_step_format"] = "Step {0} of 3",
+        ["wizard_back"] = "Back",
+        ["wizard_next"] = "Next",
+        ["wizard_skip"] = "Skip",
+        ["wizard_start"] = "Start Auto-Switch",
+        ["wizard_save_only"] = "Save Only"
     };
 }

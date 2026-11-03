@@ -63,6 +63,10 @@ object L10n {
         "scanning" to ("正在扫描…" to "Scanning…"),
         "no_networks" to ("未发现网络，请检查 Wi-Fi 状态或稍后重试" to "No networks found; check Wi-Fi or try again"),
         "scan_needs_permission" to ("需要定位权限才能扫描" to "Location permission is required to scan"),
+        "scan_first" to (
+            "先扫描附近网络，再从这里选择" to
+                "Scan for nearby networks, then choose one here"
+        ),
         "save_changes" to ("保存更改" to "Save changes"),
         "saved" to ("已保存" to "Saved"),
         "unsaved" to ("有未保存的更改" to "Unsaved changes"),

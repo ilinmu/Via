@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
         _tray = new TrayService(window.ShowFromTray, window.RequestQuit);
         window.SetTray(_tray);
         window.Show();
+        window.ShowFirstRunSetupIfNeeded();
     }
 
     protected override void OnExit(ExitEventArgs e)

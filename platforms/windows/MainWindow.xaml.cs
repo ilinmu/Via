@@ -42,6 +42,40 @@ public partial class MainWindow : Window
         _tray = tray;
     }
 
+    /// <summary>Opens the setup wizard on the first launch after installation.</summary>
+    public void ShowFirstRunSetupIfNeeded()
+    {
+        if (!_settings.SetupCompleted)
+        {
+            ShowSetup();
+        }
+    }
+
+    private void ShowSetup()
+    {
+        var wizard = new SetupWindow(_settings) { Owner = this };
+        wizard.ShowDialog();
+
+        // The wizard writes its own copy of the settings; reload before using
+        // them here.
+        _loading = true;
+        _settings = SettingsStore.Load();
+        LoadSettingsIntoUi();
+        ApplyLanguage();
+        _loading = false;
+
+        if (wizard.StartRequested)
+        {
+            _settings.Running = true;
+            SettingsStore.Save(_settings);
+            _monitor.Configure(_settings);
+            _monitor.Start();
+            _syncingUi = true;
+            AutoSwitchCheckBox.IsChecked = true;
+            _syncingUi = false;
+        }
+    }
+
     public void ShowFromTray()
     {
         Show();
@@ -98,8 +132,6 @@ public partial class MainWindow : Window
         ShowPasswordsCheckBox.Content = L10n.T("show_passwords");
         ScanHint.Text = L10n.T("scan_hint");
         ScanNetworksButton.Content = L10n.T("scan_networks");
-        UseForPButton.Content = L10n.T("use_for_priority");
-        UseForBButton.Content = L10n.T("use_for_backup");
         SaveButton.Content = L10n.T("save_changes");
         NetworkHint.Text = L10n.T("password_optional");
 
@@ -113,6 +145,7 @@ public partial class MainWindow : Window
         VersionLabel.Text = L10n.T("version");
         PrivacyText.Text = L10n.T("privacy_note");
         QuitButton.Content = L10n.T("quit_app");
+        RerunSetupButton.Content = L10n.T("rerun_setup");
 
         RoleValue.Text = $"{L10n.T("role")}: {RoleText(WifiRole.None)}";
         LastMessageText.Text = L10n.T("windows_limit_hint");
@@ -186,9 +219,14 @@ public partial class MainWindow : Window
         try
         {
             var networks = await Task.Run(() => _wifi.Scan());
-            ScanCombo.ItemsSource = networks;
-            ScanCombo.SelectedIndex = networks.Count > 0 ? 0 : -1;
-            ValidationText.Text = networks.Count == 0 ? L10n.T("no_networks") : "";
+            // Both SSID fields are dropdowns of the last scan; the typed text
+            // is kept so a manual entry is not overwritten.
+            PrioritySsidBox.ItemsSource = networks;
+            BackupSsidBox.ItemsSource = networks;
+            ScanStatusText.Text = networks.Count == 0
+                ? L10n.T("no_networks")
+                : string.Format(L10n.T("networks_found_format"), networks.Count);
+            ValidationText.Text = "";
         }
         finally
         {
@@ -197,20 +235,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UseForPButton_Click(object sender, RoutedEventArgs e)
+    private void RerunSetupButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ScanCombo.SelectedItem is string ssid)
-        {
-            PrioritySsidBox.Text = ssid;
-        }
-    }
-
-    private void UseForBButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (ScanCombo.SelectedItem is string ssid)
-        {
-            BackupSsidBox.Text = ssid;
-        }
+        ShowSetup();
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)

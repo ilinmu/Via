@@ -23,12 +23,27 @@ public sealed class TrayService : IDisposable
 
         _icon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadAppIcon(),
             Text = "Auto-Wifi",
             Visible = true,
             ContextMenuStrip = menu
         };
         _icon.DoubleClick += (_, _) => open();
+    }
+
+    private static Icon LoadAppIcon()
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrEmpty(processPath))
+        {
+            var icon = Icon.ExtractAssociatedIcon(processPath);
+            if (icon != null)
+            {
+                return icon;
+            }
+        }
+
+        return SystemIcons.Application;
     }
 
     public void RefreshLanguage()

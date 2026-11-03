@@ -11,6 +11,16 @@ Kotlin + Jetpack Compose 客户端，使用共享 Rust 策略核心（JNI）和�
 - `app/src/main/java/com/autowifi/ui/`：Compose 界面、主题和 ViewModel。
 - `app/src/main/java/com/autowifi/L10n.kt`：中英文文案。
 
+## 界面
+
+首次安装会进入三步设置向导（授权定位 → 选择 P/B → 完成并开启监控），完成后
+不再自动出现，可在“设置”里重新运行。主界面是状态 / 网络 / 设置三个 Tab，支持
+点击或左右滑动切换。网络页扫描后，P、B 的 SSID 输入框会变成下拉列表，可直接
+从扫描结果中选择，也可以手动输入。
+
+应用图标由 `scripts/generate-app-icons.swift` 生成：蓝色渐变背景、缩小的 Wi-Fi
+标记和“Auto”字样。自适应图标的前景图位于 `res/mipmap-*/ic_launcher_foreground.png`。
+
 ## 构建
 
 需要 JDK 17、Android SDK 35、NDK 27、Gradle 8.10+ 和 `cargo-ndk`。

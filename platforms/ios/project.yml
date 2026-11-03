@@ -26,6 +26,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.autowifi.ios
         PRODUCT_NAME: AutoWifi
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: AutoWifi/Info.plist
         CODE_SIGN_ENTITLEMENTS: AutoWifi/AutoWifi.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: AutoWifi/AutoWifi-Bridging-Header.h
