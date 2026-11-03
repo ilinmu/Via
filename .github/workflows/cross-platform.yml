@@ -383,15 +383,18 @@ jobs:
       - name: Build JNI libraries
         run: scripts/build-android-core.sh
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: platforms/android
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: >
+          gradle assembleRelease
+          --no-daemon --stacktrace
+          -PbuildNumber=${{ github.run_number }}
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoWifi-android
-          path: platforms/android/app/build/outputs/apk/debug/*.apk
+          path: platforms/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -416,7 +419,7 @@ jobs:
           cp artifacts/AutoWifi-macos/AutoWifi-macos.zip release/
           cp artifacts/AutoWifi-ios/AutoWifi-ios.xcarchive.zip release/
           cp artifacts/AutoWifi-windows/AutoWifi-windows.zip release/
-          cp artifacts/AutoWifi-android/app-debug.apk release/AutoWifi-android-debug.apk
+          cp artifacts/AutoWifi-android/app-release.apk release/AutoWifi-android.apk
 
       - name: Create GitHub release
         env:
@@ -429,7 +432,7 @@ jobs:
           - macOS：AutoWifi-macos.zip（未签名）
           - Windows：AutoWifi-windows.zip
           - iOS：AutoWifi-ios.xcarchive.zip（未签名）
-          - Android：AutoWifi-android-debug.apk（debug 签名）
+          - Android：AutoWifi-android.apk（R8 压缩，debug 签名）
 
           这些构建未做代码签名，仅用于测试；正式发布需要各自平台的签名流程。
           EOF

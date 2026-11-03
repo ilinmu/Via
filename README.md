@@ -73,7 +73,7 @@ cd platforms/ios && xcodegen generate && cd ../..
 
 # Android
 scripts/build-android-core.sh
-cd platforms/android && gradle assembleDebug && cd ../..
+cd platforms/android && gradle assembleRelease && cd ../..
 
 # Windows（在 Windows 上）
 ./scripts/build-windows-core.ps1

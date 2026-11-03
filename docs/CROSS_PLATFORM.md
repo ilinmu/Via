@@ -103,10 +103,11 @@ cargo install cargo-ndk
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 scripts/build-android-core.sh
 cd platforms/android
-gradle assembleDebug
+gradle assembleRelease
 ```
 
-APK 输出在 `platforms/android/app/build/outputs/apk/debug/`。
+APK 输出在 `platforms/android/app/build/outputs/apk/release/`。release 构建启用 R8
+代码压缩和资源裁剪，并用调试密钥签名（仅用于测试）；需要发布到商店时替换签名配置。
 
 ## GitHub Actions
 
@@ -128,7 +129,7 @@ Markdown 或 `docs/` 的 PR 会跳过所有平台 job（`Detect changes` 仍会�
    - `build-macos`：打包未签名 `.app` 并压缩为 `AutoWifi-macos.zip`。
    - `build-ios`：构建 XCFramework、生成 Xcode 工程、模拟器编译并归档未签名设备包。
    - `build-windows`：编译 Rust DLL，`dotnet publish` 自包含关闭的 `win-x64` 产物。
-   - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 debug APK。
+   - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 R8 压缩的 release APK（debug 签名）。
 
 Rust 构建用 `Swatinem/rust-cache` 缓存，.NET 用 `actions/cache` 缓存 NuGet 包，
 Gradle 由 `gradle/actions/setup-gradle` 缓存依赖和构建结果。Android SDK、NDK 和
@@ -149,6 +150,6 @@ artifacts，不会创建 Release。
 
 - Windows 产物未签名，首次运行可能出现 SmartScreen 提示；正式发布需要代码签名证书。
 - iOS 归档未签名，仅用于验证编译；上架或真机安装需要 Apple Developer 团队和描述文件。
-- Android debug APK 使用调试签名；发布到应用商店需要配置 release keystore。
+- Android release APK 经 R8 压缩，使用调试签名；发布到应用商店需要配置 release keystore 并替换签名配置。
 - macOS 默认使用 ad-hoc 签名；正式分发需要 Developer ID 或 Mac App Store 流程，
   参见 [app-store/APP_STORE_SUBMISSION.md](app-store/APP_STORE_SUBMISSION.md)。
