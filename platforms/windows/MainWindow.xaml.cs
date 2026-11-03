@@ -2,6 +2,9 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+// UseWindowsForms adds an implicit `System.Drawing` using, which also defines
+// a Brush type.
+using Brush = System.Windows.Media.Brush;
 
 namespace AutoWifi.Windows;
 
