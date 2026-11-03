@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     public void SetTray(TrayService tray)
     {
         _tray = tray;
+        _tray.UpdateStatus(null, WifiRole.None, _settings.Running);
     }
 
     /// <summary>Opens the setup wizard on the first launch after installation.</summary>
@@ -178,6 +179,7 @@ public partial class MainWindow : Window
             _monitor.Stop();
             _settings.Running = false;
             SettingsStore.Save(_settings);
+            _tray?.UpdateStatus(null, WifiRole.None, false);
         }
     }
 
@@ -351,6 +353,7 @@ public partial class MainWindow : Window
                 ? L10n.T("not_connected")
                 : status.CurrentSsid;
             RoleValue.Text = $"{L10n.T("role")}: {RoleText(status.Role)}";
+            _tray?.UpdateStatus(status.CurrentSsid, status.Role, status.Running);
             NextCheckValue.Text = status.NextCheck?.ToString("HH:mm:ss") ?? "—";
             LastMessageText.Text = status.Message;
             if (_settings.Running != status.Running)

@@ -50,4 +50,6 @@ xcodebuild -project AutoWifi.xcodeproj -scheme AutoWifi \
 - 没有公开的 Wi-Fi 扫描 API，界面不提供扫描列表，需要手动输入 SSID 或使用当前网络。
 - 加入网络会弹出系统确认；用户拒绝时按连接失败处理。
 - 应用进入后台后定时器停止，自动切换只在应用打开时运行。
+- iOS 不允许应用在状态栏放置图标；与 macOS 菜单栏图标相同的状态图标（Wi-Fi +
+  P/B/红点）显示在应用内“当前连接”卡片上。
 - `NEHotspotNetwork.fetchCurrent` 需要定位权限；未授权时无法读取当前 SSID。

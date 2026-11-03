@@ -134,12 +134,7 @@ private fun MainTabs(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Filled.Wifi,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
+            StatusGlyph(running = state.running, role = state.role)
             Spacer(Modifier.width(8.dp))
             Text(
                 text = viewModel.t("app_name"),
@@ -182,6 +177,41 @@ private fun MainTabs(
                     hasPermission = hasPermission,
                     onRequestPermission = onRequestPermission,
                     onOpenAppSettings = onOpenAppSettings,
+                )
+            }
+        }
+    }
+}
+
+/** Same state rules as the macOS menu bar icon: red dot when stopped, P/B while running. */
+@Composable
+private fun StatusGlyph(running: Boolean, role: String) {
+    Box(modifier = Modifier.size(24.dp)) {
+        Icon(
+            imageVector = Icons.Filled.Wifi,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp).align(Alignment.BottomStart),
+        )
+        if (!running) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .align(Alignment.TopEnd)
+                    .background(Color.Red, CircleShape),
+            )
+        } else {
+            val letter = when (role) {
+                "priority" -> "P"
+                "backup" -> "B"
+                else -> null
+            }
+            if (letter != null) {
+                Text(
+                    text = letter,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomEnd),
                 )
             }
         }

@@ -44,7 +44,9 @@ dotnet publish platforms/windows/AutoWifi.Windows.csproj `
 ## 行为说明
 
 - 应用图标为 `Assets/app.ico`，由 `scripts/generate-app-icons.swift` 生成，同时用于
-  窗口、任务栏和托盘。
+  窗口和任务栏。
+- 托盘图标与 macOS 菜单栏图标一致：运行中显示 Wi-Fi + 当前角色（P/B），停止时显示
+  红点；颜色随任务栏明暗自动切换，悬停显示当前网络与角色。
 - 密码只写入 Windows Credential Manager（目标名 `AutoWifi/passwordP`、
   `AutoWifi/passwordB`），不写入 JSON 设置。
 - 连接使用 `WlanSetProfile` + `WlanConnect`，随后轮询当前 SSID，超时视为失败。

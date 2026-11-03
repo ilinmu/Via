@@ -18,6 +18,10 @@ Kotlin + Jetpack Compose 客户端，使用共享 Rust 策略核心（JNI）和�
 点击或左右滑动切换。网络页扫描后，P、B 的 SSID 输入框会变成下拉列表，可直接
 从扫描结果中选择，也可以手动输入。
 
+前台服务的通知就是 Android 上的“状态栏图标”：小图标在监控关闭时带斜杠、连接 P/B
+时带字母，大图标显示蓝色 Wi-Fi 与红点/字母，内容为当前网络和角色；状态更新时只
+重绘变化的部分。
+
 应用图标由 `scripts/generate-app-icons.swift` 生成：蓝色渐变背景、缩小的 Wi-Fi
 标记和“Auto”字样。自适应图标的前景图位于 `res/mipmap-*/ic_launcher_foreground.png`。
 
