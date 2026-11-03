@@ -5,6 +5,7 @@ using Microsoft.Win32;
 // UseWindowsForms adds an implicit `System.Drawing` using, so the WPF colour
 // type has to be named explicitly.
 using Color = System.Windows.Media.Color;
+using ColorConverter = System.Windows.Media.ColorConverter;
 
 namespace AutoWifi.Windows;
 
