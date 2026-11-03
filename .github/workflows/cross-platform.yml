@@ -22,6 +22,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Keep in sync with the app version (scripts/package-app.sh, Android
+  # versionName). Each master build becomes v<APP_VERSION>.<run_number>.
+  APP_VERSION: "1.0"
 
 jobs:
   # Pull requests that only touch prose skip the platform jobs. The filter is a
@@ -278,11 +281,15 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             archive
 
+      # Zip the archive so the release asset keeps the .xcarchive name.
+      - name: Package archive
+        run: ditto -c -k --sequesterRsrc --keepParent dist/AutoWifi-ios.xcarchive dist/AutoWifi-ios.xcarchive.zip
+
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoWifi-ios
-          path: dist/AutoWifi-ios.xcarchive
+          path: dist/AutoWifi-ios.xcarchive.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -321,11 +328,15 @@ jobs:
           --self-contained false
           -o dist/windows
 
+      - name: Package artifact
+        shell: pwsh
+        run: Compress-Archive -Path dist/windows/* -DestinationPath dist/AutoWifi-windows.zip
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoWifi-windows
-          path: dist/windows
+          path: dist/AutoWifi-windows.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -383,3 +394,54 @@ jobs:
           path: platforms/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  # Every master build publishes a release whose tag carries the workflow run
+  # number, so successive builds never overwrite each other.
+  release:
+    name: Publish release
+    needs: [build-macos, build-ios, build-windows, build-android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          cp artifacts/AutoWifi-macos/AutoWifi-macos.zip release/
+          cp artifacts/AutoWifi-ios/AutoWifi-ios.xcarchive.zip release/
+          cp artifacts/AutoWifi-windows/AutoWifi-windows.zip release/
+          cp artifacts/AutoWifi-android/app-debug.apk release/AutoWifi-android-debug.apk
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${APP_VERSION}.${GITHUB_RUN_NUMBER}"
+          cat > notes.md <<EOF
+          由 master 自动构建：${GITHUB_SHA}
+
+          - macOS：AutoWifi-macos.zip（未签名）
+          - Windows：AutoWifi-windows.zip
+          - iOS：AutoWifi-ios.xcarchive.zip（未签名）
+          - Android：AutoWifi-android-debug.apk（debug 签名）
+
+          这些构建未做代码签名，仅用于测试；正式发布需要各自平台的签名流程。
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "AutoWifi $TAG" \
+              --notes-file notes.md \
+              release/*
+          fi
+          echo "### 已发布 $TAG" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$TAG" --json url -q .url >> "$GITHUB_STEP_SUMMARY"
