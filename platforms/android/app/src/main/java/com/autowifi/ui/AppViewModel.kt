@@ -120,6 +120,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             p.isEmpty() -> "missing_primary"
             b.isEmpty() -> "missing_backup"
             p.equals(b, ignoreCase = true) -> "same_network_error"
+            passwordP.isNotEmpty() && passwordP.length !in 8..63 -> "invalid_password"
+            passwordB.isNotEmpty() && passwordB.length !in 8..63 -> "invalid_password"
             else -> null
         }
     }
@@ -233,7 +235,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun restartIfRunning() {
         if (!store.running) return
-        WifiMonitorService.stop(app)
-        WifiMonitorService.start(app)
+        // Restart in place: stopping the service first raced with the old
+        // loop, which kept the previous Wi-Fi suggestions (and passwords)
+        // registered after a password edit.
+        WifiMonitorService.restart(app)
     }
 }

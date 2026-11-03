@@ -78,21 +78,27 @@ class WifiRepository(context: Context) {
                 val existing = manager.networkSuggestions
                 if (!existing.isNullOrEmpty()) manager.removeNetworkSuggestions(existing)
             }
+            var rejected = false
             val suggestions = credentials.mapNotNull { credential ->
                 val ssid = credential.ssid.trim()
                 if (ssid.isEmpty()) return@mapNotNull null
                 val builder = WifiNetworkSuggestion.Builder().setSsid(ssid)
                 if (credential.password.isNotEmpty()) {
-                    if (credential.password.length !in 8..63) return@mapNotNull null
+                    if (credential.password.length !in 8..63) {
+                        // The system would ignore the suggestion without any
+                        // error, so report the failure to the caller.
+                        rejected = true
+                        return@mapNotNull null
+                    }
                     builder.setWpa2Passphrase(credential.password)
                 } else {
                     builder.setIsEnhancedOpen(false)
                 }
                 builder.build()
             }
-            if (suggestions.isEmpty()) return true
+            if (suggestions.isEmpty()) return !rejected
             manager.addNetworkSuggestions(suggestions) ==
-                WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS
+                WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS && !rejected
         }.getOrDefault(false)
     }
 

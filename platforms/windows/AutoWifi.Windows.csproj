@@ -15,6 +15,21 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
+  <!--
+    The portable build is a self-contained single file: it carries the .NET
+    runtime and the native policy core, so it runs without installing
+    ".NET Desktop Runtime" first. IncludeAllContentForSelfExtract is what
+    bundles autowifi_core.dll (a plain content item) into the exe; it is
+    extracted next to the app in the temp folder at startup.
+  -->
+  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <SelfContained>true</SelfContained>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
   </ItemGroup>

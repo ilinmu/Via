@@ -72,15 +72,17 @@ class WifiMonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        var restart = false
         when (intent?.action) {
             ACTION_STOP -> {
                 settings.running = false
                 stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_RESTART -> restart = true
             ACTION_REFRESH -> refreshRequested = true
         }
-        startLoop()
+        startLoop(restart)
         return START_STICKY
     }
 
@@ -94,10 +96,17 @@ class WifiMonitorService : Service() {
         super.onDestroy()
     }
 
-    private fun startLoop() {
-        if (loop?.isActive == true) {
+    private fun startLoop(restart: Boolean = false) {
+        val active = loop?.isActive == true
+        if (active && !restart) {
             refreshRequested = true
             return
+        }
+        if (active) {
+            // A restart re-reads the settings (including passwords saved while
+            // the service was running) and re-registers the suggestions. The
+            // old loop stops at its next suspension point.
+            loop?.cancel()
         }
         loop = scope.launch { runLoop() }
     }
@@ -306,7 +315,10 @@ class WifiMonitorService : Service() {
     }
 
     private fun updateNotification(state: MonitorState) {
-        val key = "${settings.language}|${state.running}|${state.role}|${state.currentSsid}"
+        // The countdown is drawn by the system chronometer, so the notification
+        // only needs a refresh when the next check time is rescheduled.
+        val next = if (state.running) state.nextCheckAtMs else 0L
+        val key = "${settings.language}|${state.running}|${state.role}|${state.currentSsid}|$next"
         if (key == notificationKey) return
         notificationKey = key
 
@@ -347,7 +359,7 @@ class WifiMonitorService : Service() {
             currentSsid = runCatching { repository.currentSsid() }.getOrNull(),
         )
         notificationKey =
-            "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}"
+            "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}|0"
 
         ServiceCompat.startForeground(
             this,
@@ -358,9 +370,9 @@ class WifiMonitorService : Service() {
     }
 
     /**
-     * The notification is the Android counterpart of the macOS menu bar icon:
-     * its small icon tracks running/paused and the connected role, and the
-     * text names the current network.
+     * The notification names the current network and, while running, shows a
+     * countdown to the next check. The countdown is rendered by the system's
+     * chronometer view, so no per-second work happens in the app.
      */
     private fun buildNotification(state: MonitorState): Notification {
         val language = settings.language
@@ -377,17 +389,26 @@ class WifiMonitorService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        // The platform builder is used because NotificationCompat has no
-        // Icon overload for the small icon; minSdk 29 covers this API.
+        val countdown = state.running && state.nextCheckAtMs > 0L
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
-            .setSmallIcon(StatusIconRenderer.smallIcon(this, state.running, state.role))
-            .setLargeIcon(StatusIconRenderer.largeIcon(this, state.running, state.role))
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openIntent)
             .setPriority(Notification.PRIORITY_LOW)
+            .apply {
+                if (countdown) {
+                    // The system ticks this down itself; posting the
+                    // notification once per check is enough.
+                    setWhen(state.nextCheckAtMs)
+                    setUsesChronometer(true)
+                    setChronometerCountDown(true)
+                } else {
+                    setShowWhen(false)
+                }
+            }
             .build()
     }
 
@@ -395,6 +416,7 @@ class WifiMonitorService : Service() {
         const val ACTION_START = "com.autowifi.action.START"
         const val ACTION_STOP = "com.autowifi.action.STOP"
         const val ACTION_REFRESH = "com.autowifi.action.REFRESH"
+        const val ACTION_RESTART = "com.autowifi.action.RESTART"
 
         private const val CHANNEL_ID = "autowifi_monitor"
         private const val NOTIFICATION_ID = 41
@@ -416,6 +438,18 @@ class WifiMonitorService : Service() {
         fun refresh(context: Context) {
             val intent = Intent(context, WifiMonitorService::class.java)
                 .setAction(ACTION_REFRESH)
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        /**
+         * Re-applies the saved settings in place. Unlike stop + start this
+         * cannot race with the old service instance still running its loop,
+         * which used to leave the previous Wi-Fi suggestions (and passwords)
+         * registered.
+         */
+        fun restart(context: Context) {
+            val intent = Intent(context, WifiMonitorService::class.java)
+                .setAction(ACTION_RESTART)
             ContextCompat.startForegroundService(context, intent)
         }
     }

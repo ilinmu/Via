@@ -320,23 +320,54 @@ jobs:
         shell: pwsh
         run: ./scripts/build-windows-core.ps1
 
-      - name: Build and publish app
+      # Portable: one self-contained exe, so no .NET Desktop Runtime install
+      # is required.
+      - name: Publish portable app
         run: >
           dotnet publish platforms/windows/AutoWifi.Windows.csproj
           -c Release
           -r win-x64
-          --self-contained false
-          -o dist/windows
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeAllContentForSelfExtract=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -o dist/windows-portable
 
-      - name: Package artifact
+      # Installer payload: the same app as a normal self-contained folder,
+      # which Inno Setup packs into setup.exe.
+      - name: Publish installer payload
+        run: >
+          dotnet publish platforms/windows/AutoWifi.Windows.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:DebugType=none
+          -o dist/windows-app
+
+      - name: Install Inno Setup
         shell: pwsh
-        run: Compress-Archive -Path dist/windows/* -DestinationPath dist/AutoWifi-windows.zip
+        run: choco install innosetup --no-progress -y
+
+      - name: Build portable exe and installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/release | Out-Null
+          Copy-Item dist/windows-portable/AutoWifi.exe dist/release/AutoWifi-windows-portable.exe
+          $iscc = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc "/DAppVersion=1.0.${{ github.run_number }}" platforms/windows/installer.iss
+          Copy-Item dist/AutoWifi-windows-setup.exe dist/release/
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoWifi-windows
-          path: dist/AutoWifi-windows.zip
+          path: dist/release/*
           if-no-files-found: error
           retention-days: 14
 
@@ -418,7 +449,8 @@ jobs:
           mkdir -p release
           cp artifacts/AutoWifi-macos/AutoWifi-macos.zip release/
           cp artifacts/AutoWifi-ios/AutoWifi-ios.xcarchive.zip release/
-          cp artifacts/AutoWifi-windows/AutoWifi-windows.zip release/
+          cp artifacts/AutoWifi-windows/AutoWifi-windows-portable.exe release/
+          cp artifacts/AutoWifi-windows/AutoWifi-windows-setup.exe release/
           cp artifacts/AutoWifi-android/app-release.apk release/AutoWifi-android.apk
 
       - name: Create GitHub release
@@ -430,7 +462,8 @@ jobs:
           由 master 自动构建：${GITHUB_SHA}
 
           - macOS：AutoWifi-macos.zip（未签名）
-          - Windows：AutoWifi-windows.zip
+          - Windows：AutoWifi-windows-portable.exe（免安装，自带运行时）；
+            AutoWifi-windows-setup.exe（安装程序）
           - iOS：AutoWifi-ios.xcarchive.zip（未签名）
           - Android：AutoWifi-android.apk（R8 压缩，debug 签名）
 

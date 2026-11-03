@@ -30,9 +30,25 @@ xUnit 测试覆盖设置归一化、本地化文案，以及通过 C ABI 驱动�
 
 ```powershell
 ./scripts/build-windows-core.ps1
+
+# 免安装单文件：自带 .NET 运行时，双击即可运行
 dotnet publish platforms/windows/AutoWifi.Windows.csproj `
-  -c Release -r win-x64 --self-contained false -o dist/windows
+  -c Release -r win-x64 -p:PublishSingleFile=true `
+  -p:IncludeAllContentForSelfExtract=true `
+  -p:IncludeNativeLibrariesForSelfExtract=true `
+  -p:EnableCompressionInSingleFile=true -p:DebugType=none `
+  -o dist/windows-portable
+
+# 安装程序：先发布普通目录，再用 Inno Setup 打包
+dotnet publish platforms/windows/AutoWifi.Windows.csproj `
+  -c Release -r win-x64 --self-contained true -p:DebugType=none `
+  -o dist/windows-app
+ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
+
+`installer.iss` 生成 `dist/AutoWifi-windows-setup.exe`（可选桌面快捷方式、自带
+卸载程序）。两条发布命令都使用 `--self-contained`，产物不再依赖用户预装
+“.NET Desktop Runtime”。
 
 `AutoWifi.Windows.csproj` 会自动复制 `core/target/.../autowifi_core.dll` 到输出目录。
 
@@ -40,6 +56,7 @@ dotnet publish platforms/windows/AutoWifi.Windows.csproj `
 
 首次启动会打开三步设置向导；完成后写入 `SetupCompleted`，之后可在“设置”里
 重新运行。网络页的 P、B 输入框是可编辑下拉框，扫描后可从结果中选择或直接输入。
+语言使用下拉框选择，与 macOS 一致。
 
 ## 行为说明
 
