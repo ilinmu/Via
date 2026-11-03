@@ -77,7 +77,7 @@ cd platforms/android && gradle assembleRelease && cd ../..
 
 # Windows（在 Windows 上）
 ./scripts/build-windows-core.ps1
-dotnet publish platforms/windows/AutoWifi.Windows.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o dist/windows-portable
+dotnet publish platforms/windows/AutoWifi.Windows.csproj -c Release -p:Platform=x64 -o dist/windows-portable
 ```
 
 GitHub Actions 工作流 `.github/workflows/cross-platform.yml` 会在 push 到 `master`

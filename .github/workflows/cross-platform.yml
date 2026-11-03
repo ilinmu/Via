@@ -320,30 +320,22 @@ jobs:
         shell: pwsh
         run: ./scripts/build-windows-core.ps1
 
-      # Portable: one self-contained exe, so no .NET Desktop Runtime install
-      # is required.
+      # .NET Framework 4.8 is part of Windows, so the publish output is just
+      # the exe (with the Rust core embedded) of roughly 1 MB.
       - name: Publish portable app
         run: >
           dotnet publish platforms/windows/AutoWifi.Windows.csproj
           -c Release
-          -r win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeAllContentForSelfExtract=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
-          -p:DebugType=none
+          -p:Platform=x64
           -o dist/windows-portable
 
-      # Installer payload: the same app as a normal self-contained folder,
-      # which Inno Setup packs into setup.exe.
+      # Installer payload: the same app plus the core DLL next to it, which
+      # Inno Setup packs into setup.exe.
       - name: Publish installer payload
         run: >
           dotnet publish platforms/windows/AutoWifi.Windows.csproj
           -c Release
-          -r win-x64
-          --self-contained true
-          -p:DebugType=none
+          -p:Platform=x64
           -o dist/windows-app
 
       - name: Install Inno Setup

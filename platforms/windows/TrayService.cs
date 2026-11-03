@@ -96,7 +96,7 @@ public sealed class TrayService : IDisposable
     }
 
     private static string Truncate(string text) =>
-        text.Length <= 120 ? text : text[..120];
+        text.Length <= 120 ? text : text.Substring(0, 120);
 
     private static Icon CreateStatusIcon(bool running, WifiRole role)
     {
@@ -166,7 +166,7 @@ public sealed class TrayService : IDisposable
 
     private static Icon LoadAppIcon()
     {
-        var processPath = Environment.ProcessPath;
+        var processPath = Compat.ProcessPath;
         if (!string.IsNullOrEmpty(processPath))
         {
             var icon = Icon.ExtractAssociatedIcon(processPath);

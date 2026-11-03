@@ -322,7 +322,7 @@ public partial class MainWindow : Window
 
         _settings.SsidP = ssidP;
         _settings.SsidB = ssidB;
-        _settings.CheckInterval = Math.Clamp(interval, 5, 3600);
+        _settings.CheckInterval = Compat.Clamp(interval, 5, 3600);
         _settings.Language = LanguageCombo.SelectedIndex == 1 ? "en" : "zh";
         _settings.LaunchAtLogin = LaunchAtLoginCheckBox.IsChecked == true;
 

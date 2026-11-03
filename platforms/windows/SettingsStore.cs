@@ -1,17 +1,12 @@
-using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
+using System.Runtime.Serialization.Json;
+using System.Text;
 using Microsoft.Win32;
 
 namespace AutoWifi.Windows;
 
 public static class SettingsStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
-
     private static string SettingsDirectory =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -29,9 +24,13 @@ public static class SettingsStore
             }
 
             var json = File.ReadAllText(SettingsPath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-            settings.Normalize();
-            return settings;
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+            {
+                var serializer = new DataContractJsonSerializer(typeof(AppSettings));
+                var settings = serializer.ReadObject(stream) as AppSettings ?? new AppSettings();
+                settings.Normalize();
+                return settings;
+            }
         }
         catch
         {
@@ -43,7 +42,12 @@ public static class SettingsStore
     {
         settings.Normalize();
         Directory.CreateDirectory(SettingsDirectory);
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, JsonOptions));
+        using (var stream = new MemoryStream())
+        {
+            var serializer = new DataContractJsonSerializer(typeof(AppSettings));
+            serializer.WriteObject(stream, settings);
+            File.WriteAllText(SettingsPath, Encoding.UTF8.GetString(stream.ToArray()));
+        }
     }
 }
 
@@ -70,8 +74,7 @@ public static class StartupManager
 
         if (enabled)
         {
-            var executable = Environment.ProcessPath
-                ?? Process.GetCurrentProcess().MainModule?.FileName;
+            var executable = Compat.ProcessPath;
             if (!string.IsNullOrWhiteSpace(executable))
             {
                 key.SetValue(ValueName, $"\"{executable}\"");
