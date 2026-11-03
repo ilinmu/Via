@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
@@ -35,6 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -54,6 +57,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,9 +65,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -127,6 +134,10 @@ private fun MainTabs(
     // share the same current page.
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    // Do not leave an input focused after switching pages; a focused text field
+    // captures drags and blocks the pager.
+    LaunchedEffect(pagerState.currentPage) { focusManager.clearFocus() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -454,6 +465,8 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
             currentSsid = viewModel.currentSsid,
             onUseCurrent = { viewModel.useCurrentNetwork(primary = true) },
             networks = viewModel.scanResults,
+            scanning = viewModel.isScanning,
+            onScan = { viewModel.scan() },
         )
 
         NetworkEditor(
@@ -466,6 +479,8 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
             currentSsid = viewModel.currentSsid,
             onUseCurrent = { viewModel.useCurrentNetwork(primary = false) },
             networks = viewModel.scanResults,
+            scanning = viewModel.isScanning,
+            onScan = { viewModel.scan() },
         )
 
         viewModel.saveError?.let { key ->
@@ -492,7 +507,7 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 private fun NetworkEditor(
     viewModel: AppViewModel,
@@ -504,9 +519,19 @@ private fun NetworkEditor(
     currentSsid: String?,
     onUseCurrent: () -> Unit,
     networks: List<String>,
+    scanning: Boolean,
+    onScan: () -> Unit,
 ) {
     var visible by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    // A focused text field swallows horizontal drags for text selection, which
+    // keeps the pager from scrolling; drop focus once a value is picked.
+    fun releaseInputFocus() {
+        focusManager.clearFocus()
+        keyboard?.hide()
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,
@@ -547,22 +572,65 @@ private fun NetworkEditor(
                             text = { Text(option) },
                             onClick = {
                                 onSsidChange(option)
+                                releaseInputFocus()
                                 expanded = false
                             },
                         )
                     }
                 }
-                if (currentSsid != null) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    DropdownMenuItem(
-                        text = {
-                            Text("${viewModel.t("use_current")} · $currentSsid")
-                        },
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                // Scan and use-current share one row at the bottom of the list
+                // so scanning does not require scrolling back to the top.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (currentSsid != null) {
+                        TextButton(
+                            onClick = {
+                                onUseCurrent()
+                                releaseInputFocus()
+                                expanded = false
+                            },
+                            modifier = Modifier.widthIn(max = 190.dp),
+                        ) {
+                            Text(
+                                text = "${viewModel.t("use_current")} · $currentSsid",
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
                         onClick = {
-                            onUseCurrent()
+                            releaseInputFocus()
+                            onScan()
                             expanded = false
                         },
-                    )
+                        enabled = !scanning,
+                    ) {
+                        if (scanning) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Wifi,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = viewModel.t(if (scanning) "scanning" else "scan_networks"),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
             }
         }
@@ -591,29 +659,42 @@ private fun NetworkEditor(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Deliberately as short as [CompactNumberField] so the language row matches the
+ * check-interval row below it instead of using a full-height Material field.
+ */
 @Composable
 private fun LanguageDropdown(viewModel: AppViewModel) {
     var expanded by remember { mutableStateOf(false) }
     val current = if (viewModel.language == "en") "English" else "中文"
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = Modifier.width(140.dp),
-    ) {
-        OutlinedTextField(
-            value = current,
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
+    Box(modifier = Modifier.width(140.dp)) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-        )
-        ExposedDropdownMenu(
+                .height(36.dp)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                    shape = RoundedCornerShape(8.dp),
+                )
+                .clickable { expanded = true }
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = current,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
@@ -961,6 +1042,8 @@ private fun SetupWizard(
                         currentSsid = viewModel.currentSsid,
                         onUseCurrent = { viewModel.useCurrentNetwork(primary = true) },
                         networks = viewModel.scanResults,
+                        scanning = viewModel.isScanning,
+                        onScan = { viewModel.scan() },
                     )
                     NetworkEditor(
                         viewModel = viewModel,
@@ -972,6 +1055,8 @@ private fun SetupWizard(
                         currentSsid = viewModel.currentSsid,
                         onUseCurrent = { viewModel.useCurrentNetwork(primary = false) },
                         networks = viewModel.scanResults,
+                        scanning = viewModel.isScanning,
+                        onScan = { viewModel.scan() },
                     )
                     viewModel.saveError?.let { key ->
                         Text(

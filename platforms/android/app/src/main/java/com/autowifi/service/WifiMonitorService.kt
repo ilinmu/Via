@@ -63,8 +63,8 @@ class WifiMonitorService : Service() {
     @Volatile
     private var refreshRequested = false
 
-    // The countdown is kept across intermediate publishes (actions log,
-    // refresh status) so the chronometer does not blink on every check.
+    // Next check time for the in-app status tab; kept across intermediate
+    // publishes (actions log, refresh status) so the countdown does not jump.
     @Volatile
     private var scheduledNextCheckAtMs = 0L
 
@@ -353,10 +353,7 @@ class WifiMonitorService : Service() {
     }
 
     private fun updateNotification(state: MonitorState) {
-        // The countdown is drawn by the system chronometer, so the notification
-        // only needs a refresh when the next check time is rescheduled.
-        val next = if (state.running) state.nextCheckAtMs else 0L
-        val key = "${settings.language}|${state.running}|${state.role}|${state.currentSsid}|$next"
+        val key = "${settings.language}|${state.running}|${state.role}|${state.currentSsid}"
         if (key == notificationKey) return
         notificationKey = key
 
@@ -447,7 +444,7 @@ class WifiMonitorService : Service() {
             role = roleFor(ssid),
         )
         notificationKey =
-            "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}|0"
+            "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}"
 
         ServiceCompat.startForeground(
             this,
@@ -457,11 +454,7 @@ class WifiMonitorService : Service() {
         )
     }
 
-    /**
-     * The notification names the current network and, while running, shows a
-     * countdown to the next check. The countdown is rendered by the system's
-     * chronometer view, so no per-second work happens in the app.
-     */
+    /** The notification only names the current network and monitoring state. */
     private fun buildNotification(state: MonitorState): Notification {
         val language = settings.language
         val text = when {
@@ -477,26 +470,15 @@ class WifiMonitorService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val countdown = state.running && state.nextCheckAtMs > 0L
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setShowWhen(false)
             .setContentIntent(openIntent)
             .setPriority(Notification.PRIORITY_LOW)
-            .apply {
-                if (countdown) {
-                    // The system ticks this down itself; posting the
-                    // notification once per check is enough.
-                    setWhen(state.nextCheckAtMs)
-                    setUsesChronometer(true)
-                    setChronometerCountDown(true)
-                } else {
-                    setShowWhen(false)
-                }
-            }
             .build()
     }
 

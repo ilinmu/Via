@@ -143,8 +143,7 @@ swift scripts/generate-app-icons.swift
 - macOS：菜单栏图标，图标与文字随菜单栏明暗切换黑/白。
 - Windows：通知区域（托盘）图标，随任务栏明暗切换黑/白，悬停显示当前网络与角色。
 - Android：通知栏只使用应用自己的普通通知小图标，不再叠加 P/B 或红点；当前网络
-  和角色由通知文字表达。运行时通知显示距离下次检查的倒计时，倒计时由系统的
-  `Chronometer` 绘制，应用不需要每秒刷新通知。
+  和角色由通知文字表达，不显示检查倒计时。
 - iOS：系统不允许第三方应用在状态栏放图标，因此在应用内“当前连接”卡片使用同一套
   状态图标；状态栏仍由系统显示原生 Wi-Fi 图标。
 
@@ -156,8 +155,8 @@ Android 的系统 Wi-Fi 图标由 SystemUI 绘制，第三方应用没有隐藏�
 
 macOS、iOS、Android 和 Windows 在配置不完整时都会引导用户完成设置。macOS 和
 iOS 使用面板内的三步向导，Android 使用全屏向导（授权定位 → 选择 P/B → 开启
-监控），Windows 使用独立的设置窗口（欢迎 → 选择网络 → 完成）。完成后向导不再
-自动出现，各平台都可以在设置里重新运行。
+监控），Windows 使用独立的设置窗口（欢迎 → 选择网络 → 完成）。配置完整且完成后
+向导不再自动出现；标记丢失或配置为空时仍会进入向导。各平台都可以在设置里重新运行。
 
 ## GitHub Actions
 
@@ -178,7 +177,7 @@ Markdown 或 `docs/` 的 PR 会跳过所有平台 job（`Detect changes` 仍会�
 4. 同时构建四个平台的产物：
    - `build-macos`：打包未签名 `.app` 并压缩为 `AutoWifi-macos.zip`。
    - `build-ios`：构建 XCFramework、生成 Xcode 工程、模拟器编译并归档未签名设备包。
-   - `build-windows`：编译 Rust DLL，`dotnet publish` 自包含关闭的 `win-x64` 产物。
+   - `build-windows`：编译 Rust DLL，`dotnet publish` .NET Framework 4.8 产物，再生成免安装单文件和 Inno Setup 安装包。
    - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 R8 压缩的 release APK（debug 签名）。
 
 Rust 构建用 `Swatinem/rust-cache` 缓存，.NET 用 `actions/cache` 缓存 NuGet 包，

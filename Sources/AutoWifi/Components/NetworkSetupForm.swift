@@ -49,7 +49,10 @@ struct NetworkSetupForm: View {
                 icon: "arrow.up.circle",
                 ssid: $draft.ssidP,
                 password: $draft.passwordP,
-                networks: availableNetworks
+                networks: availableNetworks,
+                isScanning: isScanning,
+                canScan: canScan,
+                onScan: onScan
             )
 
             Divider()
@@ -59,7 +62,10 @@ struct NetworkSetupForm: View {
                 icon: "arrow.down.circle",
                 ssid: $draft.ssidB,
                 password: $draft.passwordB,
-                networks: availableNetworks
+                networks: availableNetworks,
+                isScanning: isScanning,
+                canScan: canScan,
+                onScan: onScan
             )
 
             if showValidation, let errorKey = draft.validation.errorKey {
@@ -100,6 +106,9 @@ private struct NetworkEditor: View {
     @Binding var ssid: String
     @Binding var password: String
     let networks: [String]
+    let isScanning: Bool
+    let canScan: Bool
+    let onScan: () -> Void
 
     @ObservedObject var i18n = LocalizationManager.shared
     @State private var showPassword = false
@@ -162,37 +171,64 @@ private struct NetworkEditor: View {
             }
 
             if showSuggestions && !networks.isEmpty {
-                ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(networks.enumerated()), id: \.element) { index, network in
-                            Button {
-                                ssid = network
-                                showSuggestions = false
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Text(network)
-                                        .font(.system(size: 13))
-                                        .lineLimit(1)
-                                    Spacer(minLength: 8)
-                                    if network == ssid {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundStyle(.tint)
-                                    }
-                                }
-                                .padding(.horizontal, 10)
-                                .frame(height: 30)
-                                .contentShape(Rectangle())
+                VStack(spacing: 0) {
+                    // Scan from inside the list, so refreshing does not mean
+                    // scrolling back to the scan row at the top of the form.
+                    Button(action: onScan) {
+                        HStack(spacing: 6) {
+                            if isScanning {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "wifi")
+                                    .font(.system(size: 11, weight: .semibold))
                             }
-                            .buttonStyle(.plain)
+                            Text(i18n.localizedString("scan_networks"))
+                                .font(.system(size: 13))
+                            Spacer(minLength: 8)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canScan || isScanning)
+                    .accessibilityLabel(i18n.localizedString("scan_networks"))
 
-                            if index < networks.count - 1 {
-                                Divider()
+                    Divider()
+
+                    ScrollView(.vertical) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(networks.enumerated()), id: \.element) { index, network in
+                                Button {
+                                    ssid = network
+                                    showSuggestions = false
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Text(network)
+                                            .font(.system(size: 13))
+                                            .lineLimit(1)
+                                        Spacer(minLength: 8)
+                                        if network == ssid {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundStyle(.tint)
+                                        }
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 30)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+
+                                if index < networks.count - 1 {
+                                    Divider()
+                                }
                             }
                         }
                     }
+                    .frame(height: suggestionListHeight)
                 }
-                .frame(height: suggestionListHeight)
                 .background(
                     Color(nsColor: .textBackgroundColor),
                     in: RoundedRectangle(cornerRadius: 8)
