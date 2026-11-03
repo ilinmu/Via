@@ -1,24 +1,53 @@
 name: Cross-platform CI
 
 on:
+  # Pull requests are tested through `pull_request`; pushing a branch twice
+  # would otherwise run the whole pipeline twice. Master still gets a full run
+  # for every commit so a release can rely on it.
   push:
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
+# A new push to a pull request supersedes its previous run. Master runs get a
+# unique group each, so no commit's run is ever replaced by a later one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
+  # Pull requests that only touch prose skip the platform jobs. The filter is a
+  # job rather than a workflow-level `paths` filter so every check still gets
+  # reported (as skipped) instead of staying pending forever.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+
   core-tests:
     name: Core tests (Rust)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +70,8 @@ jobs:
 
   macos-tests:
     name: macOS tests (Swift + Rust)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -56,15 +87,115 @@ jobs:
       - name: Build policy core
         run: cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
 
+      # The release build of the app itself is covered by build-macos; running
+      # it here as well only repeats work.
       - name: Run Swift tests
         run: swift test
 
-      - name: Build macOS app
-        run: swift build -c release
+  windows-tests:
+    name: Windows tests (.NET)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build policy core
+        shell: pwsh
+        run: ./scripts/build-windows-core.ps1
+
+      - name: Run xUnit tests
+        run: >
+          dotnet test platforms/windows.tests/AutoWifi.Windows.Tests.csproj
+          -c Release
+          --logger "console;verbosity=normal"
+
+  ios-tests:
+    name: iOS tests (XCTest)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build XCFramework
+        run: scripts/build-ios-core.sh
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: platforms/ios
+        run: xcodegen generate
+
+      - name: Run XCTest
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone[^(]*' | head -1 | xargs)
+          echo "Using simulator: $DEVICE"
+          xcodebuild test \
+            -project platforms/ios/AutoWifi.xcodeproj \
+            -scheme AutoWifi \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            CODE_SIGNING_ALLOWED=NO
+
+  android-tests:
+    name: Android tests (JUnit)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner image already ships JDK 17, the Android SDK with platform
+      # 35 and build-tools 35.0.0, so no SDK installation is needed here.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Run JVM unit tests
+        working-directory: platforms/android
+        run: gradle testDebugUnitTest --no-daemon --stacktrace
+
+  # The build jobs do not consume anything from the test jobs, so they start
+  # immediately instead of waiting for every test to finish. A failing test
+  # still fails the workflow run.
   build-macos:
     name: Build macOS app
-    needs: [core-tests, macos-tests]
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +226,8 @@ jobs:
 
   build-ios:
     name: Build iOS app
-    needs: [core-tests, macos-tests]
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -156,10 +288,18 @@ jobs:
 
   build-windows:
     name: Build Windows app
-    needs: [core-tests, macos-tests]
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -191,7 +331,8 @@ jobs:
 
   build-android:
     name: Build Android app
-    needs: [core-tests, macos-tests]
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -206,23 +347,16 @@ jobs:
         with:
           workspaces: core
 
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          # The default package list includes the retired `tools` package,
-          # which makes sdkmanager exit non-zero on current runners.
-          packages: platform-tools
-
-      - name: Install NDK
+      # The runner image ships NDK 27.3 and the Android SDK; only cargo-ndk is
+      # installed, from a prebuilt release instead of compiling it.
+      - name: Ensure cargo-ndk
         run: |
-          sdkmanager --install "ndk;27.1.12297006"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
-
-      - name: Build JNI libraries
-        run: scripts/build-android-core.sh
+          if ! command -v cargo-ndk >/dev/null 2>&1; then
+            curl -fsSL \
+              https://github.com/bbqsrc/cargo-ndk/releases/download/v4.1.2/cargo-ndk-x86_64-unknown-linux-musl-v4.1.2.tgz \
+              | tar -xz --strip-components=1 -C "$HOME/.cargo/bin" --wildcards '*/cargo-ndk'
+          fi
+          cargo ndk --version
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -234,6 +368,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
+
+      - name: Build JNI libraries
+        run: scripts/build-android-core.sh
 
       - name: Build debug APK
         working-directory: platforms/android

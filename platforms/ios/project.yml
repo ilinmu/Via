@@ -37,6 +37,21 @@ targets:
       - framework: Frameworks/AutoWifiCore.xcframework
         embed: false
 
+  AutoWifiTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AutoWifiTests
+    dependencies:
+      - target: AutoWifi
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.autowifi.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/AutoWifi.app/AutoWifi
+        BUNDLE_LOADER: $(TEST_HOST)
+
 schemes:
   AutoWifi:
     build:
@@ -44,5 +59,9 @@ schemes:
         AutoWifi: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - AutoWifiTests
     archive:
       config: Release

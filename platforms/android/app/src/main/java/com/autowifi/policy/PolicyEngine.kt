@@ -112,34 +112,7 @@ class PolicyEngine(ssidP: String, ssidB: String) : AutoCloseable {
         }
     }
 
-    private fun parse(raw: String?): PolicyResult? {
-        if (raw.isNullOrEmpty()) return null
-        return runCatching {
-            val root = JSONObject(raw)
-            val array = root.optJSONArray("actions")
-            val actions = buildList {
-                if (array != null) {
-                    for (index in 0 until array.length()) {
-                        val item = array.optJSONObject(index) ?: continue
-                        add(
-                            PolicyAction(
-                                kind = item.optString("kind"),
-                                purpose = item.optNullableString("purpose"),
-                                ssid = item.optNullableString("ssid"),
-                                role = item.optNullableString("role"),
-                                reason = item.optNullableString("reason"),
-                                event = item.optNullableString("event"),
-                            )
-                        )
-                    }
-                }
-            }
-            PolicyResult(
-                actions = actions,
-                snapshot = PolicySnapshot.fromJson(root.getJSONObject("snapshot")),
-            )
-        }.getOrNull()
-    }
+    private fun parse(raw: String?) = parsePolicyResult(raw)
 
     private external fun nativeNew(ssidP: String, ssidB: String): Long
 
@@ -227,4 +200,37 @@ internal fun JSONObject.optNullableString(name: String): String? {
     if (!has(name) || isNull(name)) return null
     val value = optString(name, "")
     return value.ifEmpty { null }
+}
+
+/**
+ * Parses the JSON emitted by the JNI bridge. Kept outside [PolicyEngine] so
+ * JVM unit tests can exercise it without loading `libautowifi_jni.so`.
+ */
+internal fun parsePolicyResult(raw: String?): PolicyResult? {
+    if (raw.isNullOrEmpty()) return null
+    return runCatching {
+        val root = JSONObject(raw)
+        val array = root.optJSONArray("actions")
+        val actions = buildList {
+            if (array != null) {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    add(
+                        PolicyAction(
+                            kind = item.optString("kind"),
+                            purpose = item.optNullableString("purpose"),
+                            ssid = item.optNullableString("ssid"),
+                            role = item.optNullableString("role"),
+                            reason = item.optNullableString("reason"),
+                            event = item.optNullableString("event"),
+                        )
+                    )
+                }
+            }
+        }
+        PolicyResult(
+            actions = actions,
+            snapshot = PolicySnapshot.fromJson(root.getJSONObject("snapshot")),
+        )
+    }.getOrNull()
 }

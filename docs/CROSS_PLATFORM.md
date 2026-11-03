@@ -110,15 +110,29 @@ APK 输出在 `platforms/android/app/build/outputs/apk/debug/`。
 
 ## GitHub Actions
 
-`.github/workflows/cross-platform.yml` 在每次 push 和 pull request 时运行：
+`.github/workflows/cross-platform.yml` 在 push 到 `master`、pull request 和手动触发时
+运行。PR 分支只通过 `pull_request` 触发，避免同一个提交跑两遍；连续推送时新的运行会
+取消旧的运行，而 `master` 上的每次提交都会完整运行。
+
+测试和构建互不依赖，因此同时开始，整条流水线的耗时由最慢的 job 决定。只修改
+Markdown 或 `docs/` 的 PR 会跳过所有平台 job（`Detect changes` 仍会报告结果），
+`master` 和手动触发不受影响。
 
 1. `core-tests`：Rust 格式检查和 workspace 测试（Ubuntu）。
 2. `macos-tests`：构建策略核心并运行 `swift test`（macOS）。
-3. 测试通过后并行构建四个平台：
+3. 平台测试：
+   - `windows-tests`：编译 Rust DLL 并运行 `platforms/windows.tests` 的 xUnit 测试（Windows）。
+   - `ios-tests`：构建 XCFramework，在 iOS 模拟器上运行 XCTest（macOS）。
+   - `android-tests`：运行 `gradle testDebugUnitTest`（Ubuntu）。
+4. 同时构建四个平台的产物：
    - `build-macos`：打包未签名 `.app` 并压缩为 `AutoWifi-macos.zip`。
    - `build-ios`：构建 XCFramework、生成 Xcode 工程、模拟器编译并归档未签名设备包。
    - `build-windows`：编译 Rust DLL，`dotnet publish` 自包含关闭的 `win-x64` 产物。
    - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 debug APK。
+
+Rust 构建用 `Swatinem/rust-cache` 缓存，.NET 用 `actions/cache` 缓存 NuGet 包，
+Gradle 由 `gradle/actions/setup-gradle` 缓存依赖和构建结果。Android SDK、NDK 和
+`cargo-ndk` 直接使用 runner 镜像自带的版本，缺省时再下载预编译二进制。
 
 所有构建产物通过 `actions/upload-artifact` 保留 14 天。可以手动触发
 `workflow_dispatch` 重新运行。

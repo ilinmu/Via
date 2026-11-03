@@ -26,6 +26,13 @@ gradle assembleDebug
 `scripts/build-android-core.sh` 生成 `libautowifi_jni.so` 到
 `app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/`。
 
+运行 JVM 单元测试（不需要 NDK）：
+
+```bash
+cd platforms/android
+gradle testDebugUnitTest
+```
+
 本地没有安装 Gradle 时，可以用 Android Studio 打开 `platforms/android`；命令行构建
 则需要在 `platforms/android/local.properties` 写入 `sdk.dir=<Android SDK 路径>`，
 或设置 `ANDROID_HOME`。

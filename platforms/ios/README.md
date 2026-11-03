@@ -11,6 +11,17 @@ SwiftUI 客户端，使用共享 Rust 策略核心和 `NEHotspotConfigurationMan
 - `AutoWifi/KeychainStore.swift`：钥匙串密码存储。
 - `AutoWifi/AutoWifi.entitlements`：Hotspot Configuration 与 Wi-Fi Info 能力。
 
+## 测试
+
+```bash
+scripts/build-ios-core.sh
+cd platforms/ios && xcodegen generate && cd ../..
+xcodebuild test -project platforms/ios/AutoWifi.xcodeproj -scheme AutoWifi \
+  -destination 'platform=iOS Simulator,name=iPhone 16'
+```
+
+`AutoWifiTests` 是宿主应用测试 target，覆盖 `L10n` 与共享策略核心的 C ABI 封装。
+
 ## 构建
 
 ```bash

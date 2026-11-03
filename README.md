@@ -80,8 +80,10 @@ cd platforms/android && gradle assembleDebug && cd ../..
 dotnet publish platforms/windows/AutoWifi.Windows.csproj -c Release -r win-x64 --self-contained false -o dist/windows
 ```
 
-GitHub Actions 工作流 `.github/workflows/cross-platform.yml` 会在 push 和 pull
-request 时先运行 Rust 与 Swift 测试，再构建四个平台的产物并上传为 artifacts。
+GitHub Actions 工作流 `.github/workflows/cross-platform.yml` 会在 push 到 `master`
+和 pull request 时运行 Rust、macOS Swift、iOS XCTest、Windows xUnit 与 Android
+JUnit 测试，并同时构建四个平台的产物。只改文档的 PR 会跳过平台 job；连续推送时
+只保留最新一次运行。
 
 ## 权限与安全
 
