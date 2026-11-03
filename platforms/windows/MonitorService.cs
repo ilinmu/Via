@@ -145,7 +145,7 @@ public sealed class MonitorService : IDisposable
 
             while (!token.IsCancellationRequested)
             {
-                var interval = Math.Clamp(_settings.CheckInterval, 5, 3600);
+                var interval = Compat.Clamp(_settings.CheckInterval, 5, 3600);
                 var delay = Task.Delay(TimeSpan.FromSeconds(interval), token);
                 var wake = _wake.WaitAsync(token);
                 await Task.WhenAny(delay, wake);
@@ -301,7 +301,7 @@ public sealed class MonitorService : IDisposable
             snapshot.Running,
             _lastMessage,
             snapshot.Running
-                ? DateTimeOffset.Now.AddSeconds(Math.Clamp(_settings.CheckInterval, 5, 3600))
+                ? DateTimeOffset.Now.AddSeconds(Compat.Clamp(_settings.CheckInterval, 5, 3600))
                 : null));
     }
 

@@ -1,7 +1,7 @@
 # Windows 客户端
 
-基于 .NET 8 WPF 的托盘的 AutoWifi 客户端。窗口关闭后继续驻留托盘，右键菜单
-提供“打开”和“退出”。
+基于 .NET Framework 4.8 + WPF 的托盘 AutoWifi 客户端。窗口关闭后继续驻留托盘，
+右键菜单提供“打开”和“退出”。
 
 ## 结构
 
@@ -10,6 +10,8 @@
 - `SetupWindow.xaml(.cs)`：首次运行的设置向导（欢迎 → 选择网络 → 完成）。
 - `MonitorService.cs`：策略循环，执行扫描和关联动作。
 - `PolicyEngine.cs`：`autowifi_core.dll` 的 P/Invoke 封装。
+- `NativeCore.cs`：便携版把核心 DLL 嵌入 exe，启动时释放到
+  `%LocalAppData%\AutoWifi\bin` 并按绝对路径加载。
 - `WlanApi.cs`：WlanAPI（扫描、当前 SSID、WLAN 配置文件、连接）。
 - `CredentialStore.cs`：Windows Credential Manager。
 - `SettingsStore.cs`：`%LocalAppData%\AutoWifi\settings.json` 与开机启动注册表项。
@@ -26,29 +28,25 @@ xUnit 测试覆盖设置归一化、本地化文案，以及通过 C ABI 驱动�
 
 ## 构建
 
-需要 .NET 8 SDK 和 Rust stable。
+需要 .NET SDK 和 Rust stable；运行目标为 .NET Framework 4.8（Windows 10 1903+
+和 Windows 11 自带，无需安装运行时）。
 
 ```powershell
 ./scripts/build-windows-core.ps1
 
-# 免安装单文件：自带 .NET 运行时，双击即可运行
+# 免安装单文件：核心 DLL 已嵌入 exe，双击即可运行，约 1 MB
 dotnet publish platforms/windows/AutoWifi.Windows.csproj `
-  -c Release -r win-x64 -p:PublishSingleFile=true `
-  -p:IncludeAllContentForSelfExtract=true `
-  -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:EnableCompressionInSingleFile=true -p:DebugType=none `
-  -o dist/windows-portable
+  -c Release -p:Platform=x64 -o dist/windows-portable
 
-# 安装程序：先发布普通目录，再用 Inno Setup 打包
+# 安装程序：发布同一应用的目录，再用 Inno Setup 打包
 dotnet publish platforms/windows/AutoWifi.Windows.csproj `
-  -c Release -r win-x64 --self-contained true -p:DebugType=none `
-  -o dist/windows-app
+  -c Release -p:Platform=x64 -o dist/windows-app
 ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
 
 `installer.iss` 生成 `dist/AutoWifi-windows-setup.exe`（可选桌面快捷方式、自带
-卸载程序）。两条发布命令都使用 `--self-contained`，产物不再依赖用户预装
-“.NET Desktop Runtime”。
+卸载程序）。`.NET Framework 4.8` 是系统组件，所以两个产物都不需要用户预装
+运行时，体积也只有 1–2 MB。
 
 `AutoWifi.Windows.csproj` 会自动复制 `core/target/.../autowifi_core.dll` 到输出目录。
 

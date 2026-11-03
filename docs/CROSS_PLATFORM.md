@@ -5,7 +5,7 @@ AutoWifi 目前在四个平台上提供客户端：
 | 平台 | 目录 | 技术栈 | 产物 |
 | --- | --- | --- | --- |
 | macOS | 仓库根目录 `Sources/` | SwiftUI + AppKit + CoreWLAN | `dist/AutoWifi-macos.zip` |
-| Windows | `platforms/windows/` | WPF (.NET 8) + WlanAPI | `AutoWifi-windows-portable.exe`、`AutoWifi-windows-setup.exe` |
+| Windows | `platforms/windows/` | WPF (.NET Framework 4.8) + WlanAPI | `AutoWifi-windows-portable.exe`、`AutoWifi-windows-setup.exe` |
 | iOS | `platforms/ios/` | SwiftUI + NetworkExtension | `AutoWifi-ios.xcarchive`（未签名） |
 | Android | `platforms/android/` | Kotlin + Jetpack Compose | `AutoWifi-android.apk`（release，R8） |
 
@@ -64,7 +64,8 @@ macOS 版本保留原有 CoreWLAN 实现和菜单栏体验；共享核心通过 
 
 - Rust stable（四个平台共用）。
 - macOS / iOS：Xcode 15 或更新版本；iOS 另需 XcodeGen。
-- Windows：.NET 8 SDK。
+- Windows：.NET Framework 4.8（Windows 10 1903+ / Windows 11 自带），构建机需要
+  .NET SDK；`Microsoft.NETFramework.ReferenceAssemblies` 会补齐引用程序集。
 - Android：JDK 17、Android SDK 35、NDK 27、Gradle 8.10+、`cargo-ndk`。
 
 ### macOS
@@ -79,18 +80,13 @@ scripts/package-app.sh
 ```powershell
 ./scripts/build-windows-core.ps1
 
-# 免安装单文件（自带 .NET 运行时，不需要安装 .NET Desktop Runtime）
+# 免安装单文件（约 1 MB；.NET Framework 4.8 是 Windows 自带组件）
 dotnet publish platforms/windows/AutoWifi.Windows.csproj `
-  -c Release -r win-x64 -p:PublishSingleFile=true `
-  -p:IncludeAllContentForSelfExtract=true `
-  -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:EnableCompressionInSingleFile=true -p:DebugType=none `
-  -o dist/windows-portable
+  -c Release -p:Platform=x64 -o dist/windows-portable
 
-# 安装程序：先发布自带运行时的目录，再用 Inno Setup 打包
+# 安装程序：发布同一应用的目录，再用 Inno Setup 打包
 dotnet publish platforms/windows/AutoWifi.Windows.csproj `
-  -c Release -r win-x64 --self-contained true -p:DebugType=none `
-  -o dist/windows-app
+  -c Release -p:Platform=x64 -o dist/windows-app
 ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
 

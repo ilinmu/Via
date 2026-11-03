@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace AutoWifi.Windows;
 
@@ -79,6 +80,11 @@ public sealed class PolicyEngine : IDisposable
     private readonly object _gate = new();
     private IntPtr _handle;
     private bool _disposed;
+
+    static PolicyEngine()
+    {
+        NativeCore.EnsureLoaded();
+    }
 
     public PolicyEngine(string ssidP, string ssidB)
     {
@@ -263,7 +269,7 @@ public sealed class PolicyEngine : IDisposable
             var raw = Marshal.PtrToStructure<Native.AwAction>(pointer);
             actions.Add(new PolicyAction(
                 (PolicyActionKind)raw.Kind,
-                raw.Ssid == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(raw.Ssid),
+                ReadUtf8(raw.Ssid),
                 raw.Role,
                 raw.Purpose,
                 raw.Reason));
@@ -278,14 +284,33 @@ public sealed class PolicyEngine : IDisposable
             snapshot.Running != 0,
             snapshot.Role,
             snapshot.Permission,
-            snapshot.CurrentSsid == IntPtr.Zero
-                ? null
-                : Marshal.PtrToStringUTF8(snapshot.CurrentSsid),
+            ReadUtf8(snapshot.CurrentSsid),
             snapshot.IsAssociating != 0,
             snapshot.CooldownUntilMs,
-            snapshot.CooldownTarget == IntPtr.Zero
-                ? null
-                : Marshal.PtrToStringUTF8(snapshot.CooldownTarget));
+            ReadUtf8(snapshot.CooldownTarget));
+    }
+
+    private static string? ReadUtf8(IntPtr pointer)
+    {
+        if (pointer == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var length = 0;
+        while (Marshal.ReadByte(pointer, length) != 0)
+        {
+            length++;
+        }
+
+        if (length == 0)
+        {
+            return string.Empty;
+        }
+
+        var buffer = new byte[length];
+        Marshal.Copy(pointer, buffer, 0, length);
+        return Encoding.UTF8.GetString(buffer);
     }
 
     private static class Native
