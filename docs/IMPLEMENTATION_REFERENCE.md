@@ -116,7 +116,7 @@ WifiManager
 - 尚未接入：`check_begin`、`scan_result`、`classification_result`、
   `backup_scan_result`、`observed_change` 等主检查分支。
 
-核心的输入输出约定、所有权和线程要求见 [core/README.md](/Users/linmu/git/auto-wifi/core/README.md)。
+核心的输入输出约定、所有权和线程要求见 [core/README.md](../core/README.md)。
 
 ## 4. 应用启动与菜单栏生命周期
 

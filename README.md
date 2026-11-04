@@ -182,3 +182,15 @@ CLI 只接受 `SSID-P`、`SSID-B` 和可选间隔作为参数；密码通过隐�
 界面布局、模块色彩、术语和交互规范见 [docs/UI_DESIGN.md](docs/UI_DESIGN.md)。
 
 Mac App Store 签名、隐私、元数据和提交流程见 [docs/app-store/APP_STORE_SUBMISSION.md](docs/app-store/APP_STORE_SUBMISSION.md)。
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE)。Copyright © 2025-2026 Linmu。
+
+## 安全
+
+如果你发现安全问题（凭证泄露、权限绕过、Wi-Fi 密码处理等），请不要在公开 issue 中披露细节，
+请按 [SECURITY.md](SECURITY.md) 中的方式私密报告。
+
+仓库不包含 token、API key、证书或签名私钥；CI 只使用 GitHub 自动生成的 `GITHUB_TOKEN`，
+默认权限为只读。各平台的 Wi-Fi 密码分别存放在系统安全存储中，不会上传。
