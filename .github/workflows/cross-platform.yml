@@ -36,7 +36,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         if: github.event_name == 'pull_request'
         with:
@@ -53,7 +53,7 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -77,7 +77,7 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -101,10 +101,10 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -134,7 +134,7 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -173,18 +173,18 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The runner image already ships JDK 17, the Android SDK with platform
       # 35 and build-tools 35.0.0, so no SDK installation is needed here.
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.10.2"
 
@@ -201,7 +201,7 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -220,7 +220,7 @@ jobs:
         run: scripts/package-app.sh
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Via-macos
           path: dist/Via-macos.zip
@@ -233,7 +233,7 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -286,7 +286,7 @@ jobs:
         run: ditto -c -k --sequesterRsrc --keepParent dist/Via-ios.xcarchive dist/Via-ios.xcarchive.zip
 
       - name: Upload iOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Via-ios
           path: dist/Via-ios.xcarchive.zip
@@ -299,10 +299,10 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -356,7 +356,7 @@ jobs:
           Copy-Item dist/Via-windows-setup.exe dist/release/
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Via-windows
           path: dist/release/*
@@ -369,7 +369,7 @@ jobs:
     if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -393,13 +393,13 @@ jobs:
           cargo ndk --version
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.10.2"
 
@@ -419,7 +419,7 @@ jobs:
           cp platforms/android/app/build/outputs/apk/release/app-release.apk dist/Via-android.apk
 
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Via-android
           path: dist/Via-android.apk
@@ -437,7 +437,7 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
