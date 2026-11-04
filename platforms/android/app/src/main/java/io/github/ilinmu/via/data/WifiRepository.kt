@@ -1,6 +1,9 @@
 package io.github.ilinmu.via.data
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
@@ -18,6 +21,8 @@ data class NetworkCredential(val ssid: String, val password: String)
 class WifiRepository(context: Context) {
     private val wifiManager =
         context.applicationContext.getSystemService(WifiManager::class.java)
+    private val connectivityManager =
+        context.applicationContext.getSystemService(ConnectivityManager::class.java)
 
     private var cachedNetworks: Set<String> = emptySet()
     private var lastScanElapsedMs = 0L
@@ -43,13 +48,41 @@ class WifiRepository(context: Context) {
 
     fun isWifiEnabled(): Boolean = wifiManager?.isWifiEnabled == true
 
+    /**
+     * SSID of the connected Wi-Fi network.
+     *
+     * The capabilities held by ConnectivityManager are preferred: they are
+     * updated as soon as the connection changes, while
+     * `WifiManager.connectionInfo` can keep reporting `"<unknown ssid>"` for a
+     * while after a switch (most visibly from a background service), which
+     * made the ongoing notification show "not connected" for a stale period.
+     */
     @Suppress("DEPRECATION")
     fun currentSsid(): String? {
+        connectivitySsid()?.let { return it }
+
         val manager = wifiManager ?: return null
         if (!manager.isWifiEnabled) return null
         val info = runCatching { manager.connectionInfo }.getOrNull() ?: return null
-        val raw = info.ssid ?: return null
-        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        return cleanSsid(info.ssid)
+    }
+
+    /** SSID carried by a network's capabilities, if the system exposes it. */
+    fun ssidOf(capabilities: NetworkCapabilities?): String? {
+        val info = capabilities?.transportInfo as? WifiInfo ?: return null
+        return cleanSsid(info.ssid)
+    }
+
+    private fun connectivitySsid(): String? = runCatching {
+        val manager = connectivityManager ?: return@runCatching null
+        val active = manager.activeNetwork?.let { manager.getNetworkCapabilities(it) }
+        ssidOf(active) ?: manager.allNetworks.firstNotNullOfOrNull { network ->
+            ssidOf(manager.getNetworkCapabilities(network))
+        }
+    }.getOrNull()
+
+    private fun cleanSsid(raw: String?): String? {
+        if (raw.isNullOrEmpty() || raw == UNKNOWN_SSID) return null
         return raw.trim('"').ifEmpty { null }
     }
 
