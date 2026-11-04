@@ -271,33 +271,33 @@ scripts/package-app.sh
 
 如果你的目标只是“本地生成一个可以双击的 `.app`”，这条命令就够了。执行完成后，主要关注这个输出：
 
-- `dist/AutoWifi.app`
+- `dist/Via.app`
 
 默认行为：
 
 - 先构建 release 策略核心，并复制到 `dist/libautowifi_core.dylib`
 - 构建 `release`
-- 输出到 `dist/AutoWifi.app`
+- 输出到 `dist/Via.app`
 - 动态库嵌入 `Contents/Frameworks/libautowifi_core.dylib`
-- 生成 `dist/AutoWifi-macos.zip`
+- 生成 `dist/Via-macos.zip`
 - 使用 ad-hoc 签名（`SIGN_IDENTITY=-`）
 
 可以直接本地打开：
 
 ```bash
-open dist/AutoWifi.app
+open dist/Via.app
 ```
 
 如果想放到应用程序目录再测试：
 
 ```bash
-cp -R dist/AutoWifi.app /Applications/
+cp -R dist/Via.app /Applications/
 ```
 
 然后从“应用程序”里启动，或者执行：
 
 ```bash
-open /Applications/AutoWifi.app
+open /Applications/Via.app
 ```
 
 ### 7.3 跳过签名
@@ -326,8 +326,8 @@ VERSION="1.0.1" BUILD_NUMBER="12" scripts/package-app.sh
 
 脚本默认会输出：
 
-- `dist/AutoWifi.app`
-- `dist/AutoWifi-macos.zip`
+- `dist/Via.app`
+- `dist/Via-macos.zip`
 
 其中：
 
@@ -339,8 +339,8 @@ VERSION="1.0.1" BUILD_NUMBER="12" scripts/package-app.sh
 本地最短路径可以记成这三步：
 
 1. 在仓库根目录执行 `scripts/package-app.sh`
-2. 产物在 `dist/AutoWifi.app`
-3. 用 `open dist/AutoWifi.app` 启动，或者拖到 `/Applications`
+2. 产物在 `dist/Via.app`
+3. 用 `open dist/Via.app` 启动，或者拖到 `/Applications`
 
 ## 8. 打包脚本内部做了什么
 

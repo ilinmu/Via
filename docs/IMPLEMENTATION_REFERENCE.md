@@ -779,13 +779,13 @@ CLI 与 GUI 的重要差异：
 打包脚本默认行为：
 
 1. 使用 `swift build -c release` 构建。
-2. 在 `dist/AutoWifi.app` 组装 App Bundle。
+2. 在 `dist/Via.app` 组装 App Bundle。
 3. 复制并改写 `Info.plist` 的可执行文件名、Bundle ID、版本、构建号、最低系统版本和图标名。
 4. 删除 `NSMainStoryboardFile`。
 5. 用 `sips` 从 1024 PNG 生成多尺寸 iconset。
 6. 用 `iconutil` 生成 `AppIcon.icns`。
 7. 默认使用 `-` 做 ad-hoc codesign；也可指定 Developer ID 或传空字符串跳过签名。
-8. 用 `ditto` 生成 `dist/AutoWifi-macos.zip`。
+8. 用 `ditto` 生成 `dist/Via-macos.zip`。
 
 脚本使用 `set -euo pipefail`，多数命令失败会立即结束。特殊分支包括：
 

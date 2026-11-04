@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="AutoWifi"
+APP_NAME="Via"
+EXECUTABLE_NAME="AutoWifi"
 DISPLAY_NAME="${DISPLAY_NAME:-Via}"
 CONFIGURATION="${CONFIGURATION:-release}"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
@@ -72,7 +73,7 @@ Environment variables:
   MIN_SYSTEM_VERSION Minimum macOS version, default: 13.0
   SIGN_IDENTITY     Code signing identity. Default is "-" for ad-hoc signing.
                     Set to an empty string to skip signing.
-  ZIP_NAME          Zip archive name, default: AutoWifi-macos.zip
+  ZIP_NAME          Zip archive name, default: Via-macos.zip
 
 Examples:
   scripts/package-app.sh
@@ -116,9 +117,9 @@ echo "==> Building $APP_NAME ($CONFIGURATION)"
 )
 
 BIN_PATH="$(cd "$ROOT_DIR" && swift build -c "$CONFIGURATION" --show-bin-path)"
-EXECUTABLE_PATH="$BIN_PATH/$APP_NAME"
+EXECUTABLE_PATH="$BIN_PATH/$EXECUTABLE_NAME"
 if [[ ! -f "$EXECUTABLE_PATH" ]]; then
-  echo "Could not find built executable for $APP_NAME at $EXECUTABLE_PATH." >&2
+  echo "Could not find built executable for $EXECUTABLE_NAME at $EXECUTABLE_PATH." >&2
   exit 1
 fi
 

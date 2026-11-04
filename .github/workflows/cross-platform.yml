@@ -222,8 +222,8 @@ jobs:
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoWifi-macos
-          path: dist/AutoWifi-macos.zip
+          name: Via-macos
+          path: dist/Via-macos.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -275,7 +275,7 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -archivePath dist/AutoWifi-ios.xcarchive \
+            -archivePath dist/Via-ios.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -283,13 +283,13 @@ jobs:
 
       # Zip the archive so the release asset keeps the .xcarchive name.
       - name: Package archive
-        run: ditto -c -k --sequesterRsrc --keepParent dist/AutoWifi-ios.xcarchive dist/AutoWifi-ios.xcarchive.zip
+        run: ditto -c -k --sequesterRsrc --keepParent dist/Via-ios.xcarchive dist/Via-ios.xcarchive.zip
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoWifi-ios
-          path: dist/AutoWifi-ios.xcarchive.zip
+          name: Via-ios
+          path: dist/Via-ios.xcarchive.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -346,19 +346,19 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/release | Out-Null
-          Copy-Item dist/windows-portable/AutoWifi.exe dist/release/AutoWifi-windows-portable.exe
+          Copy-Item dist/windows-portable/Via.exe dist/release/Via-windows-portable.exe
           $iscc = @(
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
             "C:\Program Files\Inno Setup 6\ISCC.exe"
           ) | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $iscc) { throw "ISCC.exe not found" }
           & $iscc "/DAppVersion=1.0.${{ github.run_number }}" platforms/windows/installer.iss
-          Copy-Item dist/AutoWifi-windows-setup.exe dist/release/
+          Copy-Item dist/Via-windows-setup.exe dist/release/
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoWifi-windows
+          name: Via-windows
           path: dist/release/*
           if-no-files-found: error
           retention-days: 14
@@ -413,11 +413,16 @@ jobs:
           --no-daemon --stacktrace
           -PbuildNumber=${{ github.run_number }}
 
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp platforms/android/app/build/outputs/apk/release/app-release.apk dist/Via-android.apk
+
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AutoWifi-android
-          path: platforms/android/app/build/outputs/apk/release/*.apk
+          name: Via-android
+          path: dist/Via-android.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -439,11 +444,11 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release
-          cp artifacts/AutoWifi-macos/AutoWifi-macos.zip release/
-          cp artifacts/AutoWifi-ios/AutoWifi-ios.xcarchive.zip release/
-          cp artifacts/AutoWifi-windows/AutoWifi-windows-portable.exe release/
-          cp artifacts/AutoWifi-windows/AutoWifi-windows-setup.exe release/
-          cp artifacts/AutoWifi-android/app-release.apk release/AutoWifi-android.apk
+          cp artifacts/Via-macos/Via-macos.zip release/
+          cp artifacts/Via-ios/Via-ios.xcarchive.zip release/
+          cp artifacts/Via-windows/Via-windows-portable.exe release/
+          cp artifacts/Via-windows/Via-windows-setup.exe release/
+          cp artifacts/Via-android/Via-android.apk release/
 
       - name: Create GitHub release
         env:
@@ -453,11 +458,11 @@ jobs:
           cat > notes.md <<EOF
           由 master 自动构建：${GITHUB_SHA}
 
-          - macOS：AutoWifi-macos.zip（未签名）
-          - Windows：AutoWifi-windows-portable.exe（免安装，无需预装 .NET 运行时）；
-            AutoWifi-windows-setup.exe（安装程序）
-          - iOS：AutoWifi-ios.xcarchive.zip（未签名）
-          - Android：AutoWifi-android.apk（R8 压缩，debug 签名）
+          - macOS：Via-macos.zip（未签名）
+          - Windows：Via-windows-portable.exe（免安装，无需预装 .NET 运行时）；
+            Via-windows-setup.exe（安装程序）
+          - iOS：Via-ios.xcarchive.zip（未签名）
+          - Android：Via-android.apk（R8 压缩，debug 签名）
 
           这些构建未做代码签名，仅用于测试；正式发布需要各自平台的签名流程。
           EOF
@@ -469,7 +474,7 @@ jobs:
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "AutoWifi $TAG" \
+              --title "Via $TAG" \
               --notes-file notes.md \
               release/*
           fi

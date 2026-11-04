@@ -4,10 +4,10 @@ Via 目前在四个平台上提供客户端：
 
 | 平台 | 目录 | 技术栈 | 产物 |
 | --- | --- | --- | --- |
-| macOS | 仓库根目录 `Sources/` | SwiftUI + AppKit + CoreWLAN | `dist/AutoWifi-macos.zip` |
-| Windows | `platforms/windows/` | WPF (.NET Framework 4.8) + WlanAPI | `AutoWifi-windows-portable.exe`、`AutoWifi-windows-setup.exe` |
-| iOS | `platforms/ios/` | SwiftUI + NetworkExtension | `AutoWifi-ios.xcarchive`（未签名） |
-| Android | `platforms/android/` | Kotlin + Jetpack Compose | `AutoWifi-android.apk`（release，R8） |
+| macOS | 仓库根目录 `Sources/` | SwiftUI + AppKit + CoreWLAN | `dist/Via-macos.zip` |
+| Windows | `platforms/windows/` | WPF (.NET Framework 4.8) + WlanAPI | `Via-windows-portable.exe`、`Via-windows-setup.exe` |
+| iOS | `platforms/ios/` | SwiftUI + NetworkExtension | `Via-ios.xcarchive`（未签名） |
+| Android | `platforms/android/` | Kotlin + Jetpack Compose | `Via-android.apk`（release，R8） |
 
 四个客户端共用 `core/crates/autowifi-domain` 中的策略状态机。平台层只负责
 “读取当前网络、扫描、发起关联、保存密码和展示状态”，不做切换决策。
@@ -175,7 +175,7 @@ Markdown 或 `docs/` 的 PR 会跳过所有平台 job（`Detect changes` 仍会�
    - `ios-tests`：构建 XCFramework，在 iOS 模拟器上运行 XCTest（macOS）。
    - `android-tests`：运行 `gradle testDebugUnitTest`（Ubuntu）。
 4. 同时构建四个平台的产物：
-   - `build-macos`：打包未签名 `.app` 并压缩为 `AutoWifi-macos.zip`。
+   - `build-macos`：打包未签名 `.app` 并压缩为 `Via-macos.zip`。
    - `build-ios`：构建 XCFramework、生成 Xcode 工程、模拟器编译并归档未签名设备包。
    - `build-windows`：编译 Rust DLL，`dotnet publish` .NET Framework 4.8 产物，再生成免安装单文件和 Inno Setup 安装包。
    - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 R8 压缩的 release APK（debug 签名）。

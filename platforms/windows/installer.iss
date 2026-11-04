@@ -3,10 +3,10 @@
 ; CI builds a self-contained publish into dist/windows-app and then compiles
 ; this script with:
 ;   ISCC.exe /DAppVersion=1.0.<run number> platforms/windows/installer.iss
-; which produces dist/AutoWifi-windows-setup.exe.
+; which produces dist/Via-windows-setup.exe.
 
 #define MyAppName "Via"
-#define MyAppExeName "AutoWifi.exe"
+#define MyAppExeName "Via.exe"
 
 #ifndef AppVersion
   #define AppVersion "1.0.0"
@@ -22,7 +22,7 @@ DefaultDirName={autopf}\Via
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=AutoWifi-windows-setup
+OutputBaseFilename=Via-windows-setup
 SetupIconFile=Assets\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max

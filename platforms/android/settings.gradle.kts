@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AutoWifi"
+rootProject.name = "Via"
 include(":app")

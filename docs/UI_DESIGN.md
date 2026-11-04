@@ -158,5 +158,5 @@ totalHeight = max(
 ```bash
 swift build
 scripts/package-app.sh
-codesign --verify --deep --strict --verbose=2 dist/AutoWifi.app
+codesign --verify --deep --strict --verbose=2 dist/Via.app
 ```

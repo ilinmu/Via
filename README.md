@@ -2,7 +2,7 @@
 
 Via 是一个跨平台的 Wi-Fi 自动切换工具，目前提供 macOS、Windows、iOS 和 Android 客户端。它允许用户配置一个优先网络 `P` 和一个备用网络 `B`，在优先网络不可用时自动连接备用网络，并在优先网络恢复后切回去。
 
-代码中的 SwiftPM 与 iOS 工程目标、Windows 程序集和发布产物仍沿用 `AutoWifi` 名称；应用标识已统一为 `io.github.ilinmu.via`。
+代码中的 SwiftPM 目标、iOS 工程 target/scheme 和 Windows 项目文件名仍沿用 `AutoWifi`；发布产物与应用标识已统一为 `Via` / `io.github.ilinmu.via`。
 
 四个平台共用 `core/` 中的 Rust 策略状态机；平台层只负责扫描、关联、授权和界面。各平台受系统 API 限制的能力差异见 [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md)。
 
@@ -159,7 +159,7 @@ swiftc -typecheck auto-wifi-cli.swift
 CLI 只接受 `SSID-P`、`SSID-B` 和可选间隔作为参数；密码通过隐藏回显的交互输入读取，不接受命令行密码参数。
 
 更完整的开发入口、联调方式和打包说明见 [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)。
-如果只是想在本地打成 `.app`，直接运行 `scripts/package-app.sh`，产物会出现在 `dist/AutoWifi.app`。
+如果只是想在本地打成 `.app`，直接运行 `scripts/package-app.sh`，产物会出现在 `dist/Via.app`。
 
 ## 本轮整理与优化
 

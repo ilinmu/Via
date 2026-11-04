@@ -25,7 +25,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.ilinmu.via
-        PRODUCT_NAME: AutoWifi
+        PRODUCT_NAME: Via
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: AutoWifi/Info.plist
         CODE_SIGN_ENTITLEMENTS: AutoWifi/AutoWifi.entitlements
@@ -50,7 +50,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.ilinmu.via.tests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.0"
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/AutoWifi.app/AutoWifi
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Via.app/Via
         BUNDLE_LOADER: $(TEST_HOST)
 
 schemes:

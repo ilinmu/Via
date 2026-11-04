@@ -1,6 +1,6 @@
 # Windows 客户端
 
-基于 .NET Framework 4.8 + WPF 的托盘 AutoWifi 客户端。窗口关闭后继续驻留托盘，
+基于 .NET Framework 4.8 + WPF 的托盘 Via 客户端。窗口关闭后继续驻留托盘，
 右键菜单提供“打开”和“退出”。
 
 ## 结构
@@ -44,7 +44,7 @@ dotnet publish platforms/windows/AutoWifi.Windows.csproj `
 ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
 
-`installer.iss` 生成 `dist/AutoWifi-windows-setup.exe`（可选桌面快捷方式、自带
+`installer.iss` 生成 `dist/Via-windows-setup.exe`（可选桌面快捷方式、自带
 卸载程序）。`.NET Framework 4.8` 是系统组件，所以两个产物都不需要用户预装
 运行时，体积也只有 1–2 MB。
 
