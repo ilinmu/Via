@@ -29,7 +29,7 @@ Via 的设置面板采用跟随系统的简约风格。界面优先保证可读�
 | 圆角 | 输入框 8，面板 12（连续圆角） |
 | 字体 | `.title3`、`.headline`、`.body`、`.subheadline`、`.caption` 等语义样式 |
 
-令牌定义在 `Sources/AutoWifi/DesignSystem/PanelLayout.swift`，不要在新视图中直接写十六进制颜色或自定义阴影。
+令牌定义在 `Sources/Via/DesignSystem/PanelLayout.swift`，不要在新视图中直接写十六进制颜色或自定义阴影。
 
 ## 3. 面板结构
 
@@ -144,14 +144,14 @@ totalHeight = max(
 
 ## 10. 实现位置
 
-- 面板外壳、顶部、Tab 栏、横幅、高度测量：`Sources/AutoWifi/SettingsView.swift`
-- UI 状态与操作：`Sources/AutoWifi/Models/PanelModel.swift`、`NetworkDraft.swift`、`PanelMetrics.swift`
-- 设计令牌：`Sources/AutoWifi/DesignSystem/PanelLayout.swift`
-- 共享组件：`Sources/AutoWifi/DesignSystem/`、`Sources/AutoWifi/Components/`
-- 三个 Tab：`Sources/AutoWifi/Tabs/`
-- 首次向导：`Sources/AutoWifi/Onboarding/`
-- 中英文文案：`Sources/AutoWifiCore/LocalizationManager.swift`
-- 面板创建、定位和窗口高度：`Sources/AutoWifi/main.swift`
+- 面板外壳、顶部、Tab 栏、横幅、高度测量：`Sources/Via/SettingsView.swift`
+- UI 状态与操作：`Sources/Via/Models/PanelModel.swift`、`NetworkDraft.swift`、`PanelMetrics.swift`
+- 设计令牌：`Sources/Via/DesignSystem/PanelLayout.swift`
+- 共享组件：`Sources/Via/DesignSystem/`、`Sources/Via/Components/`
+- 三个 Tab：`Sources/Via/Tabs/`
+- 首次向导：`Sources/Via/Onboarding/`
+- 中英文文案：`Sources/ViaCore/LocalizationManager.swift`
+- 面板创建、定位和窗口高度：`Sources/Via/main.swift`
 
 修改 UI 时应至少执行：
 

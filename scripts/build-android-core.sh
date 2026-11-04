@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Builds libautowifi_jni.so for the Android shell and copies it into the
+# Builds libvia_jni.so for the Android shell and copies it into the
 # jniLibs directory Gradle packages.
 #
 # Usage: scripts/build-android-core.sh
@@ -31,8 +31,8 @@ fi
     -t armeabi-v7a \
     -t x86_64 \
     -o "$OUT_DIR" \
-    build -p autowifi-jni --release
+    build -p via-jni --release
 )
 
 echo "JNI libraries:"
-find "$OUT_DIR" -name 'libautowifi_jni.so' -print
+find "$OUT_DIR" -name 'libvia_jni.so' -print

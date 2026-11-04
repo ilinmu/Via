@@ -7,18 +7,18 @@
 阅读范围包括：
 
 - `Package.swift`
-- `Sources/AutoWifi/main.swift`
-- `Sources/AutoWifiCore/AppState.swift`
-- `Sources/AutoWifiCore/WifiManager.swift`
-- `Sources/AutoWifi/SettingsView.swift`
-- `Sources/AutoWifi/Models/`（`PanelModel`、`NetworkDraft`、`PanelMetrics`、`PanelTab`）
-- `Sources/AutoWifi/DesignSystem/`、`Components/`、`Tabs/`、`Onboarding/`
-- `Sources/AutoWifiCore/LocalizationManager.swift`
-- `Sources/AutoWifiCore/LaunchAtLoginManager.swift`
-- `Tests/AutoWifiTests/AutoWifiTests.swift`
-- `auto-wifi-cli.swift`
-- `AutoWifi/Info.plist`
-- `AutoWifi/AutoWifi.entitlements`
+- `Sources/Via/main.swift`
+- `Sources/ViaCore/AppState.swift`
+- `Sources/ViaCore/WifiManager.swift`
+- `Sources/Via/SettingsView.swift`
+- `Sources/Via/Models/`（`PanelModel`、`NetworkDraft`、`PanelMetrics`、`PanelTab`）
+- `Sources/Via/DesignSystem/`、`Components/`、`Tabs/`、`Onboarding/`
+- `Sources/ViaCore/LocalizationManager.swift`
+- `Sources/ViaCore/LaunchAtLoginManager.swift`
+- `Tests/ViaTests/ViaTests.swift`
+- `via-cli.swift`
+- `Via/Info.plist`
+- `Via/Via.entitlements`
 - `scripts/package-app.sh`
 - `docs/UI_DESIGN.md`
 - README 和 `docs` 下已有文档
@@ -53,10 +53,10 @@ Via 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两个受
 
 | 目标 | 类型 | 职责 |
 | --- | --- | --- |
-| `AutoWifi` | executable | 应用入口、菜单栏图标、浮动面板、设置界面和应用生命周期 |
-| `AutoWifiCore` | library | 状态、Wi-Fi、本地化和登录启动逻辑（不依赖 SwiftUI） |
-| `AutoWifiTests` | test | 核心状态和 Wi-Fi 分支的单元/回归测试 |
-| `CAutoWifiCore` | system library | Rust 策略核心的 C 模块声明（`core/include`） |
+| `Via` | executable | 应用入口、菜单栏图标、浮动面板、设置界面和应用生命周期 |
+| `ViaCore` | library | 状态、Wi-Fi、本地化和登录启动逻辑（不依赖 SwiftUI） |
+| `ViaTests` | test | 核心状态和 Wi-Fi 分支的单元/回归测试 |
+| `CViaCore` | system library | Rust 策略核心的 C 模块声明（`core/include`） |
 | `PolicySmoke` | executable | 通过 C ABI 验证策略核心的冒烟程序 |
 
 最低平台声明为 macOS 13，Swift tools version 为 6.0。
@@ -65,8 +65,8 @@ Via 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两个受
 
 | crate | 职责 |
 | --- | --- |
-| `autowifi-domain` | 平台无关的状态机，无第三方依赖、无 I/O |
-| `autowifi-ffi` | C ABI 导出层，产物为 `libautowifi_core.dylib` / `.a` |
+| `via-domain` | 平台无关的状态机，无第三方依赖、无 I/O |
+| `via-ffi` | C ABI 导出层，产物为 `libvia_core.dylib` / `.a` |
 
 ### 3.2 主要对象关系
 
@@ -102,12 +102,12 @@ NSApplication / AppDelegate
 ```text
 WifiManager
 └── WifiPolicyEngine（可选）
-    └── dlopen("libautowifi_core.dylib")
-        └── AwEngine（Rust 状态机）
+    └── dlopen("libvia_core.dylib")
+        └── ViaEngine（Rust 状态机）
 ```
 
 - `WifiPolicy.swift` 用 `dlopen`/`dlsym` 查找动态库，路径顺序为
-  `AUTOWIFI_CORE_PATH`、`Contents/Frameworks/`、bundle 根目录、当前目录向上的
+  `VIA_CORE_PATH`、`Contents/Frameworks/`、bundle 根目录、当前目录向上的
   `core/target/{release,debug}/`。
 - 动态库不存在时 `policy` 为 `nil`，`WifiManager` 使用原有 Swift 逻辑，应用不会
   崩溃。
@@ -269,7 +269,7 @@ WifiManager
 
 生产环境分别由 `CWWiFiClient`、`CWInterface`、`CWNetwork`、`CLLocationManager` 实现；测试环境使用 Mock。这使扫描结果、当前 SSID、连接行为、连接错误和定位授权状态可以被注入。
 
-`CWInterface.associateNetwork` 的协议适配只接受真实 `CWNetwork`。如果传入其它协议实现，会抛出 `AutoWifi` domain、code 1、描述为 `Invalid network type` 的错误。测试 Mock 不经过这一层。
+`CWInterface.associateNetwork` 的协议适配只接受真实 `CWNetwork`。如果传入其它协议实现，会抛出 `Via` domain、code 1、描述为 `Invalid network type` 的错误。测试 Mock 不经过这一层。
 
 ## 8. WifiManager 初始化
 
@@ -745,7 +745,7 @@ Entitlements：
 
 ## 20. CLI 版本
 
-`auto-wifi-cli.swift` 是独立实现，不复用 `AutoWifiCore`；它只用于本地诊断，不参与 SwiftPM 构建、应用打包或发布流程。
+`via-cli.swift` 是独立实现，不复用 `ViaCore`；它只用于本地诊断，不参与 SwiftPM 构建、应用打包或发布流程。
 
 支持两种配置方式：
 
@@ -884,7 +884,7 @@ CLI 与 GUI 的重要差异：
 13. 当前只跟踪上一版 B；连续多次修改 B 后，更早的旧 B 会被当成普通未管理网络。
 14. 没有显式处理睡眠/唤醒、Wi-Fi 开关开闭、网络服务重建等生命周期事件，只依赖接口重取、SSID 事件和 Timer；解锁带来的事件风暴由单关联互斥和失败冷却吸收。
 15. 没有网络连通性检测；连接到 SSID 成功即视为成功。
-16. 普通分发脚本默认只做 ad-hoc 签名；Mac App Store 需要单独使用 Store 构建脚本和开发者账号证书。
+16. 普通分发脚本默认只做 ad-hoc 签名；正式分发需要开发者账号证书并完成公证。
 17. P/B 可以配置成相同值，代码没有校验；此时 P 分支和 P 密码优先。
 
 ## 25. 文档维护约定
@@ -892,5 +892,5 @@ CLI 与 GUI 的重要差异：
 - 业务状态机和异常分支以本文档及源码为准。
 - 三 Tab 结构、设计令牌、状态文案、无障碍和首次向导以 `docs/UI_DESIGN.md` 为准。
 - `P` 始终称为 Priority/优先网络，`B` 始终称为 Backup/备用网络；不要把备用网络配置模块命名为 `Failover`。
-- 修改用户可见文案时同步更新 `LocalizationManager.swift`、README、帮助正文和 App Store 元数据。
+- 修改用户可见文案时同步更新 `LocalizationManager.swift`、README 和帮助正文。
 - 修改布局或交互后同步更新本文档第 17 节和 `docs/UI_DESIGN.md`。

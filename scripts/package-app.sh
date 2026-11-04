@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Via"
-EXECUTABLE_NAME="AutoWifi"
+EXECUTABLE_NAME="Via"
 DISPLAY_NAME="${DISPLAY_NAME:-Via}"
 CONFIGURATION="${CONFIGURATION:-release}"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
@@ -13,18 +13,18 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
-CORE_DYLIB="$ROOT_DIR/core/target/$CONFIGURATION/libautowifi_core.dylib"
-INFO_PLIST_TEMPLATE="$ROOT_DIR/AutoWifi/Info.plist"
-ENTITLEMENTS_PATH="$ROOT_DIR/AutoWifi/AutoWifi.entitlements"
-PRIVACY_MANIFEST="$ROOT_DIR/AutoWifi/PrivacyInfo.xcprivacy"
-ICON_SOURCE="$ROOT_DIR/AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
+CORE_DYLIB="$ROOT_DIR/core/target/$CONFIGURATION/libvia_core.dylib"
+INFO_PLIST_TEMPLATE="$ROOT_DIR/Via/Info.plist"
+ENTITLEMENTS_PATH="$ROOT_DIR/Via/Via.entitlements"
+PRIVACY_MANIFEST="$ROOT_DIR/Via/PrivacyInfo.xcprivacy"
+ICON_SOURCE="$ROOT_DIR/Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
 BUNDLE_ID="${BUNDLE_ID:-io.github.ilinmu.via}"
 VERSION="${VERSION:-1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 MIN_SYSTEM_VERSION="${MIN_SYSTEM_VERSION:-13.0}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 ZIP_NAME="${ZIP_NAME:-$APP_NAME-macos.zip}"
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/autowifi-package.XXXXXX")"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/via-package.XXXXXX")"
 
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -133,7 +133,7 @@ if [[ ! -f "$CORE_DYLIB" ]]; then
   echo "Could not find the policy core at $CORE_DYLIB." >&2
   exit 1
 fi
-cp "$CORE_DYLIB" "$FRAMEWORKS_DIR/libautowifi_core.dylib"
+cp "$CORE_DYLIB" "$FRAMEWORKS_DIR/libvia_core.dylib"
 
 INFO_PLIST_PATH="$CONTENTS_DIR/Info.plist"
 cp "$INFO_PLIST_TEMPLATE" "$INFO_PLIST_PATH"
@@ -152,7 +152,7 @@ if [[ -f "$PRIVACY_MANIFEST" ]]; then
 fi
 
 for localization in en zh-Hans; do
-  source_dir="$ROOT_DIR/AutoWifi/$localization.lproj"
+  source_dir="$ROOT_DIR/Via/$localization.lproj"
   if [[ -d "$source_dir" ]]; then
     cp -R "$source_dir" "$RESOURCES_DIR/"
   fi
@@ -177,7 +177,7 @@ fi
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
   echo "==> Signing policy core"
-  codesign --force --sign "$SIGN_IDENTITY" "$FRAMEWORKS_DIR/libautowifi_core.dylib"
+  codesign --force --sign "$SIGN_IDENTITY" "$FRAMEWORKS_DIR/libvia_core.dylib"
 
   echo "==> Signing app bundle ($SIGN_IDENTITY)"
   # The embedded policy core is signed above; sign the app itself rather than

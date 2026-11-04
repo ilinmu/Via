@@ -9,15 +9,15 @@ Via 目前在四个平台上提供客户端：
 | iOS | `platforms/ios/` | SwiftUI + NetworkExtension | `Via-ios.xcarchive`（未签名） |
 | Android | `platforms/android/` | Kotlin + Jetpack Compose | `Via-android.apk`（release，R8） |
 
-四个客户端共用 `core/crates/autowifi-domain` 中的策略状态机。平台层只负责
+四个客户端共用 `core/crates/via-domain` 中的策略状态机。平台层只负责
 “读取当前网络、扫描、发起关联、保存密码和展示状态”，不做切换决策。
 
 ## 共享核心与桥接
 
-- `autowifi-domain`：纯逻辑状态机，不读时钟、不做 I/O、不接触密码。
-- `autowifi-ffi`：C ABI，供 macOS、Windows、iOS 使用。
-- `autowifi-jni`：JNI 桥，供 Android 使用；输入输出使用 JSON 字符串。
-- `core/include/autowifi_core.h`：C ABI 的权威定义。
+- `via-domain`：纯逻辑状态机，不读时钟、不做 I/O、不接触密码。
+- `via-ffi`：C ABI，供 macOS、Windows、iOS 使用。
+- `via-jni`：JNI 桥，供 Android 使用；输入输出使用 JSON 字符串。
+- `core/include/via_core.h`：C ABI 的权威定义。
 
 策略引擎的动作只有几类：扫描、关联、立即重新检查、停止、等待权限、写日志、
 刷新状态。各平台按照自己的能力实现这些动作；无法实现的能力会在界面上说明。
@@ -56,7 +56,7 @@ Windows 使用 WlanAPI：先写入 P/B 的 WLAN 配置文件，再调用 `WlanCo
 ### macOS
 
 macOS 版本保留原有 CoreWLAN 实现和菜单栏体验；共享核心通过 `dlopen` 加载
-`libautowifi_core.dylib`。
+`libvia_core.dylib`。
 
 ## 本地构建
 
@@ -71,7 +71,7 @@ macOS 版本保留原有 CoreWLAN 实现和菜单栏体验；共享核心通过 
 ### macOS
 
 ```bash
-cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+cargo build --manifest-path core/Cargo.toml -p via-ffi --release
 scripts/package-app.sh
 ```
 
@@ -81,11 +81,11 @@ scripts/package-app.sh
 ./scripts/build-windows-core.ps1
 
 # 免安装单文件（约 1 MB；.NET Framework 4.8 是 Windows 自带组件）
-dotnet publish platforms/windows/AutoWifi.Windows.csproj `
+dotnet publish platforms/windows/Via.Windows.csproj `
   -c Release -p:Platform=x64 -o dist/windows-portable
 
 # 安装程序：发布同一应用的目录，再用 Inno Setup 打包
-dotnet publish platforms/windows/AutoWifi.Windows.csproj `
+dotnet publish platforms/windows/Via.Windows.csproj `
   -c Release -p:Platform=x64 -o dist/windows-app
 ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
@@ -97,7 +97,7 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 scripts/build-ios-core.sh
 cd platforms/ios
 xcodegen generate
-xcodebuild -project AutoWifi.xcodeproj -scheme AutoWifi \
+xcodebuild -project Via.xcodeproj -scheme Via \
   -sdk iphonesimulator -configuration Release build
 ```
 
@@ -119,7 +119,7 @@ APK 输出在 `platforms/android/app/build/outputs/apk/release/`。release 构�
 
 ## 应用图标
 
-四个平台共用一套图标：蓝色渐变背景、缩小的 Wi-Fi 标记和“Auto”字样。图标由
+四个平台共用一套图标：蓝色渐变背景、缩小的 Wi-Fi 标记和“Via”字样。图标由
 `scripts/generate-app-icons.swift` 统一渲染，输出 macOS 的
 `icon_1024x1024.png`、iOS 的 Asset Catalog、Windows 的 `Assets/app.ico`（多尺寸
 ICO）以及 Android 的自适应图标前景（`mipmap-*/ic_launcher_foreground.png`）。
@@ -200,5 +200,4 @@ artifacts，不会创建 Release。
 - Windows 产物未签名，首次运行可能出现 SmartScreen 提示；正式发布需要代码签名证书。
 - iOS 归档未签名，仅用于验证编译；上架或真机安装需要 Apple Developer 团队和描述文件。
 - Android release APK 经 R8 压缩，使用调试签名；发布到应用商店需要配置 release keystore 并替换签名配置。
-- macOS 默认使用 ad-hoc 签名；正式分发需要 Developer ID 或 Mac App Store 流程，
-  参见 [app-store/APP_STORE_SUBMISSION.md](app-store/APP_STORE_SUBMISSION.md)。
+- macOS 默认使用 ad-hoc 签名；正式分发需要 Developer ID 证书并完成公证。

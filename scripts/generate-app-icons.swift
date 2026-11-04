@@ -1,15 +1,15 @@
 #!/usr/bin/env swift
 //
-// Renders the AutoWifi app icon for every platform from one design:
-// a blue rounded square with a small Wi-Fi glyph and the word "Auto".
+// Renders the Via app icon for every platform from one design:
+// a blue rounded square with a small Wi-Fi glyph and the word "Via".
 //
 // Run from the repository root:
 //
 //     swift scripts/generate-app-icons.swift
 //
 // Outputs:
-//   AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png   (macOS)
-//   platforms/ios/AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png
+//   Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png   (macOS)
+//   platforms/ios/Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png
 //   platforms/windows/Assets/app.ico
 //   platforms/android/app/src/main/res/mipmap-*/ic_launcher_foreground.png
 //
@@ -96,7 +96,7 @@ func render(size: CGFloat, background: Background, contentScale: CGFloat, opaque
         .foregroundColor: NSColor.white,
         .kern: box * 0.005,
     ]
-    let text = "Auto" as NSString
+    let text = "Via" as NSString
     let textSize = text.size(withAttributes: attributes)
     text.draw(
         at: NSPoint(
@@ -176,14 +176,14 @@ func writeICO(_ images: [(Int, Data)], to path: String) {
 // macOS: the .icns is generated from this PNG by scripts/package-app.sh.
 write(
     renderIcon(size: 1024, background: .rounded, contentScale: 0.78),
-    to: "AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
+    to: "Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
 )
 
 // iOS: the system applies the corner mask, so the artwork is full-bleed and
-// has no alpha channel (the App Store rejects transparent icons).
+// has no alpha channel, since transparent icons are rejected on submission.
 write(
     renderIcon(size: 1024, background: .fullBleed, contentScale: 0.78, opaque: true),
-    to: "platforms/ios/AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
+    to: "platforms/ios/Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
 )
 
 // Windows: executable and tray icon.

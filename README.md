@@ -1,198 +1,166 @@
 # Via
 
-Via 是一个跨平台的 Wi-Fi 自动切换工具，目前提供 macOS、Windows、iOS 和 Android 客户端。它允许用户配置一个优先网络 `P` 和一个备用网络 `B`，在优先网络不可用时自动连接备用网络，并在优先网络恢复后切回去。
+<p align="center">
+  <strong>Find the right way.</strong>
+</p>
 
-代码中的 SwiftPM 目标、iOS 工程 target/scheme 和 Windows 项目文件名仍沿用 `AutoWifi`；发布产物与应用标识已统一为 `Via` / `io.github.ilinmu.via`。
+Via 是一款跨平台的 Wi-Fi 自动切换工具，帮助你在多个 Wi-Fi 网络之间智能切换。支持 macOS、Windows、iOS 和 Android。
 
-四个平台共用 `core/` 中的 Rust 策略状态机；平台层只负责扫描、关联、授权和界面。各平台受系统 API 限制的能力差异见 [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md)。
+你可以设置一个优先网络 `P` 和一个备用网络 `B`。当优先网络不可用时，Via 会自动切换到备用网络；当优先网络恢复后，再自动切回。
 
-## 项目用途
+连接可以变化，体验不必改变。
 
-这个项目主要解决以下场景：
+## Why Via?
 
-- 家中或办公室有两个常用 Wi-Fi，希望始终优先连接信号更稳定或速度更快的那个。
-- 主 Wi-Fi 临时不可用时，希望自动切到备用热点，不想手动反复切换。
-- 使用菜单栏常驻工具，而不是完整 Dock 应用。
+Via 源自拉丁语 via，意为「道路」「路径」或「通道」。
 
-## 核心功能
+每一次网络连接，都是一次路径选择。当优先连接的 Wi-Fi 不可用时，Via 会自动寻找备用路径，保持网络连接；当优先网络恢复时，Via 又会带你回到熟悉的连接。
 
-- 菜单栏常驻应用，使用自定义状态图标展示当前状态。
-- 扫描周围可用 Wi-Fi，并选择优先网络 `P` 与备用网络 `B`。
-- 自动监控连接状态：
-  - 已连接 `P` 时保持不动。
-  - `P` 丢失时立即尝试连接 `B`；只有 `B` 也不可用时才交由系统自行选择网络。
-  - 当前在 `B` 上时，定期扫描并尝试切回 `P`。
-- 识别用户手动切网：
-  - 如果用户主动切到备用网络 `B` 或其它不受管网络、且此时 `P` 仍可见，视为手动覆盖，自动停止监控并在菜单栏图标显示红色圆点。
-  - 如果 `P` 已不可见，切到 `B` 属于自动回退，应用保持监控，并在 `P` 恢复后切回。
-- 支持中英文切换。
-- 支持登录时启动。
-- 跟随系统浅色/深色外观的简约面板，按“状态 / 网络 / 设置”三个 Tab 分区。
-- 首次使用提供三步向导：授权定位 → 选择 P/B → 开启自动切换，也可跳过并稍后继续。
-- 当前连接、自动切换、下次检查和扫描结果使用本地化语义状态展示，不暴露底层接口诊断文案。
-- 提供独立 CLI 脚本，便于命令行下验证同类逻辑。
+这个名字承载着一个简单的理念：始终找到更合适的连接方式。
 
-## 工作原理
+Via 不需要你时刻关注网络切换，它会在后台默默寻找合适的路径，让连接保持顺畅，让你专注于真正重要的事情。
 
-1. 应用读取当前 SSID 和可见网络列表。
-2. 如果当前已经连接 `P`，则只更新状态，不做切换。
+## Features
+
+- 自动切换：优先网络不可用时，自动连接备用网络；优先网络恢复后，自动切回。
+- 优先级管理：自定义优先网络 `P`和备用网络 `B`，让网络选择更符合自己的使用习惯。
+- 手动切换识别：识别用户主动切换网络的行为，避免自动策略与用户操作相互干扰。
+- 状态栏常驻：macOS 提供菜单栏常驻应用，通过状态图标直观展示当前状态。
+- 网络扫描：扫描周围可用 Wi-Fi，帮助用户选择需要管理的网络。
+- 首次设置向导：通过简单的三步流程完成权限授权、网络选择和自动切换设置。
+- 中英文支持：支持中文与英文界面。
+- 登录启动：支持随系统启动，无需每次手动打开。
+- 简洁界面：跟随系统浅色或深色外观，按状态、网络和设置组织功能。
+- 跨平台策略核心：使用 Rust 实现共享策略状态机，确保不同平台遵循一致的切换逻辑。
+
+## How It Works
+
+Via 使用两个网络配置实现自动切换：
+
+| 网络  | 作用   | 行为             |
+| --- | ---- | -------------- |
+| `P` | 优先网络 | 始终优先连接，恢复后自动切回 |
+| `B` | 备用网络 | `P` 不可用时自动连接   |
+
+基本工作流程：
+
+1. 应用读取当前连接的 SSID，并扫描周围可用的 Wi-Fi 网络。
+2. 如果当前已经连接 `P`，则保持连接，不做额外切换。
 3. 如果 `P` 不可用且当前未连接 `B`，则尝试连接 `B`。
-4. 如果已经在 `B` 上，会按照配置间隔继续扫描；一旦发现 `P` 恢复，则切回 `P`。
-5. 如果检测到用户主动切换到其它网络，则停止自动监控，避免“和用户抢网络”。
+4. 如果当前连接的是 `B`，Via 会按照设定的间隔继续扫描。
+5. 一旦发现 `P` 恢复可用，Via 会自动切回 `P`。
+6. 如果检测到用户主动切换网络，则暂停自动监控，避免与用户争夺网络控制权。
 
-## 共享策略核心
+### Manual Override
 
-自动切换的决策逻辑已经抽到 `core/` 下的 Rust 状态机中，与界面和平台 API 解耦：
+Via 会区分自动切换和用户主动切换：
 
-- `core/crates/autowifi-domain`：纯策略状态机，不读时钟、不做 I/O、不接触密码。
-- `core/crates/autowifi-ffi`：稳定的 C ABI，供 Swift、C#、Kotlin/JNI 等调用。
-- `core/include/autowifi_core.h`：权威头文件。
-- `Sources/AutoWifiCore/WifiPolicy.swift`：macOS 的 Swift 封装，通过 `dlopen`
-  加载动态库；找不到核心时退回原有 Swift 逻辑。
+- 自动回退：当 `P` 不可见时，Via 自动切换到 `B`，继续监控，并在 `P` 恢复后自动切回。
+- 手动覆盖：当 `P` 仍然可见时，如果用户主动切换到 `B` 或其他非受管网络，Via 会认为这是用户的主动选择，并暂停自动监控。
 
-四个客户端都通过这套核心执行同一套切换策略；平台差异只体现在“如何扫描、如何关联、如何授权”。
-详见 [core/README.md](core/README.md) 和 [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md)。
+在 macOS 菜单栏图标上，手动覆盖状态会通过红色圆点提示。
 
-## 平台客户端
+这样既能保留自动切换的便利，也不会让自动化逻辑干扰用户自己的网络选择。
 
-| 平台 | 目录 | 说明 |
-| --- | --- | --- |
-| macOS | `Sources/` | 菜单栏应用，CoreWLAN，完整扫描与主动切换 |
-| Windows | `platforms/windows/` | WPF 托盘应用，WlanAPI，Windows Credential Manager |
-| iOS | `platforms/ios/` | SwiftUI，Hotspot Configuration；无公开扫描 API，仅前台监控 |
-| Android | `platforms/android/` | Kotlin + Compose，前台服务；通过系统 Wi-Fi 建议切换 |
+## Platforms
 
-构建命令：
+| 平台      | 项目目录                 | 技术方案                          | 主要能力                            |
+| ------- | -------------------- | ----------------------------- | ------------------------------- |
+| macOS   | `Sources/`           | SwiftUI、CoreWLAN              | 菜单栏应用、完整网络扫描与主动切换               |
+| Windows | `platforms/windows/` | C#、WPF、WlanAPI                | 托盘应用、Windows Credential Manager |
+| iOS     | `platforms/ios/`     | SwiftUI、Hotspot Configuration | 网络配置与前台监控                       |
+| Android | `platforms/android/` | Kotlin、Compose                | 前台服务、通过系统 Wi-Fi 建议切换            |
 
-```bash
-# macOS
-cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+> 各平台受操作系统公开 API 和权限机制限制，网络扫描、后台监控和主动切换能力可能有所不同。详细说明见 [跨平台能力说明](docs/CROSS_PLATFORM.md)。
+
+## Getting Started
+
+### Requirements
+
+开发环境需要根据目标平台安装相应工具：
+
+- macOS：Xcode、Swift、Rust。
+- iOS：Xcode、Swift、Rust，以及 XcodeGen。
+- Android：Android SDK、JDK、Gradle、Rust。
+- Windows：Windows 开发环境、.NET SDK、Rust。
+
+### Build
+
+#### macOS
+
+```
+cargo build --manifest-path core/Cargo.toml -p via-ffi --release
 scripts/package-app.sh
-
-# iOS
-scripts/build-ios-core.sh
-cd platforms/ios && xcodegen generate && cd ../..
-
-# Android
-scripts/build-android-core.sh
-cd platforms/android && gradle assembleRelease && cd ../..
-
-# Windows（在 Windows 上）
-./scripts/build-windows-core.ps1
-dotnet publish platforms/windows/AutoWifi.Windows.csproj -c Release -p:Platform=x64 -o dist/windows-portable
 ```
 
-GitHub Actions 工作流 `.github/workflows/cross-platform.yml` 会在 push 到 `master`
-和 pull request 时运行 Rust、macOS Swift、iOS XCTest、Windows xUnit 与 Android
-JUnit 测试，并同时构建四个平台的产物。只改文档的 PR 会跳过平台 job；连续推送时
-只保留最新一次运行。`master` 每次构建都会在 Releases 中生成
-`v1.0.<运行号>` 版本，包含四个平台的产物。
+打包完成后，应用位于：
 
-## 权限与安全
+```
+dist/Via.app
+```
 
-- 应用依赖 macOS 定位权限来读取 SSID 和扫描 Wi-Fi。
-- 登录启动通过 `ServiceManagement` 管理。
-- Wi-Fi 密码保存在 macOS 钥匙串（Keychain）中，仅本机使用，绝不上传；旧版本留在本机偏好中的明文密码会在首次启动时迁移到钥匙串，只有写入并回读校验成功后才会删除旧副本。
+#### iOS
 
-## 主要代码结构
+```
+scripts/build-ios-core.sh
+cd platforms/ios && xcodegen generate && cd ../..
+```
 
-- `Sources/AutoWifi/main.swift`
-  菜单栏应用入口、状态栏图标和弹出面板。
-- `Sources/AutoWifiCore/AppState.swift`
-  应用状态、配置持久化、启动项开关。
-- `Sources/AutoWifiCore/CredentialStore.swift`
-  Wi-Fi 密码的 Keychain 读写与旧数据迁移。
-- `Sources/AutoWifiCore/WifiManager.swift`
-  Wi-Fi 扫描、连接、监控和自动切换核心逻辑。
-- `Sources/AutoWifiCore/WifiPolicy.swift`
-  共享策略核心的 Swift 封装。
-- `core/crates/autowifi-domain/`
-  跨平台自动切换状态机。
-- `core/crates/autowifi-ffi/`
-  C ABI 导出层。
-- `core/crates/autowifi-jni/`
-  Android JNI 桥接层。
-- `platforms/windows/`、`platforms/ios/`、`platforms/android/`
-  Windows、iOS、Android 客户端。
-- `.github/workflows/cross-platform.yml`
-  测试与四平台构建工作流。
-- `Sources/AutoWifi/SettingsView.swift`
-  SwiftUI 配置界面。
-- `docs/UI_DESIGN.md`
-  当前界面模块、固定色彩、术语、本地化边界和交互规范。
-- `auto-wifi-cli.swift`
-  本地诊断脚本，不参与 SwiftPM 构建、应用打包或发布流程。
-- `Tests/AutoWifiTests/AutoWifiTests.swift`
-  核心行为测试。
+#### Android
 
-## 开发与验证
+```
+scripts/build-android-core.sh
+cd platforms/android && gradle assembleRelease && cd ../..
+```
 
-运行测试：
+#### Windows
 
-```bash
+请在 Windows 环境中执行：
+
+```
+./scripts/build-windows-core.ps1
+dotnet publish platforms/windows/Via.Windows.csproj -c Release -p:Platform=x64 -o dist/windows-portable
+```
+
+### Run Tests
+
+运行 Swift 测试：
+
+```
 swift test
 ```
 
-构建并测试共享策略核心：
+运行 Rust Core 测试：
 
-```bash
+```
 cargo test --manifest-path core/Cargo.toml
-scripts/build-core.sh
-swift run PolicySmoke
 ```
 
-`swift run PolicySmoke` 会通过 C ABI 驱动核心跑一遍启动、扫描、关联和手动覆盖
-流程，输出 `policy smoke ok`。
+## CI / CD
 
-重新生成四个平台的应用图标：
+项目使用 GitHub Actions 进行持续集成与构建，工作流配置位于：
 
-```bash
-swift scripts/generate-app-icons.swift
+```
+.github/workflows/cross-platform.yml
 ```
 
-检查 CLI 脚本类型：
+目前工作流支持：
 
-```bash
-swiftc -typecheck auto-wifi-cli.swift
+- Push 到 `master` 分支时触发。
+- Pull Request 时触发。
+- 执行 Rust、macOS Swift、iOS XCTest、Windows xUnit 和 Android JUnit 测试。
+- 构建 macOS、Windows、iOS 和 Android 四个平台的产物。
+- 仅修改文档的 Pull Request 会跳过平台构建任务。
+- 连续推送时只保留最新一次工作流运行。
+
+每次 `master`分支构建都会在 GitHub Releases 中生成对应版本，版本号格式为：
+
+```
+v1.0.<运行号>
 ```
 
-CLI 只接受 `SSID-P`、`SSID-B` 和可选间隔作为参数；密码通过隐藏回显的交互输入读取，不接受命令行密码参数。
+Release 包含四个平台的构建产物。
 
-更完整的开发入口、联调方式和打包说明见 [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)。
-如果只是想在本地打成 `.app`，直接运行 `scripts/package-app.sh`，产物会出现在 `dist/Via.app`。
+## License
 
-## 本轮整理与优化
-
-本轮已完成的关键改进：
-
-- 修复了失效测试与当前实现不一致的问题。
-- 修复了 CLI 脚本中的变量命名错误和定时器死代码问题。
-- 密码改为存入 macOS Keychain，并自动迁移旧版本遗留的本地明文密码。
-- 统一网络状态模型（`NetworkStatus`），定位权限被拒绝时暂停检查并引导用户打开系统设置。
-- 修复 SSID 事件与定时检查并发时可能重复发起关联的问题，关联增加超时与代次校验。
-- 将密码输入框改成原生 AppKit 文本控件，支持直接粘贴。
-- 让 Wi-Fi 扫描逻辑走统一依赖注入路径，提升可测试性。
-- 连接同名网络时优先选择更强信号的 AP。
-- 为检查间隔增加最小值保护，避免异常输入导致不稳定行为。
-- 将设置面板重构为跟随系统的简约风格，并把功能拆成“状态 / 网络 / 设置”三个 Tab。
-- 增加首次设置向导：定位授权、选择 P/B、完成并开启自动切换；支持跳过、稍后继续和重新运行。
-- 网络配置改为草稿 + 显式保存，避免编辑到一半的空 SSID 影响自动切换。
-- 原始运行日志和 Wi-Fi 接口名保留用于内部诊断，状态 Tab 只展示本地化语义状态。
-- 面板高度按内容测量并以屏幕可用高度为上限，内容超出时可滚动；扫描状态在切换 Tab 后保留。
-
-更详细的分析请见 [docs/PROJECT_REVIEW.md](docs/PROJECT_REVIEW.md)。
-界面布局、模块色彩、术语和交互规范见 [docs/UI_DESIGN.md](docs/UI_DESIGN.md)。
-
-Mac App Store 签名、隐私、元数据和提交流程见 [docs/app-store/APP_STORE_SUBMISSION.md](docs/app-store/APP_STORE_SUBMISSION.md)。
-
-## 许可证
-
-本项目采用 [MIT 许可证](LICENSE)。Copyright © 2025-2026 Linmu。
-
-## 安全
-
-如果你发现安全问题（凭证泄露、权限绕过、Wi-Fi 密码处理等），请不要在公开 issue 中披露细节，
-请按 [SECURITY.md](SECURITY.md) 中的方式私密报告。
-
-仓库不包含 token、API key、证书或签名私钥；CI 只使用 GitHub 自动生成的 `GITHUB_TOKEN`，
-默认权限为只读。各平台的 Wi-Fi 密码分别存放在系统安全存储中，不会上传。
+本项目采用 MIT License。

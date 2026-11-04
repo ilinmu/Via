@@ -142,7 +142,7 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.count >= 3, Double(arguments[2]) == nil {
     fputs(
         "Passwords are not accepted as command-line arguments. "
-            + "Usage: auto-wifi-cli <SSID-P> <SSID-B> [interval-seconds]\n",
+            + "Usage: via-cli <SSID-P> <SSID-B> [interval-seconds]\n",
         stderr
     )
     exit(2)

@@ -31,34 +31,34 @@ cargo --version
 这个仓库当前是一个 **Swift Package**，不是 Xcode 工程。最重要的入口如下：
 
 - [Package.swift](../Package.swift)
-  项目的构建入口，定义了可执行目标 `AutoWifi`、核心库 `AutoWifiCore` 和测试目标。
-- [Sources/AutoWifi/main.swift](../Sources/AutoWifi/main.swift)
+  项目的构建入口，定义了可执行目标 `Via`、核心库 `ViaCore` 和测试目标。
+- [Sources/Via/main.swift](../Sources/Via/main.swift)
   菜单栏应用入口，负责状态栏图标、弹出面板和 App 生命周期。
-- [Sources/AutoWifiCore/AppState.swift](../Sources/AutoWifiCore/AppState.swift)
+- [Sources/ViaCore/AppState.swift](../Sources/ViaCore/AppState.swift)
   应用状态中心，负责配置持久化、开机启动状态和网络状态发布。
-- [Sources/AutoWifiCore/CredentialStore.swift](../Sources/AutoWifiCore/CredentialStore.swift)
+- [Sources/ViaCore/CredentialStore.swift](../Sources/ViaCore/CredentialStore.swift)
   Wi-Fi 密码的 Keychain 读写与旧数据迁移。
-- [Sources/AutoWifiCore/WifiManager.swift](../Sources/AutoWifiCore/WifiManager.swift)
+- [Sources/ViaCore/WifiManager.swift](../Sources/ViaCore/WifiManager.swift)
   核心业务逻辑入口，负责 Wi-Fi 扫描、自动切换、定时检测和权限相关逻辑。
-- [Sources/AutoWifiCore/WifiPolicy.swift](../Sources/AutoWifiCore/WifiPolicy.swift)
+- [Sources/ViaCore/WifiPolicy.swift](../Sources/ViaCore/WifiPolicy.swift)
   共享策略核心的 Swift 封装，通过 `dlopen` 加载 Rust 动态库。
 - [core/README.md](../core/README.md)
   跨平台策略核心的目录结构、C ABI 约定与接入方式。
-- [Sources/AutoWifi/SettingsView.swift](../Sources/AutoWifi/SettingsView.swift)
+- [Sources/Via/SettingsView.swift](../Sources/Via/SettingsView.swift)
   配置面板 UI。
-- [Sources/AutoWifiCore/LaunchAtLoginManager.swift](../Sources/AutoWifiCore/LaunchAtLoginManager.swift)
+- [Sources/ViaCore/LaunchAtLoginManager.swift](../Sources/ViaCore/LaunchAtLoginManager.swift)
   登录启动逻辑封装。
-- [Tests/AutoWifiTests/AutoWifiTests.swift](../Tests/AutoWifiTests/AutoWifiTests.swift)
+- [Tests/ViaTests/ViaTests.swift](../Tests/ViaTests/ViaTests.swift)
   回归测试入口。
 
 如果你是第一次接手，推荐按下面顺序读代码：
 
 1. 先看 [README.md](../README.md) 理解项目目标。
 2. 再看 [Package.swift](../Package.swift) 确认目标结构。
-3. 读 [Sources/AutoWifi/main.swift](../Sources/AutoWifi/main.swift) 了解应用怎么启动。
-4. 读 [Sources/AutoWifiCore/AppState.swift](../Sources/AutoWifiCore/AppState.swift) 和 [Sources/AutoWifiCore/WifiManager.swift](../Sources/AutoWifiCore/WifiManager.swift) 了解状态与核心逻辑。
+3. 读 [Sources/Via/main.swift](../Sources/Via/main.swift) 了解应用怎么启动。
+4. 读 [Sources/ViaCore/AppState.swift](../Sources/ViaCore/AppState.swift) 和 [Sources/ViaCore/WifiManager.swift](../Sources/ViaCore/WifiManager.swift) 了解状态与核心逻辑。
 5. 读 [core/README.md](../core/README.md) 了解共享策略核心的边界和接入方式。
-6. 最后看 [Sources/AutoWifi/SettingsView.swift](../Sources/AutoWifi/SettingsView.swift) 了解 UI 绑定方式。
+6. 最后看 [Sources/Via/SettingsView.swift](../Sources/Via/SettingsView.swift) 了解 UI 绑定方式。
 7. 涉及界面时读 [docs/UI_DESIGN.md](UI_DESIGN.md) 了解视觉与术语约束。
 
 ## 4. 本地开发从哪里开始
@@ -99,7 +99,7 @@ swift run PolicySmoke
 swift build
 ```
 
-调试构建产物一般会在 `.build/.../debug/AutoWifi`。
+调试构建产物一般会在 `.build/.../debug/Via`。
 
 如果当前 Command Line Tools 的 SDK 缺少 `libSwiftUIMacros.dylib`，SwiftUI 宏会在编译时报错。可以手动指定较旧的 SDK：
 
@@ -114,7 +114,7 @@ SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk swift build
 可以直接运行可执行文件：
 
 ```bash
-swift run AutoWifi
+swift run Via
 ```
 
 或者先构建再运行生成的二进制。
@@ -129,8 +129,8 @@ swift run AutoWifi
 项目里还保留了一个命令行版本，适合做快速逻辑验证：
 
 ```bash
-swiftc -typecheck auto-wifi-cli.swift
-swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
+swiftc -typecheck via-cli.swift
+swift via-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 ```
 
 密码会在终端中以隐藏回显方式提示输入，不再接受命令行密码参数，避免出现在 `ps` 或 Shell 历史中。
@@ -141,7 +141,7 @@ swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 
 策略决定优先改共享核心：
 
-- [core/crates/autowifi-domain/src/engine.rs](../core/crates/autowifi-domain/src/engine.rs)
+- [core/crates/via-domain/src/engine.rs](../core/crates/via-domain/src/engine.rs)
 
 这里包含：
 
@@ -153,17 +153,17 @@ swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 
 改完必须同步：
 
-- [core/crates/autowifi-domain/src/model.rs](../core/crates/autowifi-domain/src/model.rs)
+- [core/crates/via-domain/src/model.rs](../core/crates/via-domain/src/model.rs)
   中的动作、事件与状态类型
-- [core/crates/autowifi-ffi/src/lib.rs](../core/crates/autowifi-ffi/src/lib.rs)
-  和 [core/include/autowifi_core.h](../core/include/autowifi_core.h)
+- [core/crates/via-ffi/src/lib.rs](../core/crates/via-ffi/src/lib.rs)
+  和 [core/include/via_core.h](../core/include/via_core.h)
   的 C ABI 映射
-- [Sources/AutoWifiCore/WifiPolicy.swift](../Sources/AutoWifiCore/WifiPolicy.swift)
+- [Sources/ViaCore/WifiPolicy.swift](../Sources/ViaCore/WifiPolicy.swift)
   的 Swift 枚举与结构
 
 平台 API 的调用仍看：
 
-- [Sources/AutoWifiCore/WifiManager.swift](../Sources/AutoWifiCore/WifiManager.swift)
+- [Sources/ViaCore/WifiManager.swift](../Sources/ViaCore/WifiManager.swift)
 
 当前主检查流程尚未完全迁移到核心；修改策略时要注意 Swift 分支与 Rust 测试
 保持一致，避免两边行为分叉。
@@ -172,7 +172,7 @@ swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 
 优先看：
 
-- [Sources/AutoWifiCore/AppState.swift](../Sources/AutoWifiCore/AppState.swift)
+- [Sources/ViaCore/AppState.swift](../Sources/ViaCore/AppState.swift)
 
 这里包含：
 
@@ -185,10 +185,10 @@ swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 
 优先看：
 
-- [Sources/AutoWifi/SettingsView.swift](../Sources/AutoWifi/SettingsView.swift)：面板外壳、Tab 栏、横幅、路由和高度测量
-- [Sources/AutoWifi/main.swift](../Sources/AutoWifi/main.swift)：菜单栏图标、窗口、面板高度上限和 App 生命周期
-- [Sources/AutoWifi/Models/](../Sources/AutoWifi/Models)：`PanelModel`、`NetworkDraft`、`PanelMetrics`
-- [Sources/AutoWifi/Tabs/](../Sources/AutoWifi/Tabs) 与 [Sources/AutoWifi/Onboarding/](../Sources/AutoWifi/Onboarding)
+- [Sources/Via/SettingsView.swift](../Sources/Via/SettingsView.swift)：面板外壳、Tab 栏、横幅、路由和高度测量
+- [Sources/Via/main.swift](../Sources/Via/main.swift)：菜单栏图标、窗口、面板高度上限和 App 生命周期
+- [Sources/Via/Models/](../Sources/Via/Models)：`PanelModel`、`NetworkDraft`、`PanelMetrics`
+- [Sources/Via/Tabs/](../Sources/Via/Tabs) 与 [Sources/Via/Onboarding/](../Sources/Via/Onboarding)
 
 当前 UI 跟随系统外观，按三个 Tab 组织，并在配置不完整时显示三步向导。修改前先阅读：
 
@@ -208,7 +208,7 @@ swift auto-wifi-cli.swift <SSID-P> <SSID-B> [interval-seconds]
 
 优先看：
 
-- [Sources/AutoWifiCore/LocalizationManager.swift](../Sources/AutoWifiCore/LocalizationManager.swift)
+- [Sources/ViaCore/LocalizationManager.swift](../Sources/ViaCore/LocalizationManager.swift)
 
 ## 6. 开发时需要注意的系统特性
 
@@ -221,7 +221,7 @@ macOS 会把 SSID 和 Wi-Fi 扫描结果视作定位相关信息，所以项目�
 
 相关配置在：
 
-- [AutoWifi/Info.plist](../AutoWifi/Info.plist)
+- [Via/Info.plist](../Via/Info.plist)
 
 ### 6.2 登录启动
 
@@ -249,7 +249,7 @@ Wi-Fi 密码通过 `Security` 框架写入当前用户登录钥匙串的通用�
 
 这个仓库没有现成的 Xcode 工程或 CI 打包流程，因此当前打包方式是：
 
-1. 用 Cargo 构建共享策略核心 `libautowifi_core.dylib`
+1. 用 Cargo 构建共享策略核心 `libvia_core.dylib`
 2. 用 SwiftPM 构建 release 可执行文件
 3. 组装 `.app` bundle 目录，把动态库放进 `Contents/Frameworks/`
 4. 写入 `Info.plist`
@@ -275,10 +275,10 @@ scripts/package-app.sh
 
 默认行为：
 
-- 先构建 release 策略核心，并复制到 `dist/libautowifi_core.dylib`
+- 先构建 release 策略核心，并复制到 `dist/libvia_core.dylib`
 - 构建 `release`
 - 输出到 `dist/Via.app`
-- 动态库嵌入 `Contents/Frameworks/libautowifi_core.dylib`
+- 动态库嵌入 `Contents/Frameworks/libvia_core.dylib`
 - 生成 `dist/Via-macos.zip`
 - 使用 ad-hoc 签名（`SIGN_IDENTITY=-`）
 
@@ -346,9 +346,9 @@ VERSION="1.0.1" BUILD_NUMBER="12" scripts/package-app.sh
 
 脚本会使用这些仓库内文件作为输入：
 
-- [AutoWifi/Info.plist](../AutoWifi/Info.plist)
-- [AutoWifi/AutoWifi.entitlements](../AutoWifi/AutoWifi.entitlements)
-- [AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png](../AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png)
+- [Via/Info.plist](../Via/Info.plist)
+- [Via/Via.entitlements](../Via/Via.entitlements)
+- [Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png](../Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png)
 
 它会自动处理几件事：
 
@@ -377,7 +377,7 @@ VERSION="1.0.1" BUILD_NUMBER="12" scripts/package-app.sh
 2. `swift test`
 3. 修改核心逻辑或 UI
 4. 再跑一次 `swift test`
-5. 需要体验真实行为时运行 `swift run AutoWifi`
+5. 需要体验真实行为时运行 `swift run Via`
 6. 需要交付测试包时执行 `scripts/package-app.sh`
 
 UI 调整还应检查：
@@ -414,7 +414,7 @@ UI 调整还应检查：
 
 先检查：
 
-- `AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png` 是否存在
+- `Via/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png` 是否存在
 - 本机是否有 `sips` 和 `iconutil`
 
 ## 12. 补充说明
