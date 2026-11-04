@@ -1,26 +1,67 @@
 version: 2
 updates:
+  # 同一生态的更新合并成 PR：补丁/次要版本一个，主版本单独一个，方便分别评审。
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      actions-major:
+        patterns: ["*"]
+        update-types: ["major"]
+    open-pull-requests-limit: 3
 
   - package-ecosystem: cargo
     directory: "/core"
     schedule:
       interval: weekly
+    groups:
+      cargo-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      cargo-major:
+        patterns: ["*"]
+        update-types: ["major"]
+    open-pull-requests-limit: 3
 
   - package-ecosystem: gradle
     directory: "/platforms/android"
     schedule:
       interval: weekly
+    groups:
+      gradle-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      gradle-major:
+        patterns: ["*"]
+        update-types: ["major"]
+    open-pull-requests-limit: 3
 
   - package-ecosystem: nuget
     directory: "/platforms/windows"
     schedule:
       interval: weekly
+    groups:
+      nuget-windows-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      nuget-windows-major:
+        patterns: ["*"]
+        update-types: ["major"]
+    open-pull-requests-limit: 3
 
   - package-ecosystem: nuget
     directory: "/platforms/windows.tests"
     schedule:
       interval: weekly
+    groups:
+      nuget-tests-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      nuget-tests-major:
+        patterns: ["*"]
+        update-types: ["major"]
+    open-pull-requests-limit: 3
