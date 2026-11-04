@@ -455,18 +455,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${APP_VERSION}.${GITHUB_RUN_NUMBER}"
+          PREV="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 \
+            --json tagName --jq '.[0].tagName' 2>/dev/null || true)"
 
           # The job has no checkout, so every gh call needs the repository.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
-            # --generate-notes turns the release body into a changelog built from
-            # the commits since the previous tag instead of build instructions.
+            # Build the release body from the commits since the previous
+            # release. GitHub's own note generation only lists pull requests,
+            # and this project pushes to master directly.
+            {
+              echo "## 变更"
+              echo
+              if [ -n "$PREV" ] && [ "$PREV" != "$TAG" ]; then
+                gh api "repos/$GITHUB_REPOSITORY/compare/$PREV...$TAG" \
+                  --jq '.commits[] | "- " + (.commit.message | split("\n")[0])'
+                echo
+                echo "**完整变更**：https://github.com/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
+              else
+                gh api "repos/$GITHUB_REPOSITORY/commits?sha=$TAG&per_page=10" \
+                  --jq '.[] | "- " + (.commit.message | split("\n")[0])'
+                echo
+                echo "**完整变更**：https://github.com/$GITHUB_REPOSITORY/commits/$TAG"
+              fi
+            } > notes.md
+
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "Via $TAG" \
-              --generate-notes \
+              --notes-file notes.md \
               release/*
           fi
           echo "### 已发布 $TAG" >> "$GITHUB_STEP_SUMMARY"
