@@ -11,5 +11,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 via-domain = { path = "../via-domain" }
-jni = "0.21"
+jni = "0.22"
 serde_json = "1"
