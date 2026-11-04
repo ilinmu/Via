@@ -30,6 +30,11 @@ final class MockWiFiInterface: WiFiInterfaceProtocol {
     var associationCallCount = 0
     var blockScan = false
     var blockAssociation = false
+    /// Simulates CoreWLAN's system scan cache: the next N scans return these
+    /// networks regardless of the requested SSID, even after the radio lost
+    /// them.
+    var staleScanResults: [WiFiNetworkProtocol] = []
+    var staleScanResultCount = 0
     private let scanBlockSemaphore = DispatchSemaphore(value: 0)
     private let associationBlockSemaphore = DispatchSemaphore(value: 0)
 
@@ -53,6 +58,11 @@ final class MockWiFiInterface: WiFiInterfaceProtocol {
         }
         if let scanError {
             throw scanError
+        }
+
+        if staleScanResultCount > 0 {
+            staleScanResultCount -= 1
+            return staleScanResults
         }
 
         guard let ssid, let requestedName = String(data: ssid, encoding: .utf8) else {
@@ -780,6 +790,117 @@ final class ViaTests: XCTestCase {
         XCTAssertEqual(appState.currentNetworkName, "NetworkB")
         XCTAssertEqual(appState.connectedNetworkType, .backup)
         XCTAssertNil(mockInterface.associatedNetwork)
+    }
+
+    func testStaleScanCacheAfterPriorityLossDoesNotStopMonitoring() async {
+        // macOS can report P in the scan cache right after the radio lost it.
+        // The classification scans must outlive that stale entry instead of
+        // treating P loss as a manual switch and stopping auto-switch.
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "NetworkB"
+        appState.passwordB = "passB"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.observedChangeSettleDelay = 0
+        manager.observedChangeRescanInterval = 0
+        manager.observedChangeRescanAttempts = 3
+        await manager.startMonitoring()
+
+        mockInterface.currentSSID = "NetworkB"
+        mockInterface.availableNetworks = [MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)]
+        mockInterface.staleScanResults = [MockWiFiNetwork(ssid: "NetworkP", rssiValue: -70)]
+        mockInterface.staleScanResultCount = 2
+
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        _ = await waitUntil { appState.currentStatus.contains("backup network B") }
+
+        XCTAssertTrue(appState.isRunning)
+        XCTAssertEqual(appState.currentNetworkName, "NetworkB")
+        XCTAssertEqual(appState.connectedNetworkType, .backup)
+        XCTAssertNil(mockInterface.associatedNetwork)
+
+        manager.stopMonitoring()
+    }
+
+    func testFalseManualOverrideStopResumesWhenPriorityIsReallyGone() async {
+        // If every classification scan is still served from a stale cache,
+        // the stop is a false manual override. The delayed review must notice
+        // that P is gone and resume monitoring so P reconnects when it returns.
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "NetworkB"
+        appState.passwordB = "passB"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        manager.observedChangeSettleDelay = 0
+        manager.observedChangeRescanInterval = 0
+        manager.observedChangeRescanAttempts = 3
+        manager.manualOverrideVerificationDelay = 0.3
+        manager.manualOverrideVerificationAttempts = 1
+        manager.manualOverrideVerificationInterval = 0
+        await manager.startMonitoring()
+
+        mockInterface.currentSSID = "NetworkB"
+        mockInterface.availableNetworks = [MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)]
+        mockInterface.staleScanResults = [MockWiFiNetwork(ssid: "NetworkP", rssiValue: -70)]
+        mockInterface.staleScanResultCount = 3
+
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        let stopped = await waitUntil(timeout: 2) { !appState.isRunning }
+        XCTAssertTrue(stopped)
+
+        let resumed = await waitUntil(timeout: 3) { appState.isRunning }
+        XCTAssertTrue(resumed)
+        XCTAssertEqual(appState.currentNetworkName, "NetworkB")
+
+        manager.stopMonitoring()
+    }
+
+    func testConfirmedManualSwitchStaysStoppedAfterVerification() async {
+        // A real manual switch keeps P visible. The delayed review must leave
+        // auto-switch off in that case.
+        let appState = makeAppState()
+        appState.ssidP = "NetworkP"
+        appState.passwordP = "passP"
+        appState.ssidB = "NetworkB"
+        appState.passwordB = "passB"
+
+        let mockClient = MockWiFiClient()
+        let mockLocation = MockLocationManager()
+        let mockInterface = mockClient.mockInterface!
+        mockInterface.currentSSID = "NetworkP"
+        mockInterface.availableNetworks = [
+            MockWiFiNetwork(ssid: "NetworkP", rssiValue: -50),
+            MockWiFiNetwork(ssid: "NetworkB", rssiValue: -45)
+        ]
+
+        let manager = WifiManager(appState: appState, client: mockClient, locationManager: mockLocation)
+        makeImmediateClassification(manager)
+        manager.manualOverrideVerificationDelay = 0.1
+        manager.manualOverrideVerificationAttempts = 1
+        manager.manualOverrideVerificationInterval = 0
+        await manager.startMonitoring()
+
+        mockClient.simulateSSIDChange(to: "NetworkB")
+        let stopped = await waitUntil { !appState.isRunning }
+        XCTAssertTrue(stopped)
+
+        try? await Task.sleep(for: .milliseconds(400))
+        XCTAssertFalse(appState.isRunning)
+        XCTAssertEqual(appState.currentNetworkName, "NetworkB")
     }
 
     func testPriorityLossFallsBackToBackupThenReturnsToPriorityWithoutDisablingAutoSwitch() async {
