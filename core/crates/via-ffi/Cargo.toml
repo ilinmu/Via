@@ -1,0 +1,13 @@
+[package]
+name = "via-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "via_core"
+path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+via-domain = { path = "../via-domain" }

@@ -1,6 +1,6 @@
 using System.Runtime.Serialization;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 [DataContract]
 public sealed class AppSettings

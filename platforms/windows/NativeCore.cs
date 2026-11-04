@@ -2,19 +2,19 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 /// <summary>
-/// Loads the Rust policy core (`autowifi_core.dll`).
+/// Loads the Rust policy core (`via_core.dll`).
 ///
 /// .NET Framework has no `NativeLibrary` resolver, so the embedded copy is
-/// extracted to `%LocalAppData%\AutoWifi\bin` and loaded with an absolute path
+/// extracted to `%LocalAppData%\Via\bin` and loaded with an absolute path
 /// before the first P/Invoke. The Windows loader then resolves the plain
-/// `autowifi_core` import in <see cref="PolicyEngine"/> to that module.
+/// `via_core` import in <see cref="PolicyEngine"/> to that module.
 /// </summary>
 internal static class NativeCore
 {
-    private const string DllName = "autowifi_core.dll";
+    private const string DllName = "via_core.dll";
     private static readonly object Gate = new();
     private static bool _loaded;
 
@@ -65,7 +65,7 @@ internal static class NativeCore
 
                 var directory = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "AutoWifi",
+                    "Via",
                     "bin");
                 Directory.CreateDirectory(directory);
                 var target = Path.Combine(directory, DllName);

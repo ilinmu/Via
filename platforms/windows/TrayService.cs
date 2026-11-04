@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 public sealed class TrayService : IDisposable
 {

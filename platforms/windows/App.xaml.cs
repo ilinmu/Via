@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Windows;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 // UseWindowsForms adds an implicit `System.Windows.Forms` using, which makes
 // the unqualified `Application` name ambiguous.
@@ -17,7 +17,7 @@ public partial class App : System.Windows.Application
         Theme.Apply();
         Theme.Watch();
 
-        _mutex = new Mutex(true, "AutoWifi.Windows.SingleInstance", out var created);
+        _mutex = new Mutex(true, "Via.Windows.SingleInstance", out var created);
         if (!created)
         {
             Shutdown();

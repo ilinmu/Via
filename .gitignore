@@ -11,7 +11,7 @@ platforms/android/build/
 platforms/android/app/build/
 platforms/android/local.properties
 platforms/android/app/src/main/jniLibs/
-platforms/ios/AutoWifi.xcodeproj/
+platforms/ios/Via.xcodeproj/
 platforms/ios/Frameworks/
 platforms/ios/build/
 platforms/ios/DerivedData/

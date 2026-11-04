@@ -7,7 +7,7 @@ using Microsoft.Win32;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 /// <summary>
 /// Replaces the brush tokens from <c>Styles.xaml</c> with values that follow

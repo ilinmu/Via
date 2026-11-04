@@ -1,4 +1,4 @@
-module CAutoWifiCore {
-    header "autowifi_core.h"
+module CViaCore {
+    header "via_core.h"
     export *
 }

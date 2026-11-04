@@ -1,4 +1,4 @@
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 public sealed class MonitorService : IDisposable
 {

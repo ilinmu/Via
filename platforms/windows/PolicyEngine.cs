@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 public enum PolicyActionKind
 {
@@ -88,7 +88,7 @@ public sealed class PolicyEngine : IDisposable
 
     public PolicyEngine(string ssidP, string ssidB)
     {
-        _handle = Native.aw_engine_new(ssidP, ssidB);
+        _handle = Native.via_engine_new(ssidP, ssidB);
         if (_handle == IntPtr.Zero)
         {
             throw new InvalidOperationException("Could not create the shared policy engine.");
@@ -100,7 +100,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_set_config(_handle, ssidP, ssidB);
+            Native.via_engine_set_config(_handle, ssidP, ssidB);
         }
     }
 
@@ -109,7 +109,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_start(_handle, NowMs(), permission, currentSsid, out var result);
+            Native.via_engine_start(_handle, NowMs(), permission, currentSsid, out var result);
             return Read(result);
         }
     }
@@ -119,7 +119,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_stop(_handle, out var result);
+            Native.via_engine_stop(_handle, out var result);
             return Read(result);
         }
     }
@@ -129,7 +129,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_check_begin(_handle, NowMs(), permission, currentSsid, out var result);
+            Native.via_engine_check_begin(_handle, NowMs(), permission, currentSsid, out var result);
             return Read(result);
         }
     }
@@ -139,7 +139,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_scan_result(_handle, found ? 1 : 0, NowMs(), out var result);
+            Native.via_engine_scan_result(_handle, found ? 1 : 0, NowMs(), out var result);
             return Read(result);
         }
     }
@@ -149,7 +149,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_classification_result(
+            Native.via_engine_classification_result(
                 _handle,
                 priorityVisible ? 1 : 0,
                 NowMs(),
@@ -163,7 +163,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_backup_scan_result(_handle, found ? 1 : 0, NowMs(), out var result);
+            Native.via_engine_backup_scan_result(_handle, found ? 1 : 0, NowMs(), out var result);
             return Read(result);
         }
     }
@@ -173,7 +173,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            return Native.aw_engine_association_started(_handle, ssid, NowMs());
+            return Native.via_engine_association_started(_handle, ssid, NowMs());
         }
     }
 
@@ -182,7 +182,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_association_result(
+            Native.via_engine_association_result(
                 _handle,
                 ssid,
                 generation,
@@ -198,7 +198,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_late_association_result(
+            Native.via_engine_late_association_result(
                 _handle,
                 ssid,
                 generation,
@@ -214,7 +214,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_observed_change(
+            Native.via_engine_observed_change(
                 _handle,
                 previousSsid,
                 newSsid,
@@ -229,7 +229,7 @@ public sealed class PolicyEngine : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.aw_engine_snapshot(_handle, out var snapshot);
+            Native.via_engine_snapshot(_handle, out var snapshot);
             return ReadSnapshot(snapshot);
         }
     }
@@ -243,7 +243,7 @@ public sealed class PolicyEngine : IDisposable
                 return;
             }
 
-            Native.aw_engine_free(_handle);
+            Native.via_engine_free(_handle);
             _handle = IntPtr.Zero;
             _disposed = true;
         }
@@ -259,14 +259,14 @@ public sealed class PolicyEngine : IDisposable
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-    private static PolicyResult Read(Native.AwResult result)
+    private static PolicyResult Read(Native.ViaResult result)
     {
         var actions = new List<PolicyAction>(Math.Max(0, result.Count));
-        var size = Marshal.SizeOf<Native.AwAction>();
+        var size = Marshal.SizeOf<Native.ViaAction>();
         for (var index = 0; index < result.Count; index++)
         {
             var pointer = IntPtr.Add(result.Actions, index * size);
-            var raw = Marshal.PtrToStructure<Native.AwAction>(pointer);
+            var raw = Marshal.PtrToStructure<Native.ViaAction>(pointer);
             actions.Add(new PolicyAction(
                 (PolicyActionKind)raw.Kind,
                 ReadUtf8(raw.Ssid),
@@ -278,7 +278,7 @@ public sealed class PolicyEngine : IDisposable
         return new PolicyResult(actions, ReadSnapshot(result.Snapshot));
     }
 
-    private static PolicySnapshot ReadSnapshot(Native.AwSnapshot snapshot)
+    private static PolicySnapshot ReadSnapshot(Native.ViaSnapshot snapshot)
     {
         return new PolicySnapshot(
             snapshot.Running != 0,
@@ -316,7 +316,7 @@ public sealed class PolicyEngine : IDisposable
     private static class Native
     {
         [StructLayout(LayoutKind.Sequential)]
-        public struct AwAction
+        public struct ViaAction
         {
             public int Kind;
             public int Role;
@@ -327,7 +327,7 @@ public sealed class PolicyEngine : IDisposable
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct AwSnapshot
+        public struct ViaSnapshot
         {
             public int Running;
             public int Role;
@@ -339,100 +339,100 @@ public sealed class PolicyEngine : IDisposable
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct AwResult
+        public struct ViaResult
         {
             public int Count;
             public IntPtr Actions;
-            public AwSnapshot Snapshot;
+            public ViaSnapshot Snapshot;
         }
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr aw_engine_new(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr via_engine_new(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssidP,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssidB);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_free(IntPtr engine);
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_free(IntPtr engine);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_set_config(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_set_config(
             IntPtr engine,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssidP,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssidB);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_start(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_start(
             IntPtr engine,
             long nowMs,
             int permission,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? currentSsid,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_stop(IntPtr engine, out AwResult result);
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_stop(IntPtr engine, out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_check_begin(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_check_begin(
             IntPtr engine,
             long nowMs,
             int permission,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? currentSsid,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_scan_result(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_scan_result(
             IntPtr engine,
             int found,
             long nowMs,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_classification_result(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_classification_result(
             IntPtr engine,
             int priorityVisible,
             long nowMs,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_backup_scan_result(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_backup_scan_result(
             IntPtr engine,
             int found,
             long nowMs,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern ulong aw_engine_association_started(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern ulong via_engine_association_started(
             IntPtr engine,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssid,
             long nowMs);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_association_result(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_association_result(
             IntPtr engine,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssid,
             ulong generation,
             int outcome,
             long nowMs,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_late_association_result(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_late_association_result(
             IntPtr engine,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string ssid,
             ulong generation,
             int succeeded,
             long nowMs,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_observed_change(
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_observed_change(
             IntPtr engine,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? previousSsid,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? newSsid,
             long nowMs,
-            out AwResult result);
+            out ViaResult result);
 
-        [DllImport("autowifi_core", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void aw_engine_snapshot(IntPtr engine, out AwSnapshot snapshot);
+        [DllImport("via_core", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void via_engine_snapshot(IntPtr engine, out ViaSnapshot snapshot);
     }
 }

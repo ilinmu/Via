@@ -40,7 +40,7 @@ data class PolicyResult(
 )
 
 /**
- * Kotlin wrapper around the shared Rust policy engine (libautowifi_jni.so).
+ * Kotlin wrapper around the shared Rust policy engine (libvia_jni.so).
  *
  * The engine is not thread safe; the monitor service keeps one instance on its
  * own coroutine. All strings leaving the bridge are JSON.
@@ -191,7 +191,7 @@ class PolicyEngine(ssidP: String, ssidB: String) : AutoCloseable {
         const val OUTCOME_FAILURE = 2
 
         init {
-            System.loadLibrary("autowifi_jni")
+            System.loadLibrary("via_jni")
         }
     }
 }
@@ -204,7 +204,7 @@ internal fun JSONObject.optNullableString(name: String): String? {
 
 /**
  * Parses the JSON emitted by the JNI bridge. Kept outside [PolicyEngine] so
- * JVM unit tests can exercise it without loading `libautowifi_jni.so`.
+ * JVM unit tests can exercise it without loading `libvia_jni.so`.
  */
 internal fun parsePolicyResult(raw: String?): PolicyResult? {
     if (raw.isNullOrEmpty()) return null

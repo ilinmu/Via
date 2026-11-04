@@ -1,4 +1,4 @@
-name: AutoWifi
+name: Via
 options:
   bundleIdPrefix: io.github.ilinmu
   deploymentTarget:
@@ -13,38 +13,38 @@ settings:
     CODE_SIGN_STYLE: Automatic
 
 targets:
-  AutoWifi:
+  Via:
     type: application
     platform: iOS
     sources:
-      - path: AutoWifi
+      - path: Via
         excludes:
           - "Info.plist"
-          - "AutoWifi.entitlements"
-          - "AutoWifi-Bridging-Header.h"
+          - "Via.entitlements"
+          - "Via-Bridging-Header.h"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.ilinmu.via
         PRODUCT_NAME: Via
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_FILE: AutoWifi/Info.plist
-        CODE_SIGN_ENTITLEMENTS: AutoWifi/AutoWifi.entitlements
-        SWIFT_OBJC_BRIDGING_HEADER: AutoWifi/AutoWifi-Bridging-Header.h
+        INFOPLIST_FILE: Via/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Via/Via.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: Via/Via-Bridging-Header.h
         HEADER_SEARCH_PATHS: $(PROJECT_DIR)/Frameworks/include
         OTHER_LDFLAGS: $(inherited) -framework NetworkExtension -framework CoreLocation -framework Security
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
     dependencies:
-      - framework: Frameworks/AutoWifiCore.xcframework
+      - framework: Frameworks/ViaCore.xcframework
         embed: false
 
-  AutoWifiTests:
+  ViaTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: AutoWifiTests
+      - path: ViaTests
     dependencies:
-      - target: AutoWifi
+      - target: Via
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.ilinmu.via.tests
@@ -54,15 +54,15 @@ targets:
         BUNDLE_LOADER: $(TEST_HOST)
 
 schemes:
-  AutoWifi:
+  Via:
     build:
       targets:
-        AutoWifi: all
+        Via: all
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - AutoWifiTests
+        - ViaTests
     archive:
       config: Release

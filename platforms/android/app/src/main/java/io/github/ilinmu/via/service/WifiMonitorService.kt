@@ -488,7 +488,7 @@ class WifiMonitorService : Service() {
         const val ACTION_REFRESH = "io.github.ilinmu.via.action.REFRESH"
         const val ACTION_RESTART = "io.github.ilinmu.via.action.RESTART"
 
-        private const val CHANNEL_ID = "autowifi_monitor"
+        private const val CHANNEL_ID = "via_monitor"
         private const val NOTIFICATION_ID = 41
         private const val MAX_ACTION_DEPTH = 8
         private const val MAX_LOGS = 50

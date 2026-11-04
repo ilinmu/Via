@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 /// <summary>
 /// Small wrapper over Windows Credential Manager. Passwords are never written
@@ -61,7 +61,7 @@ public sealed class CredentialStore
                 CredentialBlobSize = (uint)bytes.Length,
                 CredentialBlob = blob,
                 Persist = CredPersistLocalMachine,
-                UserName = "AutoWifi"
+                UserName = "Via"
             };
 
             if (!NativeCredential.CredWrite(ref credential, 0))
@@ -88,7 +88,7 @@ public sealed class CredentialStore
         }
     }
 
-    private static string Target(string account) => $"AutoWifi/{account}";
+    private static string Target(string account) => $"Via/{account}";
 
     private static class NativeCredential
     {

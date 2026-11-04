@@ -3,14 +3,14 @@ using System.Runtime.Serialization.Json;
 using System.Text;
 using Microsoft.Win32;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 public static class SettingsStore
 {
     private static string SettingsDirectory =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AutoWifi");
+            "Via");
 
     private static string SettingsPath => Path.Combine(SettingsDirectory, "settings.json");
 
@@ -54,7 +54,7 @@ public static class SettingsStore
 public static class StartupManager
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "AutoWifi";
+    private const string ValueName = "Via";
 
     public static bool IsEnabled()
     {

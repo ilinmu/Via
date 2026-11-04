@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace AutoWifi.Windows.Tests;
+namespace Via.Windows.Tests;
 
 public sealed class PackagingTests
 {
@@ -12,7 +12,7 @@ public sealed class PackagingTests
     public void PolicyCoreIsEmbeddedForThePortableBuild()
     {
         using var stream = typeof(PolicyEngine).Assembly
-            .GetManifestResourceStream("autowifi_core.dll");
+            .GetManifestResourceStream("via_core.dll");
 
         Assert.NotNull(stream);
         Assert.True(stream!.Length > 0);

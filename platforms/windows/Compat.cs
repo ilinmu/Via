@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 /// <summary>
 /// Shims for APIs that .NET Framework 4.8 does not provide.

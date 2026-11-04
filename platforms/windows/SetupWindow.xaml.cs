@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 /// <summary>
 /// First-run wizard. Windows needs no location permission, so the steps are

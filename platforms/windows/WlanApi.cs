@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 /// <summary>
 /// Minimal native WLAN adapter built on wlanapi.dll. It covers the operations
@@ -150,7 +150,7 @@ public static class WlanApi
             }
 
             var guid = interfaceGuid.Value;
-            var profileName = $"AutoWifi-{ssid}";
+            var profileName = $"Via-{ssid}";
             var profileXml = BuildProfileXml(profileName, ssid, password);
             if (WlanSetProfile(
                     handle,

@@ -28,7 +28,7 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun AutoWifiTheme(content: @Composable () -> Unit) {
+fun ViaTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
         content = content,

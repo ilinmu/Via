@@ -9,19 +9,19 @@
 - `MainWindow.xaml(.cs)`：状态 / 网络 / 设置三个 Tab。
 - `SetupWindow.xaml(.cs)`：首次运行的设置向导（欢迎 → 选择网络 → 完成）。
 - `MonitorService.cs`：策略循环，执行扫描和关联动作。
-- `PolicyEngine.cs`：`autowifi_core.dll` 的 P/Invoke 封装。
+- `PolicyEngine.cs`：`via_core.dll` 的 P/Invoke 封装。
 - `NativeCore.cs`：便携版把核心 DLL 嵌入 exe，启动时释放到
-  `%LocalAppData%\AutoWifi\bin` 并按绝对路径加载。
+  `%LocalAppData%\Via\bin` 并按绝对路径加载。
 - `WlanApi.cs`：WlanAPI（扫描、当前 SSID、WLAN 配置文件、连接）。
 - `CredentialStore.cs`：Windows Credential Manager。
-- `SettingsStore.cs`：`%LocalAppData%\AutoWifi\settings.json` 与开机启动注册表项。
+- `SettingsStore.cs`：`%LocalAppData%\Via\settings.json` 与开机启动注册表项。
 
 ## 测试
 
-先运行 `scripts/build-windows-core.ps1` 生成 `autowifi_core.dll`，然后：
+先运行 `scripts/build-windows-core.ps1` 生成 `via_core.dll`，然后：
 
 ```powershell
-dotnet test platforms/windows.tests/AutoWifi.Windows.Tests.csproj
+dotnet test platforms/windows.tests/Via.Windows.Tests.csproj
 ```
 
 xUnit 测试覆盖设置归一化、本地化文案，以及通过 C ABI 驱动的策略引擎行为。
@@ -35,11 +35,11 @@ xUnit 测试覆盖设置归一化、本地化文案，以及通过 C ABI 驱动�
 ./scripts/build-windows-core.ps1
 
 # 免安装单文件：核心 DLL 已嵌入 exe，双击即可运行，约 1 MB
-dotnet publish platforms/windows/AutoWifi.Windows.csproj `
+dotnet publish platforms/windows/Via.Windows.csproj `
   -c Release -p:Platform=x64 -o dist/windows-portable
 
 # 安装程序：发布同一应用的目录，再用 Inno Setup 打包
-dotnet publish platforms/windows/AutoWifi.Windows.csproj `
+dotnet publish platforms/windows/Via.Windows.csproj `
   -c Release -p:Platform=x64 -o dist/windows-app
 ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 ```
@@ -48,7 +48,7 @@ ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
 卸载程序）。`.NET Framework 4.8` 是系统组件，所以两个产物都不需要用户预装
 运行时，体积也只有 1–2 MB。
 
-`AutoWifi.Windows.csproj` 会自动复制 `core/target/.../autowifi_core.dll` 到输出目录。
+`Via.Windows.csproj` 会自动复制 `core/target/.../via_core.dll` 到输出目录。
 
 ## 界面
 
@@ -67,8 +67,8 @@ ISCC.exe /DAppVersion=1.0.0 platforms/windows/installer.iss
   窗口和任务栏。
 - 托盘图标与 macOS 菜单栏图标一致：运行中显示 Wi-Fi + 当前角色（P/B），停止时显示
   红点；颜色随任务栏明暗自动切换，悬停显示当前网络与角色。
-- 密码只写入 Windows Credential Manager（目标名 `AutoWifi/passwordP`、
-  `AutoWifi/passwordB`），不写入 JSON 设置。
+- 密码只写入 Windows Credential Manager（目标名 `Via/passwordP`、
+  `Via/passwordB`），不写入 JSON 设置。
 - 连接使用 `WlanSetProfile` + `WlanConnect`，随后轮询当前 SSID，超时视为失败。
 - 扫描会等待约 2.5 秒让 WlanAPI 完成异步扫描。
 - 登录启动写入当前用户的 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`。

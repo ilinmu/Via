@@ -3,26 +3,6 @@
 version = 4
 
 [[package]]
-name = "autowifi-domain"
-version = "0.1.0"
-
-[[package]]
-name = "autowifi-ffi"
-version = "0.1.0"
-dependencies = [
- "autowifi-domain",
-]
-
-[[package]]
-name = "autowifi-jni"
-version = "0.1.0"
-dependencies = [
- "autowifi-domain",
- "jni",
- "serde_json",
-]
-
-[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -228,6 +208,26 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "via-domain"
+version = "0.1.0"
+
+[[package]]
+name = "via-ffi"
+version = "0.1.0"
+dependencies = [
+ "via-domain",
+]
+
+[[package]]
+name = "via-jni"
+version = "0.1.0"
+dependencies = [
+ "jni",
+ "serde_json",
+ "via-domain",
+]
 
 [[package]]
 name = "walkdir"

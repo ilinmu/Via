@@ -1,10 +1,10 @@
 import Foundation
-import AutoWifiCore
+import ViaCore
 
 // Minimal executable smoke test for the Rust policy core. It intentionally
 // avoids XCTest so it can run with Command Line Tools only.
 //
-//   cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+//   cargo build --manifest-path core/Cargo.toml -p via-ffi --release
 //   swift run PolicySmoke
 
 func require(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -15,7 +15,7 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
 }
 
 guard let engine = WifiPolicyEngine(ssidP: "P", ssidB: "B") else {
-    fputs("policy smoke failed: could not load libautowifi_core.dylib\n", stderr)
+    fputs("policy smoke failed: could not load libvia_core.dylib\n", stderr)
     exit(1)
 }
 

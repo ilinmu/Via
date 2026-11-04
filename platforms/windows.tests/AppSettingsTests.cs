@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace AutoWifi.Windows.Tests;
+namespace Via.Windows.Tests;
 
 public sealed class AppSettingsTests
 {

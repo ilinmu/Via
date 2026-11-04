@@ -5,12 +5,12 @@ SwiftUI 客户端，使用共享 Rust 策略核心和 `NEHotspotConfigurationMan
 ## 结构
 
 - `project.yml`：XcodeGen 工程定义（iOS 16+）。
-- `AutoWifi/PolicyCore.swift`：C ABI 的 Swift 封装。
-- `AutoWifi/WifiController.swift`：状态、定时检查、加入网络。
-- `AutoWifi/ContentView.swift`：状态 / 网络 / 设置三个 Tab 和三步向导。
-- `AutoWifi/KeychainStore.swift`：钥匙串密码存储。
-- `AutoWifi/AutoWifi.entitlements`：Hotspot Configuration 与 Wi-Fi Info 能力。
-- `AutoWifi/Assets.xcassets/AppIcon.appiconset`：应用图标，由
+- `Via/PolicyCore.swift`：C ABI 的 Swift 封装。
+- `Via/WifiController.swift`：状态、定时检查、加入网络。
+- `Via/ContentView.swift`：状态 / 网络 / 设置三个 Tab 和三步向导。
+- `Via/KeychainStore.swift`：钥匙串密码存储。
+- `Via/Via.entitlements`：Hotspot Configuration 与 Wi-Fi Info 能力。
+- `Via/Assets.xcassets/AppIcon.appiconset`：应用图标，由
   `scripts/generate-app-icons.swift` 生成。
 
 ## 测试
@@ -18,11 +18,11 @@ SwiftUI 客户端，使用共享 Rust 策略核心和 `NEHotspotConfigurationMan
 ```bash
 scripts/build-ios-core.sh
 cd platforms/ios && xcodegen generate && cd ../..
-xcodebuild test -project platforms/ios/AutoWifi.xcodeproj -scheme AutoWifi \
+xcodebuild test -project platforms/ios/Via.xcodeproj -scheme Via \
   -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-`AutoWifiTests` 是宿主应用测试 target，覆盖 `L10n` 与共享策略核心的 C ABI 封装。
+`ViaTests` 是宿主应用测试 target，覆盖 `L10n` 与共享策略核心的 C ABI 封装。
 
 ## 构建
 
@@ -31,12 +31,12 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 scripts/build-ios-core.sh
 cd platforms/ios
 xcodegen generate
-xcodebuild -project AutoWifi.xcodeproj -scheme AutoWifi \
+xcodebuild -project Via.xcodeproj -scheme Via \
   -sdk iphonesimulator -configuration Release build
 ```
 
-`scripts/build-ios-core.sh` 会把 `libautowifi_core.a` 和头文件打包到
-`platforms/ios/Frameworks/AutoWifiCore.xcframework`。
+`scripts/build-ios-core.sh` 会把 `libvia_core.a` 和头文件打包到
+`platforms/ios/Frameworks/ViaCore.xcframework`。
 
 ## 真机运行
 

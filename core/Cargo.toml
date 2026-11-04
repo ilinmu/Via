@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/autowifi-domain", "crates/autowifi-ffi", "crates/autowifi-jni"]
+members = ["crates/via-domain", "crates/via-ffi", "crates/via-jni"]
 resolver = "2"
 
 [workspace.package]

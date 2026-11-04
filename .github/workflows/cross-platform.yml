@@ -88,7 +88,7 @@ jobs:
           workspaces: core
 
       - name: Build policy core
-        run: cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+        run: cargo build --manifest-path core/Cargo.toml -p via-ffi --release
 
       # The release build of the app itself is covered by build-macos; running
       # it here as well only repeats work.
@@ -124,7 +124,7 @@ jobs:
 
       - name: Run xUnit tests
         run: >
-          dotnet test platforms/windows.tests/AutoWifi.Windows.Tests.csproj
+          dotnet test platforms/windows.tests/Via.Windows.Tests.csproj
           -c Release
           --logger "console;verbosity=normal"
 
@@ -161,8 +161,8 @@ jobs:
           DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone[^(]*' | head -1 | xargs)
           echo "Using simulator: $DEVICE"
           xcodebuild test \
-            -project platforms/ios/AutoWifi.xcodeproj \
-            -scheme AutoWifi \
+            -project platforms/ios/Via.xcodeproj \
+            -scheme Via \
             -configuration Debug \
             -destination "platform=iOS Simulator,name=$DEVICE" \
             CODE_SIGNING_ALLOWED=NO
@@ -212,7 +212,7 @@ jobs:
           workspaces: core
 
       - name: Build policy core
-        run: cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+        run: cargo build --manifest-path core/Cargo.toml -p via-ffi --release
 
       - name: Package app
         env:
@@ -258,8 +258,8 @@ jobs:
       - name: Build for simulator
         run: >
           xcodebuild
-          -project platforms/ios/AutoWifi.xcodeproj
-          -scheme AutoWifi
+          -project platforms/ios/Via.xcodeproj
+          -scheme Via
           -configuration Release
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
@@ -270,8 +270,8 @@ jobs:
         run: |
           mkdir -p dist
           xcodebuild \
-            -project platforms/ios/AutoWifi.xcodeproj \
-            -scheme AutoWifi \
+            -project platforms/ios/Via.xcodeproj \
+            -scheme Via \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -324,7 +324,7 @@ jobs:
       # the exe (with the Rust core embedded) of roughly 1 MB.
       - name: Publish portable app
         run: >
-          dotnet publish platforms/windows/AutoWifi.Windows.csproj
+          dotnet publish platforms/windows/Via.Windows.csproj
           -c Release
           -p:Platform=x64
           -o dist/windows-portable
@@ -333,7 +333,7 @@ jobs:
       # Inno Setup packs into setup.exe.
       - name: Publish installer payload
         run: >
-          dotnet publish platforms/windows/AutoWifi.Windows.csproj
+          dotnet publish platforms/windows/Via.Windows.csproj
           -c Release
           -p:Platform=x64
           -o dist/windows-app
@@ -455,27 +455,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${APP_VERSION}.${GITHUB_RUN_NUMBER}"
-          cat > notes.md <<EOF
-          由 master 自动构建：${GITHUB_SHA}
-
-          - macOS：Via-macos.zip（未签名）
-          - Windows：Via-windows-portable.exe（免安装，无需预装 .NET 运行时）；
-            Via-windows-setup.exe（安装程序）
-          - iOS：Via-ios.xcarchive.zip（未签名）
-          - Android：Via-android.apk（R8 压缩，debug 签名）
-
-          这些构建未做代码签名，仅用于测试；正式发布需要各自平台的签名流程。
-          EOF
 
           # The job has no checkout, so every gh call needs the repository.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
+            # --generate-notes turns the release body into a changelog built from
+            # the commits since the previous tag instead of build instructions.
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "Via $TAG" \
-              --notes-file notes.md \
+              --generate-notes \
               release/*
           fi
           echo "### 已发布 $TAG" >> "$GITHUB_STEP_SUMMARY"

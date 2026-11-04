@@ -6,7 +6,7 @@ using System.Windows.Media;
 // a Brush type.
 using Brush = System.Windows.Media.Brush;
 
-namespace AutoWifi.Windows;
+namespace Via.Windows;
 
 public partial class MainWindow : Window
 {

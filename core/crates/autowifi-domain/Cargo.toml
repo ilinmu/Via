@@ -1,9 +1,0 @@
-[package]
-name = "autowifi-domain"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-
-[lib]
-name = "autowifi_domain"
-path = "src/lib.rs"

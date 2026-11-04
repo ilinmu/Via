@@ -84,8 +84,8 @@ class SettingsStore(context: Context) {
         const val MAX_INTERVAL = 3600
         const val DEFAULT_INTERVAL = 15
 
-        private const val FILE_PLAIN = "autowifi"
-        private const val FILE_SECURE = "autowifi_secure"
+        private const val FILE_PLAIN = "via"
+        private const val FILE_SECURE = "via_secure"
         private const val KEY_SSID_P = "ssid_p"
         private const val KEY_SSID_B = "ssid_b"
         private const val KEY_INTERVAL = "interval_seconds"

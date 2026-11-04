@@ -4,40 +4,40 @@
 import PackageDescription
 
 let package = Package(
-    name: "AutoWifi",
+    name: "Via",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "AutoWifi", targets: ["AutoWifi"]),
+        .executable(name: "Via", targets: ["Via"]),
         .executable(name: "PolicySmoke", targets: ["PolicySmoke"]),
-        .library(name: "AutoWifiCore", targets: ["AutoWifiCore"])
+        .library(name: "ViaCore", targets: ["ViaCore"])
     ],
     targets: [
         .executableTarget(
-            name: "AutoWifi",
-            dependencies: ["AutoWifiCore"]
+            name: "Via",
+            dependencies: ["ViaCore"]
         ),
         .systemLibrary(
-            name: "CAutoWifiCore",
+            name: "CViaCore",
             path: "core/include"
         ),
         .executableTarget(
             name: "PolicySmoke",
-            dependencies: ["AutoWifiCore"],
+            dependencies: ["ViaCore"],
             path: "Tools/PolicySmoke"
         ),
         .target(
-            name: "AutoWifiCore",
-            dependencies: ["CAutoWifiCore"],
+            name: "ViaCore",
+            dependencies: ["CViaCore"],
             linkerSettings: [
                 .linkedFramework("SystemConfiguration"),
                 .linkedFramework("Security")
             ]
         ),
         .testTarget(
-            name: "AutoWifiTests",
-            dependencies: ["AutoWifiCore"]
+            name: "ViaTests",
+            dependencies: ["ViaCore"]
         )
     ]
 )

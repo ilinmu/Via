@@ -32,7 +32,7 @@ Kotlin + Jetpack Compose 客户端，使用共享 Rust 策略核心（JNI）和�
 （例如密码错误）告诉应用，因此失败在界面上表现为“连接超时，请检查密码和信号”。
 
 应用图标由 `scripts/generate-app-icons.swift` 生成：蓝色渐变背景、缩小的 Wi-Fi
-标记和“Auto”字样。自适应图标的前景图位于 `res/mipmap-*/ic_launcher_foreground.png`。
+标记和“Via”字样。自适应图标的前景图位于 `res/mipmap-*/ic_launcher_foreground.png`。
 
 ## 构建
 
@@ -50,7 +50,7 @@ release 构建启用 R8 代码压缩和资源裁剪，并用调试密钥签名�
 `app/build/outputs/apk/release/`。CI 会传入 `-PbuildNumber=<运行号>`，让 APK 的
 `versionName`（`1.0.<运行号>`）与 Release 标签一致。
 
-`scripts/build-android-core.sh` 生成 `libautowifi_jni.so` 到
+`scripts/build-android-core.sh` 生成 `libvia_jni.so` 到
 `app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/`。
 
 运行 JVM 单元测试（不需要 NDK）：

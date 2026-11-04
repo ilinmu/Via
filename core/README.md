@@ -1,4 +1,4 @@
-# AutoWifi 共享策略核心
+# Via 共享策略核心
 
 `core/` 是与平台无关的自动切换策略实现，用 Rust 编写，通过稳定的 C ABI 供
 macOS、Windows、Android 和 iOS 复用。它的目标是让四个平台对“什么时候扫描、
@@ -14,16 +14,16 @@ macOS、Windows、Android 和 iOS 复用。它的目标是让四个平台对“�
 core/
 ├── Cargo.toml                  Rust workspace
 ├── crates/
-│   ├── autowifi-domain/        纯策略状态机（无依赖、无 I/O）
-│   └── autowifi-ffi/           C ABI 导出层（staticlib / cdylib）
+│   ├── via-domain/            纯策略状态机（无依赖、无 I/O）
+│   └── via-ffi/               C ABI 导出层（staticlib / cdylib）
 ├── include/
-│   ├── autowifi_core.h         权威 C 头文件
+│   ├── via_core.h             权威 C 头文件
 │   └── module.modulemap        SwiftPM systemLibrary 模块
 └── tests/
     └── ffi_smoke.c             C ABI 快速验证
 ```
 
-`autowifi-domain` 不依赖任何第三方 crate，也不读取时钟、文件、钥匙串或系统
+`via-domain` 不依赖任何第三方 crate，也不读取时钟、文件、钥匙串或系统
 网络状态。它只接收调用方传入的 `now_ms` 和观察结果，返回一组 `Action`。
 
 ## 设计约束
@@ -65,14 +65,14 @@ core/
 
 ```bash
 cargo test --manifest-path core/Cargo.toml
-cargo build --manifest-path core/Cargo.toml -p autowifi-ffi --release
+cargo build --manifest-path core/Cargo.toml -p via-ffi --release
 ```
 
 构建产物：
 
-- `core/target/release/libautowifi_core.dylib`（macOS）
-- `core/target/release/libautowifi_core.a`（静态库）
-- 其它平台对应 `libautowifi_core.so` / `autowifi_core.dll` 等
+- `core/target/release/libvia_core.dylib`（macOS）
+- `core/target/release/libvia_core.a`（静态库）
+- 其它平台对应 `libvia_core.so` / `via_core.dll` 等
 
 仓库脚本会构建并复制动态库到 `dist/`：
 
@@ -85,31 +85,31 @@ scripts/build-core.sh debug    # debug
 
 ```bash
 cc -I core/include core/tests/ffi_smoke.c \
-  core/target/release/libautowifi_core.a \
-  -o /tmp/autowifi-ffi-smoke
-/tmp/autowifi-ffi-smoke
+  core/target/release/libvia_core.a \
+  -o /tmp/via-ffi-smoke
+/tmp/via-ffi-smoke
 ```
 
 看到 `ffi smoke ok` 即表示 C ABI 的创建、扫描、关联、超时和手动覆盖路径正常。
 
 ## C ABI 约定
 
-头文件：[`include/autowifi_core.h`](include/autowifi_core.h)
+头文件：[`include/via_core.h`](include/via_core.h)
 
 - 枚举值以稳定的整数编码导出，新增值只追加、不复用。
-- `AwResult` 中的 `actions`、`ssid` 以及 `AwSnapshot` 中的 SSID 指针由引擎
+- `ViaResult` 中的 `actions`、`ssid` 以及 `ViaSnapshot` 中的 SSID 指针由引擎
   持有，**只在下一次调用同一引擎前有效**。调用方需要保留时应立即复制。
 - 字符串为 NUL 结尾的 UTF-8。
-- 每个 `AwEngine` 必须用 `aw_engine_new` 创建、`aw_engine_free` 释放。
+- 每个 `ViaEngine` 必须用 `via_engine_new` 创建、`via_engine_free` 释放。
 - 引擎不是线程安全的；不要并发调用同一个实例。
 
-Swift 侧通过 `Sources/AutoWifiCore/WifiPolicy.swift` 使用 `dlopen`/`dlsym`
+Swift 侧通过 `Sources/ViaCore/WifiPolicy.swift` 使用 `dlopen`/`dlsym`
 加载动态库，因此 SwiftPM 构建不依赖 XCFramework。加载顺序：
 
-1. 环境变量 `AUTOWIFI_CORE_PATH`
-2. `Contents/Frameworks/libautowifi_core.dylib`
+1. 环境变量 `VIA_CORE_PATH`
+2. `Contents/Frameworks/libvia_core.dylib`
 3. bundle 根目录及其它常见位置
-4. 从当前目录向上查找 `core/target/{release,debug}/libautowifi_core.dylib`
+4. 从当前目录向上查找 `core/target/{release,debug}/libvia_core.dylib`
 
 找不到核心时，macOS 应用会退回原有的 Swift 逻辑，不会崩溃。
 
@@ -138,7 +138,7 @@ Swift 侧通过 `Sources/AutoWifiCore/WifiPolicy.swift` 使用 `dlopen`/`dlsym`
 
 ## 当前 macOS 接入范围
 
-已接入（`Sources/AutoWifiCore/WifiManager.swift`）：
+已接入（`Sources/ViaCore/WifiManager.swift`）：
 
 - 配置同步：`set_config`
 - 启动/停止：`start` / `stop`

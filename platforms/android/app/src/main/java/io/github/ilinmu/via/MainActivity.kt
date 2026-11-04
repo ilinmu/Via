@@ -18,7 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import io.github.ilinmu.via.ui.AppViewModel
-import io.github.ilinmu.via.ui.AutoWifiApp
+import io.github.ilinmu.via.ui.ViaApp
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
             // Permissions are requested from the wizard (or the status card)
             // instead of immediately on launch, so a fresh install opens on
             // the setup wizard rather than on a system dialog.
-            AutoWifiApp(
+            ViaApp(
                 viewModel = viewModel,
                 hasPermission = hasPermission,
                 onRequestPermission = { permissionLauncher.launch(requiredPermissions()) },
