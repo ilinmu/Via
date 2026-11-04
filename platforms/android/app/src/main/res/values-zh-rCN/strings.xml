@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">自动 Wi-Fi 助手</string>
+    <string name="app_name">Via</string>
     <string name="notification_channel_name">Wi-Fi 监控</string>
     <string name="notification_channel_description">保持优先/备用网络切换策略运行。</string>
-    <string name="notification_title">自动 Wi-Fi 助手</string>
+    <string name="notification_title">Via</string>
     <string name="notification_text">正在监控优先网络和备用网络。</string>
 </resources>

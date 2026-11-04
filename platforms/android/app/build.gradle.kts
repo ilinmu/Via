@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.autowifi"
+    namespace = "io.github.ilinmu.via"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.autowifi"
+        applicationId = "io.github.ilinmu.via"
         minSdk = 29
         targetSdk = 35
         // CI passes -PbuildNumber=<run number> so the APK version matches the

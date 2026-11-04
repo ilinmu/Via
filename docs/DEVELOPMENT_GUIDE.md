@@ -1,8 +1,8 @@
-# AutoWifi 开发与打包指南
+# Via 开发与打包指南
 
 ## 1. 先理解这个项目是什么
 
-AutoWifi 是一个 macOS 菜单栏应用，用来在两个 Wi-Fi 之间做自动切换：
+Via 是一个 macOS 菜单栏应用，用来在两个 Wi-Fi 之间做自动切换：
 
 - `P`：优先网络
 - `B`：备用网络
@@ -234,7 +234,7 @@ macOS 会把 SSID 和 Wi-Fi 扫描结果视作定位相关信息，所以项目�
 
 ### 6.3 本地密码存储与签名
 
-Wi-Fi 密码通过 `Security` 框架写入当前用户登录钥匙串的通用密码项（generic password），服务名为 `com.linmu.AutoWifi`，账户名为 `passwordP` / `passwordB`。应用不会把密码上传到网络服务。
+Wi-Fi 密码通过 `Security` 框架写入当前用户登录钥匙串的通用密码项（generic password），服务名为 `io.github.ilinmu.via`，账户名为 `passwordP` / `passwordB`。应用不会把密码上传到网络服务。
 
 需要注意：
 

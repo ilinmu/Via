@@ -1,6 +1,8 @@
-# AutoWifi
+# Via
 
-AutoWifi 是一个跨平台的 Wi-Fi 自动切换工具，目前提供 macOS、Windows、iOS 和 Android 客户端。它允许用户配置一个优先网络 `P` 和一个备用网络 `B`，在优先网络不可用时自动连接备用网络，并在优先网络恢复后切回去。
+Via 是一个跨平台的 Wi-Fi 自动切换工具，目前提供 macOS、Windows、iOS 和 Android 客户端。它允许用户配置一个优先网络 `P` 和一个备用网络 `B`，在优先网络不可用时自动连接备用网络，并在优先网络恢复后切回去。
+
+代码中的 SwiftPM 与 iOS 工程目标、Windows 程序集和发布产物仍沿用 `AutoWifi` 名称；应用标识已统一为 `io.github.ilinmu.via`。
 
 四个平台共用 `core/` 中的 Rust 策略状态机；平台层只负责扫描、关联、授权和界面。各平台受系统 API 限制的能力差异见 [docs/CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md)。
 

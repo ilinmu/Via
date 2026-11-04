@@ -1,11 +1,11 @@
-package com.autowifi
+package io.github.ilinmu.via
 
 import java.util.Locale
 
 /** Minimal in-app localization, matching the macOS and Windows shells. */
 object L10n {
     private val strings: Map<String, Pair<String, String>> = mapOf(
-        "app_name" to ("自动 Wi-Fi 助手" to "Auto-Wifi"),
+        "app_name" to ("Via" to "Via"),
         "tab_status" to ("状态" to "Status"),
         "tab_networks" to ("网络" to "Networks"),
         "tab_settings" to ("设置" to "Settings"),

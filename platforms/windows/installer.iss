@@ -5,7 +5,7 @@
 ;   ISCC.exe /DAppVersion=1.0.<run number> platforms/windows/installer.iss
 ; which produces dist/AutoWifi-windows-setup.exe.
 
-#define MyAppName "Auto-Wifi"
+#define MyAppName "Via"
 #define MyAppExeName "AutoWifi.exe"
 
 #ifndef AppVersion
@@ -18,7 +18,7 @@ AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppVerName={#MyAppName} {#AppVersion}
 AppPublisher={#MyAppName}
-DefaultDirName={autopf}\Auto-Wifi
+DefaultDirName={autopf}\Via
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist

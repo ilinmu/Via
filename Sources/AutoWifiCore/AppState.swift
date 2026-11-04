@@ -4,8 +4,8 @@ import OSLog
 
 @MainActor
 public class AppState: ObservableObject {
-    private static let logger = Logger(subsystem: "com.linmu.AutoWifi", category: "runtime")
-    private static let diagnosticLogger = Logger(subsystem: "com.linmu.AutoWifi", category: "diagnostic")
+    private static let logger = Logger(subsystem: "io.github.ilinmu.via", category: "runtime")
+    private static let diagnosticLogger = Logger(subsystem: "io.github.ilinmu.via", category: "diagnostic")
     public static let defaultCheckInterval: Double = 60
     public static let minimumCheckInterval: Double = 5
     public static let maximumCheckInterval: Double = 3600

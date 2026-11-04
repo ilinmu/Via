@@ -1,4 +1,4 @@
-package com.autowifi.policy
+package io.github.ilinmu.via.policy
 
 import org.json.JSONObject
 

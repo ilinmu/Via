@@ -165,7 +165,7 @@ fn outcome_from_code(code: jint) -> AssociationOutcome {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeNew(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeNew(
     mut env: JNIEnv,
     _this: JObject,
     ssid_p: JString,
@@ -178,7 +178,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeNew(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeFree(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeFree(
     _env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -191,7 +191,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeFree(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeSetConfig(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeSetConfig(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -205,7 +205,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeSetConfig(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeStart(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeStart(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -226,7 +226,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeStart(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeStop(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeStop(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -239,7 +239,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeStop(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeCheckBegin(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeCheckBegin(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -260,7 +260,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeCheckBegin(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeScanResult(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeScanResult(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -275,7 +275,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeScanResult(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeClassificationResult(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeClassificationResult(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -290,7 +290,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeClassificatio
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeBackupScanResult(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeBackupScanResult(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -305,7 +305,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeBackupScanRes
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeAssociationStarted(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeAssociationStarted(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -320,7 +320,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeAssociationSt
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeAssociationResult(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeAssociationResult(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -343,7 +343,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeAssociationRe
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeLateAssociationResult(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeLateAssociationResult(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -366,7 +366,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeLateAssociati
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeObservedChange(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeObservedChange(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -384,7 +384,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeObservedChang
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeSnapshot(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeSnapshot(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -396,7 +396,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeSnapshot(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeRole(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeRole(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -410,7 +410,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeRole(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeCooldownActive(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeCooldownActive(
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -429,7 +429,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeCooldownActiv
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeIsRecentProgrammaticBackup(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeIsRecentProgrammaticBackup(
     _env: JNIEnv,
     _this: JObject,
     handle: jlong,
@@ -446,7 +446,7 @@ pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeIsRecentProgr
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_autowifi_policy_PolicyEngine_nativeIsCurrentGeneration(
+pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeIsCurrentGeneration(
     _env: JNIEnv,
     _this: JObject,
     handle: jlong,

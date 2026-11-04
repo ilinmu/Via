@@ -1,4 +1,4 @@
-package com.autowifi.ui
+package io.github.ilinmu.via.ui
 
 import android.Manifest
 import android.app.Application
@@ -10,11 +10,11 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.autowifi.L10n
-import com.autowifi.data.SettingsStore
-import com.autowifi.data.WifiRepository
-import com.autowifi.service.MonitorStateBus
-import com.autowifi.service.WifiMonitorService
+import io.github.ilinmu.via.L10n
+import io.github.ilinmu.via.data.SettingsStore
+import io.github.ilinmu.via.data.WifiRepository
+import io.github.ilinmu.via.service.MonitorStateBus
+import io.github.ilinmu.via.service.WifiMonitorService
 import kotlinx.coroutines.launch
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {

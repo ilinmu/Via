@@ -12,7 +12,7 @@ public static class L10n
 
     private static readonly Dictionary<string, string> Chinese = new()
     {
-        ["app_title"] = "自动 Wi-Fi 助手",
+        ["app_title"] = "Via",
         ["app_subtitle"] = "优先网络 P，备用网络 B",
         ["tab_status"] = "状态",
         ["tab_networks"] = "网络",
@@ -53,7 +53,7 @@ public static class L10n
         ["version"] = "版本",
         ["privacy_note"] = "SSID、密码和位置只在本机使用；密码保存在 Windows 凭据管理器中。",
         ["quit_app"] = "退出应用",
-        ["open_app"] = "打开 Auto-Wifi",
+        ["open_app"] = "打开 Via",
         ["role_none"] = "未连接",
         ["role_priority"] = "优先网络",
         ["role_backup"] = "备用网络",
@@ -66,8 +66,8 @@ public static class L10n
         ["connect_failed"] = "连接失败",
         ["windows_limit_hint"] = "Windows 由系统选择最终接入的网络；应用会维护 P/B 配置并执行切换。",
         ["rerun_setup"] = "重新运行设置向导",
-        ["wizard_welcome_title"] = "欢迎使用 Auto-Wifi",
-        ["wizard_welcome_body"] = "Auto-Wifi 会在优先网络 P 不可用时自动切换到备用网络 B。接下来用两步完成设置。",
+        ["wizard_welcome_title"] = "欢迎使用 Via",
+        ["wizard_welcome_body"] = "Via 会在优先网络 P 不可用时自动切换到备用网络 B。接下来用两步完成设置。",
         ["wizard_networks_title"] = "选择优先和备用网络",
         ["wizard_networks_body"] = "扫描附近网络后从下拉列表选择，也可以直接输入 SSID。",
         ["wizard_finish_title"] = "完成",
@@ -82,7 +82,7 @@ public static class L10n
 
     private static readonly Dictionary<string, string> English = new()
     {
-        ["app_title"] = "Auto-Wifi Helper",
+        ["app_title"] = "Via",
         ["app_subtitle"] = "Priority P, Backup B",
         ["tab_status"] = "Status",
         ["tab_networks"] = "Networks",
@@ -123,7 +123,7 @@ public static class L10n
         ["version"] = "Version",
         ["privacy_note"] = "SSIDs, passwords, and location stay on this PC; passwords are stored in Windows Credential Manager.",
         ["quit_app"] = "Quit App",
-        ["open_app"] = "Open Auto-Wifi",
+        ["open_app"] = "Open Via",
         ["role_none"] = "Not Connected",
         ["role_priority"] = "Priority",
         ["role_backup"] = "Backup",
@@ -136,8 +136,8 @@ public static class L10n
         ["connect_failed"] = "Connection failed",
         ["windows_limit_hint"] = "Windows chooses the final network; the app maintains P/B and drives switching.",
         ["rerun_setup"] = "Run Setup Again",
-        ["wizard_welcome_title"] = "Welcome to Auto-Wifi",
-        ["wizard_welcome_body"] = "Auto-Wifi switches to your backup network B when priority P is unavailable. Two quick steps to set it up.",
+        ["wizard_welcome_title"] = "Welcome to Via",
+        ["wizard_welcome_body"] = "Via switches to your backup network B when priority P is unavailable. Two quick steps to set it up.",
         ["wizard_networks_title"] = "Choose priority and backup networks",
         ["wizard_networks_body"] = "Scan for nearby networks and pick one from the list, or type an SSID.",
         ["wizard_finish_title"] = "Finish",

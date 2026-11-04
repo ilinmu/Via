@@ -202,15 +202,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case .none:
                 roleText = i18n.localizedString("role_offline")
             }
-            return "Auto-Wifi: \(ssid) · \(roleText)"
+            return "Via: \(ssid) · \(roleText)"
         case .notConnected:
-            return "Auto-Wifi: \(i18n.localizedString("not_connected"))"
+            return "Via: \(i18n.localizedString("not_connected"))"
         case .permissionPending:
-            return "Auto-Wifi: \(i18n.localizedString("permission_pending"))"
+            return "Via: \(i18n.localizedString("permission_pending"))"
         case .permissionDenied:
-            return "Auto-Wifi: \(i18n.localizedString("location_permission_denied"))"
+            return "Via: \(i18n.localizedString("location_permission_denied"))"
         case .noInterface:
-            return "Auto-Wifi: \(i18n.localizedString("wifi_unavailable"))"
+            return "Via: \(i18n.localizedString("wifi_unavailable"))"
         }
     }
 
@@ -280,7 +280,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             bytesPerRow: 0,
             bitsPerPixel: 0
         ) else {
-            return NSImage(systemSymbolName: "wifi", accessibilityDescription: "Auto-Wifi") ?? NSImage()
+            return NSImage(systemSymbolName: "wifi", accessibilityDescription: "Via") ?? NSImage()
         }
         rep.size = size
 
@@ -292,7 +292,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
 
-        if let symbol = NSImage(systemSymbolName: "wifi", accessibilityDescription: "Auto-Wifi")?
+        if let symbol = NSImage(systemSymbolName: "wifi", accessibilityDescription: "Via")?
             .withSymbolConfiguration(.init(pointSize: 15, weight: .medium)) {
             let colored = symbol.withSymbolConfiguration(.init(paletteColors: [iconColor]))
             colored?.draw(at: NSPoint(x: 0, y: 4), from: .zero, operation: .sourceOver, fraction: 1.0)

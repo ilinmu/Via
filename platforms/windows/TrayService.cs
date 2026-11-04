@@ -33,7 +33,7 @@ public sealed class TrayService : IDisposable
         _icon = new NotifyIcon
         {
             Icon = LoadAppIcon(),
-            Text = "Auto-Wifi",
+            Text = "Via",
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -77,12 +77,12 @@ public sealed class TrayService : IDisposable
     {
         if (!running)
         {
-            return $"Auto-Wifi: {L10n.T("status_paused")}";
+            return $"Via: {L10n.T("status_paused")}";
         }
 
         if (string.IsNullOrWhiteSpace(currentSsid))
         {
-            return $"Auto-Wifi: {L10n.T("not_connected")}";
+            return $"Via: {L10n.T("not_connected")}";
         }
 
         var roleText = role switch
@@ -92,7 +92,7 @@ public sealed class TrayService : IDisposable
             WifiRole.Other => L10n.T("role_other"),
             _ => L10n.T("role_none")
         };
-        return $"Auto-Wifi: {currentSsid} · {roleText}";
+        return $"Via: {currentSsid} · {roleText}";
     }
 
     private static string Truncate(string text) =>

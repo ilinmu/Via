@@ -83,7 +83,7 @@ class SimpleWifiMonitor {
     
     func start() {
         checkInterval = max(5.0, checkInterval)
-        log("Auto-Wifi Monitor Started")
+        log("Via Monitor Started")
         log("Priority Network (P): \(ssidP)")
         log("Backup Network (B): \(ssidB)")
         log("Check Interval: \(checkInterval) seconds")
@@ -157,7 +157,7 @@ if arguments.count >= 2 {
     monitor.passwordP = readPassword(prompt: "Priority Network (P) Password:")
     monitor.passwordB = readPassword(prompt: "Backup Network (B) Password:")
 } else {
-    print("Auto-Wifi Monitor - Command Line Version")
+    print("Via Monitor - Command Line Version")
     print("=========================================")
     print("Enter Priority Network (P) SSID:")
     monitor.ssidP = readLine() ?? ""

@@ -35,7 +35,7 @@ public class LocalizationManager: ObservableObject {
     }
     
     private let chineseStrings: [String: String] = [
-        "app_title": "自动 Wi-Fi 助手",
+        "app_title": "Via",
         "app_subtitle": "智能网络切换中枢",
         "scan_networks": "扫描网络",
         "scanning": "扫描中...",
@@ -184,7 +184,7 @@ public class LocalizationManager: ObservableObject {
     ]
     
     private let englishStrings: [String: String] = [
-        "app_title": "Auto-Wifi Helper",
+        "app_title": "Via",
         "app_subtitle": "Intelligent network switching",
         "scan_networks": "Scan Networks",
         "scanning": "Scanning...",
@@ -317,7 +317,7 @@ public class LocalizationManager: ObservableObject {
         "interval_range_hint": "5–3600 seconds. Out-of-range values are corrected.",
         "onboarding_step_format": "%d / %d",
         "onboarding_permission_title": "Allow Wi-Fi Name Access",
-        "onboarding_permission_body": "macOS treats Wi-Fi names as location data. Auto-Wifi needs this access to read the current network and scan nearby networks.",
+        "onboarding_permission_body": "macOS treats Wi-Fi names as location data. Via needs this access to read the current network and scan nearby networks.",
         "onboarding_permission_later_hint": "You can skip and enter SSIDs manually; auto-switch still requires location access.",
         "onboarding_permission_granted": "Location access granted",
         "onboarding_networks_title": "Choose Priority and Backup",

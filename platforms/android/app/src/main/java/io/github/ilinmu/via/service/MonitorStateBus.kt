@@ -1,4 +1,4 @@
-package com.autowifi.service
+package io.github.ilinmu.via.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

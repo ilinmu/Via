@@ -1,4 +1,4 @@
-package com.autowifi.ui
+package io.github.ilinmu.via.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -78,8 +78,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.autowifi.BuildConfig
-import com.autowifi.service.MonitorState
+import io.github.ilinmu.via.BuildConfig
+import io.github.ilinmu.via.service.MonitorState
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -353,7 +353,7 @@ private fun ConnectionCard(
             if (state.currentSsid != null && state.role != "none") {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = com.autowifi.L10n.role(state.role, viewModel.language),
+                    text = io.github.ilinmu.via.L10n.role(state.role, viewModel.language),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -445,7 +445,7 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
 
         if (viewModel.scanResults.isNotEmpty()) {
             Text(
-                text = com.autowifi.L10n.tf(
+                text = io.github.ilinmu.via.L10n.tf(
                     "networks_found",
                     viewModel.language,
                     viewModel.scanResults.size,
@@ -945,7 +945,7 @@ private fun SetupWizard(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = com.autowifi.L10n.tf("wizard_step", viewModel.language, step + 1),
+            text = io.github.ilinmu.via.L10n.tf("wizard_step", viewModel.language, step + 1),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

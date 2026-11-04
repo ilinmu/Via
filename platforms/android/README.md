@@ -5,11 +5,11 @@ Kotlin + Jetpack Compose 客户端，使用共享 Rust 策略核心（JNI）和�
 
 ## 结构
 
-- `app/src/main/java/com/autowifi/policy/PolicyEngine.kt`：JNI 封装，JSON 结果解析。
-- `app/src/main/java/com/autowifi/data/`：设置、加密密码存储、Wi-Fi 读取。
-- `app/src/main/java/com/autowifi/service/`：前台监控服务、开机广播、状态总线。
-- `app/src/main/java/com/autowifi/ui/`：Compose 界面、主题和 ViewModel。
-- `app/src/main/java/com/autowifi/L10n.kt`：中英文文案。
+- `app/src/main/java/io/github/ilinmu/via/policy/PolicyEngine.kt`：JNI 封装，JSON 结果解析。
+- `app/src/main/java/io/github/ilinmu/via/data/`：设置、加密密码存储、Wi-Fi 读取。
+- `app/src/main/java/io/github/ilinmu/via/service/`：前台监控服务、开机广播、状态总线。
+- `app/src/main/java/io/github/ilinmu/via/ui/`：Compose 界面、主题和 ViewModel。
+- `app/src/main/java/io/github/ilinmu/via/L10n.kt`：中英文文案。
 
 ## 界面
 

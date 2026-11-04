@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="AutoWifi"
+DISPLAY_NAME="${DISPLAY_NAME:-Via}"
 CONFIGURATION="${CONFIGURATION:-release}"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
@@ -16,7 +17,7 @@ INFO_PLIST_TEMPLATE="$ROOT_DIR/AutoWifi/Info.plist"
 ENTITLEMENTS_PATH="$ROOT_DIR/AutoWifi/AutoWifi.entitlements"
 PRIVACY_MANIFEST="$ROOT_DIR/AutoWifi/PrivacyInfo.xcprivacy"
 ICON_SOURCE="$ROOT_DIR/AutoWifi/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png"
-BUNDLE_ID="${BUNDLE_ID:-com.linmu.AutoWifi}"
+BUNDLE_ID="${BUNDLE_ID:-io.github.ilinmu.via}"
 VERSION="${VERSION:-1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 MIN_SYSTEM_VERSION="${MIN_SYSTEM_VERSION:-13.0}"
@@ -64,7 +65,8 @@ Usage:
 Environment variables:
   CONFIGURATION     Build configuration, default: release
   DIST_DIR          Output directory, default: <repo>/dist
-  BUNDLE_ID         App bundle identifier, default: com.linmu.AutoWifi
+  BUNDLE_ID         App bundle identifier, default: io.github.ilinmu.via
+  DISPLAY_NAME      App display name, default: Via
   VERSION           CFBundleShortVersionString, default: 1.0
   BUILD_NUMBER      CFBundleVersion, default: 1
   MIN_SYSTEM_VERSION Minimum macOS version, default: 13.0
@@ -135,7 +137,8 @@ cp "$CORE_DYLIB" "$FRAMEWORKS_DIR/libautowifi_core.dylib"
 INFO_PLIST_PATH="$CONTENTS_DIR/Info.plist"
 cp "$INFO_PLIST_TEMPLATE" "$INFO_PLIST_PATH"
 set_plist_string "$INFO_PLIST_PATH" "CFBundleExecutable" "$APP_NAME"
-set_plist_string "$INFO_PLIST_PATH" "CFBundleName" "$APP_NAME"
+set_plist_string "$INFO_PLIST_PATH" "CFBundleName" "$DISPLAY_NAME"
+set_plist_string "$INFO_PLIST_PATH" "CFBundleDisplayName" "$DISPLAY_NAME"
 set_plist_string "$INFO_PLIST_PATH" "CFBundleIdentifier" "$BUNDLE_ID"
 set_plist_string "$INFO_PLIST_PATH" "CFBundleShortVersionString" "$VERSION"
 set_plist_string "$INFO_PLIST_PATH" "CFBundleVersion" "$BUILD_NUMBER"

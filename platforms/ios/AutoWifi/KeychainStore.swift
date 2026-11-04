@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 struct KeychainStore {
-    private let service = "com.autowifi.ios.credentials"
+    private let service = "io.github.ilinmu.via.credentials"
 
     func string(for account: String) -> String? {
         let query: [String: Any] = [

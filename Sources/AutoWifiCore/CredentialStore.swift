@@ -26,10 +26,10 @@ public protocol CredentialStore: Sendable {
 public final class KeychainCredentialStore: CredentialStore, @unchecked Sendable {
     public static let shared = KeychainCredentialStore()
 
-    private static let logger = Logger(subsystem: "com.linmu.AutoWifi", category: "credential")
+    private static let logger = Logger(subsystem: "io.github.ilinmu.via", category: "credential")
     private let service: String
 
-    public init(service: String = "com.linmu.AutoWifi") {
+    public init(service: String = "io.github.ilinmu.via") {
         self.service = service
     }
 

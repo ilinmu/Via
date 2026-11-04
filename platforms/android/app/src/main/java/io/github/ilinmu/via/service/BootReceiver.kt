@@ -1,9 +1,9 @@
-package com.autowifi.service
+package io.github.ilinmu.via.service
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.autowifi.data.SettingsStore
+import io.github.ilinmu.via.data.SettingsStore
 
 /** Restarts monitoring after a reboot when the user asked for it. */
 class BootReceiver : BroadcastReceiver() {

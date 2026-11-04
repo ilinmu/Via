@@ -1,4 +1,4 @@
-package com.autowifi.ui
+package io.github.ilinmu.via.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

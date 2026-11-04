@@ -1,4 +1,4 @@
-package com.autowifi.data
+package io.github.ilinmu.via.data
 
 import android.content.Context
 import android.content.SharedPreferences

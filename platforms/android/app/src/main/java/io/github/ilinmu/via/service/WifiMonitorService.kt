@@ -1,4 +1,4 @@
-package com.autowifi.service
+package io.github.ilinmu.via.service
 
 import android.Manifest
 import android.app.Notification
@@ -19,15 +19,15 @@ import android.os.IBinder
 import android.os.SystemClock
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.autowifi.L10n
-import com.autowifi.MainActivity
-import com.autowifi.R
-import com.autowifi.data.NetworkCredential
-import com.autowifi.data.SettingsStore
-import com.autowifi.data.WifiRepository
-import com.autowifi.policy.PolicyAction
-import com.autowifi.policy.PolicyEngine
-import com.autowifi.policy.PolicyResult
+import io.github.ilinmu.via.L10n
+import io.github.ilinmu.via.MainActivity
+import io.github.ilinmu.via.R
+import io.github.ilinmu.via.data.NetworkCredential
+import io.github.ilinmu.via.data.SettingsStore
+import io.github.ilinmu.via.data.WifiRepository
+import io.github.ilinmu.via.policy.PolicyAction
+import io.github.ilinmu.via.policy.PolicyEngine
+import io.github.ilinmu.via.policy.PolicyResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -320,7 +320,7 @@ class WifiMonitorService : Service() {
     }
 
     private fun publish(
-        snapshot: com.autowifi.policy.PolicySnapshot?,
+        snapshot: io.github.ilinmu.via.policy.PolicySnapshot?,
         nextCheckAtMs: Long = scheduledNextCheckAtMs,
     ) {
         val current = snapshot ?: stoppedSnapshot()
@@ -413,7 +413,7 @@ class WifiMonitorService : Service() {
         refreshRequested = true
     }
 
-    private fun stoppedSnapshot() = com.autowifi.policy.PolicySnapshot(
+    private fun stoppedSnapshot() = io.github.ilinmu.via.policy.PolicySnapshot(
         running = false,
         role = "none",
         permission = "unknown",
@@ -483,10 +483,10 @@ class WifiMonitorService : Service() {
     }
 
     companion object {
-        const val ACTION_START = "com.autowifi.action.START"
-        const val ACTION_STOP = "com.autowifi.action.STOP"
-        const val ACTION_REFRESH = "com.autowifi.action.REFRESH"
-        const val ACTION_RESTART = "com.autowifi.action.RESTART"
+        const val ACTION_START = "io.github.ilinmu.via.action.START"
+        const val ACTION_STOP = "io.github.ilinmu.via.action.STOP"
+        const val ACTION_REFRESH = "io.github.ilinmu.via.action.REFRESH"
+        const val ACTION_RESTART = "io.github.ilinmu.via.action.RESTART"
 
         private const val CHANNEL_ID = "autowifi_monitor"
         private const val NOTIFICATION_ID = 41

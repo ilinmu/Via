@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Auto-Wifi</string>
+    <string>Via</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -23,9 +23,9 @@
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Auto-Wifi reads the current Wi-Fi name and helps you join your priority or backup network.</string>
+    <string>Via reads the current Wi-Fi name and helps you join your priority or backup network.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Auto-Wifi reads the current Wi-Fi name while it is open so it can follow your P/B configuration.</string>
+    <string>Via reads the current Wi-Fi name while it is open so it can follow your P/B configuration.</string>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true/>
     <key>UILaunchScreen</key>

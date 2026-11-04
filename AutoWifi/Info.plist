@@ -7,11 +7,11 @@
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleDisplayName</key>
-	<string>AutoWifi</string>
+	<string>Via</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.linmu.AutoWifi</string>
+	<string>io.github.ilinmu.via</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -44,9 +44,9 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSLocationUsageDescription</key>
-	<string>AutoWifi needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.</string>
+	<string>Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>AutoWifi needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.</string>
+	<string>Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

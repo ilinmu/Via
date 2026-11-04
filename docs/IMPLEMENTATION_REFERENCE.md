@@ -1,8 +1,8 @@
-# AutoWifi 功能、分支与异常处理实现说明
+# Via 功能、分支与异常处理实现说明
 
 ## 1. 文档范围
 
-本文档以当前仓库中的实际代码为准，完整描述 AutoWifi 的功能、状态、主要执行流程、条件分支、异常处理、持久化方式、系统权限、CLI、打包流程和测试覆盖。
+本文档以当前仓库中的实际代码为准，完整描述 Via 的功能、状态、主要执行流程、条件分支、异常处理、持久化方式、系统权限、CLI、打包流程和测试覆盖。
 
 阅读范围包括：
 
@@ -27,7 +27,7 @@
 
 ## 2. 应用定位与核心规则
 
-AutoWifi 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两个受管 Wi-Fi：
+Via 是一个 macOS 13 及以上版本的菜单栏应用。用户配置两个受管 Wi-Fi：
 
 - `P`：Priority，优先网络。
 - `B`：Backup，备用网络。
@@ -218,7 +218,7 @@ WifiManager
 
 ### 5.4 密码存储
 
-当前实现通过 `CredentialStore` 抽象把两个 Wi-Fi 密码保存到 macOS 钥匙串；生产实现为 `KeychainCredentialStore`（`Security` 框架，service `com.linmu.AutoWifi`），测试使用内存实现。
+当前实现通过 `CredentialStore` 抽象把两个 Wi-Fi 密码保存到 macOS 钥匙串；生产实现为 `KeychainCredentialStore`（`Security` 框架，service `io.github.ilinmu.via`），测试使用内存实现。
 
 密码只供本机 Wi-Fi 关联使用，应用没有上传逻辑。写入空字符串会删除对应钥匙串项。输入采用 400ms 防抖，`flushPendingPasswordSaves()` 会在退出前同步写入。旧版本位于 Defaults `passwordP` / `passwordB` 的明文密码会在首次启动时迁移到钥匙串；只有写入后回读校验一致才删除旧键，迁移失败会保留旧值并显示警告。`CredentialStore` 的读写方法会抛出错误，便于迁移和界面区分“不存在”和“读取失败”。
 
@@ -256,7 +256,7 @@ WifiManager
 | 开启 | `.backup` | `B` |
 | 开启 | `.none` / `.other` | 无附加文字 |
 
-当前网络名会同步到菜单栏 Tooltip，格式为 `Auto-Wifi: <当前网络名>`。
+当前网络名会同步到菜单栏 Tooltip，格式为 `Via: <当前网络名>`。
 
 ## 7. Wi-Fi 和定位抽象
 
@@ -690,7 +690,7 @@ UI 由 `SettingsView` 外壳、三个 Tab 和首次向导组成。`PanelModel` �
 仍未本地化的内容：
 
 - 多数 `WifiManager` 运行日志是英文，仅用于标准输出和 OSLog 排障。
-- 菜单栏 Tooltip 前缀固定为 `Auto-Wifi`（品牌名）。
+- 菜单栏 Tooltip 前缀固定为 `Via`（品牌名）。
 - 语言选项使用“中文”和“English”的自称，便于在任何界面语言下识别。
 
 ### 17.8 状态模型

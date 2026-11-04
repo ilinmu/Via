@@ -1,3 +1,3 @@
-"CFBundleDisplayName" = "AutoWifi";
-"NSLocationUsageDescription" = "macOS 将 Wi-Fi 名称和附近网络扫描视为位置相关信息，因此 AutoWifi 需要定位权限。所有数据仅在这台 Mac 上处理。";
-"NSLocationWhenInUseUsageDescription" = "macOS 将 Wi-Fi 名称和附近网络扫描视为位置相关信息，因此 AutoWifi 需要定位权限。所有数据仅在这台 Mac 上处理。";
+"CFBundleDisplayName" = "Via";
+"NSLocationUsageDescription" = "macOS 将 Wi-Fi 名称和附近网络扫描视为位置相关信息，因此 Via 需要定位权限。所有数据仅在这台 Mac 上处理。";
+"NSLocationWhenInUseUsageDescription" = "macOS 将 Wi-Fi 名称和附近网络扫描视为位置相关信息，因此 Via 需要定位权限。所有数据仅在这台 Mac 上处理。";

@@ -1,4 +1,4 @@
-package com.autowifi
+package io.github.ilinmu.via
 
 import android.Manifest
 import android.content.Intent
@@ -17,8 +17,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import com.autowifi.ui.AppViewModel
-import com.autowifi.ui.AutoWifiApp
+import io.github.ilinmu.via.ui.AppViewModel
+import io.github.ilinmu.via.ui.AutoWifiApp
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()

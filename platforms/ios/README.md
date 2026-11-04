@@ -41,7 +41,7 @@ xcodebuild -project AutoWifi.xcodeproj -scheme AutoWifi \
 ## 真机运行
 
 1. 在 `project.yml` 中填入 `DEVELOPMENT_TEAM`，或直接在 Xcode 里选择团队。
-2. 为 `com.autowifi.ios` 创建 App ID，并启用 Hotspot Configuration 与
+2. 为 `io.github.ilinmu.via` 创建 App ID，并启用 Hotspot Configuration 与
    Access Wi-Fi Information 能力。
 3. 使用描述文件签名后安装。
 

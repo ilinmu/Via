@@ -1,5 +1,5 @@
 # Keep JNI entry points and the policy bridge.
--keep class com.autowifi.policy.PolicyEngine { *; }
+-keep class io.github.ilinmu.via.policy.PolicyEngine { *; }
 -keepclasseswithmembernames class * {
     native <methods>;
 }

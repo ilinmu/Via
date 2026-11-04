@@ -7,7 +7,7 @@ enum L10n {
     }
 
     private static let chinese: [String: String] = [
-        "app_title": "自动 Wi-Fi 助手",
+        "app_title": "Via",
         "tab_status": "状态",
         "tab_networks": "网络",
         "tab_settings": "设置",
@@ -67,7 +67,7 @@ enum L10n {
     ]
 
     private static let english: [String: String] = [
-        "app_title": "Auto-Wifi Helper",
+        "app_title": "Via",
         "tab_status": "Status",
         "tab_networks": "Networks",
         "tab_settings": "Settings",

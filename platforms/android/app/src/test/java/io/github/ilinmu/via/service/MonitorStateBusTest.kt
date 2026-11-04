@@ -1,4 +1,4 @@
-package com.autowifi.service
+package io.github.ilinmu.via.service
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
