@@ -206,6 +206,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     private let programmaticBackupWindow: TimeInterval = 15
     private var isCheckingConnection = false
     private var isHandlingObservedChange = false
+    private var isConfirmingPriorityVisibility = false
     private var pendingObservedChange: ObservedChange?
     private var isAssociating = false
     private var pendingAssociationRequested = false
@@ -213,10 +214,12 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     private var associationGeneration: UInt64 = 0
     private var activeProgrammaticAssociation: ProgrammaticAssociationIntent?
     private var needsImmediateRecheck = false
+    private var manualOverrideVerificationTask: Task<Void, Never>?
     private let associationRetryDelay: TimeInterval = 20
     private let associationCooldown: TimeInterval = 90
 
     private struct ObservedChange {
+        let previousSSID: String?
         let ssid: String?
     }
 
@@ -234,12 +237,23 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     var associationTimeout: TimeInterval = 15
 
     /// Settle/rescan timing used to distinguish a manual Wi-Fi switch from an
-    /// automatic fallback. The radio needs a moment after a change before a
-    /// scan reliably reports whether P is still in range. Overridable in tests
-    /// so classification happens immediately.
-    var observedChangeSettleDelay: TimeInterval = 1.0
-    var observedChangeRescanInterval: TimeInterval = 0.5
-    var observedChangeRescanAttempts: Int = 2
+    /// automatic fallback. CoreWLAN may serve the system scan cache for a
+    /// while after a change, and that cache can still list the network the
+    /// radio just lost. One immediate scan is therefore not enough to decide
+    /// that P is available: a manual switch is only confirmed when P is still
+    /// reported after several scans spread over a settling window.
+    /// Overridable in tests so classification happens immediately.
+    var observedChangeSettleDelay: TimeInterval = 2.0
+    var observedChangeRescanInterval: TimeInterval = 2.0
+    var observedChangeRescanAttempts: Int = 3
+
+    /// A stop caused by a suspected manual switch gets one delayed review. If
+    /// P is really gone by then, the stop was a stale-scan false positive and
+    /// monitoring resumes so P reconnects automatically when it returns.
+    /// A genuine manual switch keeps P visible and stays stopped.
+    var manualOverrideVerificationDelay: TimeInterval = 25
+    var manualOverrideVerificationAttempts: Int = 2
+    var manualOverrideVerificationInterval: TimeInterval = 3
 
     
     public init(appState: AppState,
@@ -385,39 +399,20 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             self.interface = self.resolvedInterface()
             let newSSID = self.interface?.ssid()
             self.lastObservedSSID = newSSID
-            
+
             // 4. Analyze the change
-            
+
             // Case A: Switched to Priority Network (P)
             if newSSID == self.appState.ssidP {
                 self.appState.log("Connected to Priority Network (P). Auto-switch active.")
                 self.refreshStatus()
                 return
             }
-            
-            // Case B: Disconnected (nil)
-            // If P just disappeared, proactively connect to B before macOS
-            // roams to some other saved network. Otherwise this is a transient
-            // state during a manual switch and we should wait for the follow-up
-            // SSID event instead of acting prematurely.
-            if newSSID == nil {
-                if previousSSID == self.appState.ssidP {
-                    let priorityStillVisible = await self.isPriorityVisibleAfterSettling()
-                    if priorityStillVisible {
-                        self.appState.log("Disconnected from P while it is still visible. Waiting for the manual switch to complete.")
-                    } else {
-                        self.appState.log("Priority network lost. Connecting to backup network B.")
-                        await self.failoverToBackupIfAvailable()
-                    }
-                } else {
-                    self.appState.log("Network disconnected. Waiting...")
-                }
-                self.refreshStatus()
-                return
-            }
-            
-            // Case C/D: Switched away from priority network.
-            await self.handleObservedNetworkChange(to: newSSID)
+
+            // Everything else, including a disconnect, is classified while
+            // serialized: a disconnect is often followed immediately by macOS
+            // auto-joining B, and both events must not run competing scans.
+            await self.handleObservedNetworkChange(from: previousSSID, to: newSSID)
             self.refreshStatus()
         }
     }
@@ -514,6 +509,8 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
 
     public func stopMonitoring() {
+        manualOverrideVerificationTask?.cancel()
+        manualOverrideVerificationTask = nil
         stopMonitoring(logMessage: "Stopped monitoring.")
     }
 
@@ -523,6 +520,51 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
 
         if wasRunning, let logMessage {
             appState.log(logMessage)
+        }
+    }
+
+    /// Stops for a suspected manual switch, then reviews that decision later.
+    ///
+    /// The review is what keeps a stale CoreWLAN scan cache from leaving the
+    /// app permanently stopped after P is lost: if P is really unavailable,
+    /// auto-switch resumes on its own and will reconnect when P returns.
+    private func stopForManualOverride(logMessage: String) {
+        stopMonitoring(logMessage: logMessage)
+        scheduleManualOverrideVerification()
+    }
+
+    private func scheduleManualOverrideVerification() {
+        manualOverrideVerificationTask?.cancel()
+
+        let delay = manualOverrideVerificationDelay
+        manualOverrideVerificationTask = Task { @MainActor [weak self] in
+            if delay > 0 {
+                try? await Task.sleep(for: .seconds(delay))
+            }
+            guard !Task.isCancelled, let self else { return }
+            guard !self.appState.isRunning else { return }
+            guard !self.appState.ssidP.isEmpty, !self.appState.ssidB.isEmpty else { return }
+
+            let priorityVisible = await self.isPriorityVisibleAfterSettling(
+                settleDelay: 0,
+                attempts: self.manualOverrideVerificationAttempts,
+                interval: self.manualOverrideVerificationInterval,
+                considerEarlierScans: true,
+                confirmsObservedChange: false
+            )
+
+            guard !Task.isCancelled, !self.appState.isRunning else { return }
+
+            if priorityVisible {
+                self.appState.log("Manual switch confirmed. Auto-switch remains off.")
+                return
+            }
+
+            self.appState.log(
+                "ℹ️ Priority network is unavailable. Resuming auto-switch after the earlier manual-switch stop."
+            )
+            self.appState.diagnostic("manualOverride.false_positive_resumed")
+            await self.startMonitoring()
         }
     }
 
@@ -559,6 +601,11 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         // Association owns the radio. A timer check must not scan or issue a
         // second association while one is in flight.
         guard !isAssociating else { return }
+
+        // An observed change owns classification. A scheduled check during
+        // that window could act on the same stale scan cache and issue a
+        // competing association, so let the classification finish first.
+        guard !isConfirmingPriorityVisibility else { return }
 
         guard let interface = activeInterface() else {
             appState.setNetworkStatus(.noInterface)
@@ -693,20 +740,20 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         }
     }
 
-    private func handleObservedNetworkChange(to newSSID: String?) async {
+    private func handleObservedNetworkChange(from previousSSID: String?, to newSSID: String?) async {
         if isHandlingObservedChange {
             // Classification scans can take seconds. Keep only the newest
             // event instead of dropping it, then process it after the current
             // classification completes.
-            pendingObservedChange = ObservedChange(ssid: newSSID)
+            pendingObservedChange = ObservedChange(previousSSID: previousSSID, ssid: newSSID)
             return
         }
 
         isHandlingObservedChange = true
-        var current = ObservedChange(ssid: newSSID)
+        var current = ObservedChange(previousSSID: previousSSID, ssid: newSSID)
 
         while true {
-            await processObservedNetworkChange(to: current.ssid)
+            await processObservedNetworkChange(from: current.previousSSID, to: current.ssid)
 
             guard appState.isRunning, let pending = pendingObservedChange else {
                 break
@@ -719,7 +766,26 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         isHandlingObservedChange = false
     }
 
-    private func processObservedNetworkChange(to newSSID: String?) async {
+    private func processObservedNetworkChange(from previousSSID: String?, to newSSID: String?) async {
+        // Disconnected. If P just disappeared, proactively connect to B
+        // before macOS roams to some other saved network. Otherwise this is a
+        // transient state during a manual switch and we should wait for the
+        // follow-up SSID event instead of acting prematurely.
+        if newSSID == nil {
+            if previousSSID == appState.ssidP {
+                let priorityStillVisible = await isPriorityVisibleAfterSettling()
+                if priorityStillVisible {
+                    appState.log("Disconnected from P while it is still visible. Waiting for the manual switch to complete.")
+                } else {
+                    appState.log("Priority network lost. Connecting to backup network B.")
+                    await failoverToBackupIfAvailable()
+                }
+            } else {
+                appState.log("Network disconnected. Waiting...")
+            }
+            return
+        }
+
         // Switched to the configured backup network. An association this app
         // itself just initiated is definitely an automatic failover. Otherwise
         // wait for the radio to settle and rescan P: if P is still visible the
@@ -733,7 +799,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
                 let priorityVisible = await isPriorityVisibleAfterSettling()
                 if priorityVisible {
                     appState.log("⚠️ Switched to backup network while P is still available. Assuming manual override.")
-                    stopMonitoring(
+                    stopForManualOverride(
                         logMessage: "⚠️ Manual switch to backup network (\(appState.ssidB)). Auto-switch stopped."
                     )
                 } else {
@@ -769,7 +835,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         // system fell back after P was lost (try to recover to B and continue).
         let priorityVisible = await isPriorityVisibleAfterSettling()
         if priorityVisible {
-            stopMonitoring(
+            stopForManualOverride(
                 logMessage: "⚠️ Switched to unmanaged network (\(newSSID ?? "Unknown")). Auto-switch stopped."
             )
         } else {
@@ -790,26 +856,70 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         }
     }
 
-    private func isPriorityVisibleAfterSettling() async -> Bool {
-        if observedChangeSettleDelay > 0 {
-            try? await Task.sleep(for: .seconds(observedChangeSettleDelay))
+    /// Repeatedly probes for P after an observed SSID change.
+    ///
+    /// A single immediate scan cannot prove that P is available: CoreWLAN may
+    /// serve a system scan cache that still lists the network the radio just
+    /// lost, and that stale entry is exactly what made a lost P look like a
+    /// manual switch. The result of the newest successful scan wins, so a
+    /// cached hit gets a chance to be replaced by a real scan before anything
+    /// stops monitoring.
+    private func isPriorityVisibleAfterSettling(
+        settleDelay: TimeInterval? = nil,
+        attempts: Int? = nil,
+        interval: TimeInterval? = nil,
+        considerEarlierScans: Bool = false,
+        confirmsObservedChange: Bool = true
+    ) async -> Bool {
+        if confirmsObservedChange {
+            isConfirmingPriorityVisibility = true
+        }
+        defer {
+            if confirmsObservedChange {
+                isConfirmingPriorityVisibility = false
+            }
         }
 
-        let attempts = max(observedChangeRescanAttempts, 1)
-        for _ in 0..<attempts {
-            guard appState.isRunning else { return false }
-            do {
-                if try await scanNetwork(named: appState.ssidP) != nil {
-                    return true
-                }
-            } catch {
-                break
+        let delay = settleDelay ?? observedChangeSettleDelay
+        if delay > 0 {
+            try? await Task.sleep(for: .seconds(delay))
+        }
+
+        let attemptCount = max(attempts ?? observedChangeRescanAttempts, 1)
+        let rescanInterval = interval ?? observedChangeRescanInterval
+        var lastSuccessfulObservation: Bool?
+        var sawPriority = false
+
+        for attempt in 0..<attemptCount {
+            if attempt > 0, rescanInterval > 0 {
+                try? await Task.sleep(for: .seconds(rescanInterval))
             }
-            if observedChangeRescanInterval > 0 {
-                try? await Task.sleep(for: .seconds(observedChangeRescanInterval))
+            if confirmsObservedChange, !appState.isRunning {
+                return false
+            }
+
+            // Re-resolve the interface so a scan does not reuse a CoreWLAN
+            // snapshot created before the radio changed networks.
+            if let resolved = resolvedInterface() {
+                interface = resolved
+            }
+
+            do {
+                let visible = try await scanNetwork(named: appState.ssidP) != nil
+                lastSuccessfulObservation = visible
+                sawPriority = sawPriority || visible
+                appState.diagnostic(
+                    "classification.scan attempt=\(attempt + 1) priorityVisible=\(visible)"
+                )
+            } catch {
+                appState.diagnostic("classification.scan attempt=\(attempt + 1) failed")
             }
         }
-        return false
+
+        if considerEarlierScans {
+            return sawPriority
+        }
+        return lastSuccessfulObservation ?? false
     }
 
     private var isRecentProgrammaticBackup: Bool {
@@ -1077,6 +1187,8 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
 
     private func resetMonitoringState() {
         _ = policy?.stop()
+        manualOverrideVerificationTask?.cancel()
+        manualOverrideVerificationTask = nil
         timer?.invalidate()
         timer = nil
         nextCheckTime = nil
