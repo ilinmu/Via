@@ -106,9 +106,10 @@ public sealed class PolicyEngineTests
         // must come back through ClassificationResult.
         var result = engine.ClassificationResult(priorityVisible: null);
 
-        var action = Assert.Single(result.Actions);
-        Assert.Equal(PolicyActionKind.Log, action.Kind);
-        Assert.Equal((int)PolicyLogEvent.PriorityVisibleUnknown, action.Reason);
+        Assert.Equal(2, result.Actions.Count);
+        Assert.Equal(PolicyActionKind.Log, result.Actions[0].Kind);
+        Assert.Equal((int)PolicyLogEvent.PriorityVisibleUnknown, result.Actions[0].Reason);
+        Assert.Equal(PolicyActionKind.RefreshStatus, result.Actions[1].Kind);
         Assert.True(result.Snapshot.Running);
     }
 
@@ -120,9 +121,10 @@ public sealed class PolicyEngineTests
 
         var result = engine.ScanResult(found: null);
 
-        var action = Assert.Single(result.Actions);
-        Assert.Equal(PolicyActionKind.Log, action.Kind);
-        Assert.Equal((int)PolicyLogEvent.PriorityVisibleUnknown, action.Reason);
+        Assert.Equal(2, result.Actions.Count);
+        Assert.Equal(PolicyActionKind.Log, result.Actions[0].Kind);
+        Assert.Equal((int)PolicyLogEvent.PriorityVisibleUnknown, result.Actions[0].Reason);
+        Assert.Equal(PolicyActionKind.RefreshStatus, result.Actions[1].Kind);
         Assert.True(result.Snapshot.Running);
     }
 
