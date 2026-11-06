@@ -96,11 +96,27 @@ public sealed class PolicyEngineTests
     }
 
     [Fact]
-    public void UnknownScanKeepsMonitoringWithoutAnotherAction()
+    public void UnknownClassificationScanKeepsMonitoringWithoutAnotherAction()
     {
         using var engine = new PolicyEngine("NetworkP", "NetworkB");
         _ = engine.Start(Authorized, "NetworkP");
         _ = engine.ObservedChange("NetworkP", null);
+
+        // An observed change routes the classification scan, so its result
+        // must come back through ClassificationResult.
+        var result = engine.ClassificationResult(priorityVisible: null);
+
+        var action = Assert.Single(result.Actions);
+        Assert.Equal(PolicyActionKind.Log, action.Kind);
+        Assert.Equal((int)PolicyLogEvent.PriorityVisibleUnknown, action.Reason);
+        Assert.True(result.Snapshot.Running);
+    }
+
+    [Fact]
+    public void UnknownRegularScanKeepsMonitoringWithoutAnotherAction()
+    {
+        using var engine = new PolicyEngine("NetworkP", "NetworkB");
+        _ = engine.Start(Authorized, "SomeOtherNetwork");
 
         var result = engine.ScanResult(found: null);
 

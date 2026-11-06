@@ -411,7 +411,12 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p dist
-          cp platforms/android/app/build/outputs/apk/release/app-release.apk dist/Via-android.apk
+          apk=platforms/android/app/build/outputs/apk/release/app-release.apk
+          if [[ ! -f "$apk" ]]; then
+            # Without VIA_RELEASE_KEYSTORE the release build stays unsigned.
+            apk=platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          fi
+          cp "$apk" dist/Via-android.apk
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v7

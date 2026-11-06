@@ -72,6 +72,18 @@ final class PolicyCoreTests: XCTestCase {
             [.scan(.priorityClassification)]
         )
 
+        // An observed change routes the classification scan, so its result
+        // must come back through classificationResult.
+        let actions = engine.classificationResult(priorityVisible: nil)
+
+        XCTAssertEqual(actions, [.log(.priorityVisibleUnknown), .refreshStatus])
+        XCTAssertTrue(engine.snapshot().running)
+    }
+
+    func testUnknownRegularScanKeepsMonitoring() throws {
+        let engine = try XCTUnwrap(PolicyEngine(ssidP: "NetworkP", ssidB: "NetworkB"))
+        _ = engine.start(permission: .authorized, currentSSID: "OtherNetwork")
+
         let actions = engine.scanResult(found: nil)
 
         XCTAssertEqual(actions, [.log(.priorityVisibleUnknown), .refreshStatus])
