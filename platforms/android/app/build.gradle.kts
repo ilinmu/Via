@@ -23,15 +23,32 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // CI publishes unsigned test APKs unless a keystore is configured.
+            // Set these in the local environment or CI secrets; never commit
+            // signing material.
+            val store = System.getenv("VIA_RELEASE_KEYSTORE")
+            if (!store.isNullOrBlank()) {
+                storeFile = file(store)
+                storePassword = System.getenv("VIA_RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("VIA_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("VIA_RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // Release artifacts are R8-shrunk: without it the unused Material
             // icons alone add tens of megabytes.
             isMinifyEnabled = true
             isShrinkResources = true
-            // CI publishes test builds, so the debug key is enough; replace
-            // this with a release keystore before publishing to a store.
-            signingConfig = signingConfigs.getByName("debug")
+            // Without a configured keystore, Gradle leaves the APK unsigned
+            // rather than publishing a package signed with the shared debug key.
+            if (!System.getenv("VIA_RELEASE_KEYSTORE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

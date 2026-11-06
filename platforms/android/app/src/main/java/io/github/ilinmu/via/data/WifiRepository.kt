@@ -22,6 +22,25 @@ class WifiRepository(context: Context) {
     private var cachedNetworks: Set<String> = emptySet()
     private var lastScanElapsedMs = 0L
 
+    @Synchronized
+    private fun cachedNetworks(now: Long, force: Boolean): Set<String>? =
+        if (!force && now - lastScanElapsedMs < SCAN_CACHE_MS && cachedNetworks.isNotEmpty()) {
+            cachedNetworks
+        } else {
+            null
+        }
+
+    @Synchronized
+    private fun storeScanResult(fresh: Set<String>, now: Long) {
+        // `startScan()` succeeding does not mean the result list is ready yet.
+        // Only a non-empty result can prove that the cache should be replaced;
+        // an empty one may be throttling rather than a real disappearance.
+        if (fresh.isNotEmpty()) {
+            cachedNetworks = fresh
+            lastScanElapsedMs = now
+        }
+    }
+
     fun isWifiEnabled(): Boolean = wifiManager?.isWifiEnabled == true
 
     @Suppress("DEPRECATION")
@@ -43,12 +62,11 @@ class WifiRepository(context: Context) {
     suspend fun scan(force: Boolean = false): Set<String> {
         val manager = wifiManager ?: return emptySet()
         val now = SystemClock.elapsedRealtime()
-        if (!force && now - lastScanElapsedMs < SCAN_CACHE_MS && cachedNetworks.isNotEmpty()) {
-            return cachedNetworks
-        }
-        if (!manager.isWifiEnabled) return emptySet()
+        cachedNetworks(now, force)?.let { return it }
+        if (!manager.isWifiEnabled) return cachedNetworks
 
         val started = runCatching { manager.startScan() }.getOrDefault(false)
+        if (!started) return cachedNetworks
         delay(SCAN_SETTLE_MS)
 
         val fresh = runCatching {
@@ -58,12 +76,8 @@ class WifiRepository(context: Context) {
                 .toSet()
         }.getOrDefault(emptySet())
 
-        if (fresh.isNotEmpty() || started) {
-            cachedNetworks = fresh
-            lastScanElapsedMs = now
-            return fresh
-        }
-        return cachedNetworks
+        storeScanResult(fresh, now)
+        return if (fresh.isNotEmpty()) fresh else cachedNetworks
     }
 
     /**
@@ -72,6 +86,18 @@ class WifiRepository(context: Context) {
      * a passphrase is too short) or when the caller lacks permission.
      */
     fun applySuggestions(credentials: List<NetworkCredential>): Boolean {
+        return applySuggestions(credentials, priorityNetwork = null)
+    }
+
+    /**
+     * Registers P and B together. When a policy action asks the system to
+     * prefer one of them, that network gets a higher suggestion priority but
+     * the other one remains registered so it can still be used as a fallback.
+     */
+    fun applySuggestions(
+        credentials: List<NetworkCredential>,
+        priorityNetwork: String?,
+    ): Boolean {
         val manager = wifiManager ?: return false
         return runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -79,23 +105,35 @@ class WifiRepository(context: Context) {
                 if (!existing.isNullOrEmpty()) manager.removeNetworkSuggestions(existing)
             }
             var rejected = false
-            val suggestions = credentials.mapNotNull { credential ->
-                val ssid = credential.ssid.trim()
-                if (ssid.isEmpty()) return@mapNotNull null
-                val builder = WifiNetworkSuggestion.Builder().setSsid(ssid)
-                if (credential.password.isNotEmpty()) {
-                    if (credential.password.length !in 8..63) {
-                        // The system would ignore the suggestion without any
-                        // error, so report the failure to the caller.
-                        rejected = true
-                        return@mapNotNull null
+            val suggestions = credentials
+                .distinctBy { it.ssid.trim() }
+                .mapNotNull { credential ->
+                    val ssid = credential.ssid.trim()
+                    if (ssid.isEmpty()) return@mapNotNull null
+                    val builder = WifiNetworkSuggestion.Builder().setSsid(ssid)
+                    if (credential.password.isNotEmpty()) {
+                        if (credential.password.length !in 8..63) {
+                            // The system would ignore the suggestion without any
+                            // error, so report the failure to the caller.
+                            rejected = true
+                            return@mapNotNull null
+                        }
+                        builder.setWpa2Passphrase(credential.password)
+                    } else {
+                        builder.setIsEnhancedOpen(false)
                     }
-                    builder.setWpa2Passphrase(credential.password)
-                } else {
-                    builder.setIsEnhancedOpen(false)
+                    // setPriority accepts any non-negative int; the API exposes
+                    // no public MAX_PRIORITY constant. A larger number wins
+                    // among this app's suggestions (API 29+).
+                    builder.setPriority(
+                        if (ssid == priorityNetwork?.trim()) {
+                            TARGET_SUGGESTION_PRIORITY
+                        } else {
+                            FALLBACK_SUGGESTION_PRIORITY
+                        }
+                    )
+                    builder.build()
                 }
-                builder.build()
-            }
             if (suggestions.isEmpty()) return !rejected
             manager.addNetworkSuggestions(suggestions) ==
                 WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS && !rejected
@@ -106,5 +144,7 @@ class WifiRepository(context: Context) {
         const val UNKNOWN_SSID = "<unknown ssid>"
         const val SCAN_SETTLE_MS = 2_500L
         const val SCAN_CACHE_MS = 20_000L
+        const val TARGET_SUGGESTION_PRIORITY = 1
+        const val FALLBACK_SUGGESTION_PRIORITY = 0
     }
 }

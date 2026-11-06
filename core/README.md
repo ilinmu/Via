@@ -15,7 +15,8 @@ core/
 ├── Cargo.toml                  Rust workspace
 ├── crates/
 │   ├── via-domain/            纯策略状态机（无依赖、无 I/O）
-│   └── via-ffi/               C ABI 导出层（staticlib / cdylib）
+│   ├── via-ffi/               C ABI 导出层（staticlib / cdylib）
+│   └── via-jni/               Android JNI/JSON 桥（cdylib）
 ├── include/
 │   ├── via_core.h             权威 C 头文件
 │   └── module.modulemap        SwiftPM systemLibrary 模块
@@ -99,9 +100,17 @@ cc -I core/include core/tests/ffi_smoke.c \
 - 枚举值以稳定的整数编码导出，新增值只追加、不复用。
 - `ViaResult` 中的 `actions`、`ssid` 以及 `ViaSnapshot` 中的 SSID 指针由引擎
   持有，**只在下一次调用同一引擎前有效**。调用方需要保留时应立即复制。
-- 字符串为 NUL 结尾的 UTF-8。
+- 字符串为 NUL 结尾的 UTF-8；输入中的非法 UTF-8 按空值处理，包含内部 NUL
+  的 SSID 不会渲染成关联动作。
 - 每个 `ViaEngine` 必须用 `via_engine_new` 创建、`via_engine_free` 释放。
 - 引擎不是线程安全的；不要并发调用同一个实例。
+- 扫描结果与分类结果使用三态整数：`1` = 可见，`0` = 确认不可见，
+  `-1` = 未知/扫描失败。未知结果只记录 `VIA_LOG_PRIORITY_VISIBLE_UNKNOWN`
+  并刷新状态，绝不解释为 P 已丢失；JNI 桥的对应参数也使用同样的整数。
+- 关联结果 `3` = `VIA_ASSOCIATION_ADVISORY_ENDED`：用于系统建议或用户取消，
+  只结束在途关联，不应用失败冷却。
+- `via_engine_snapshot` 接收只读 `const ViaEngine *`；其返回的两个 SSID 指针
+  保存在线程局部缓存中，同样只在下一次快照调用前有效。
 
 Swift 侧通过 `Sources/ViaCore/WifiPolicy.swift` 使用 `dlopen`/`dlsym`
 加载动态库，因此 SwiftPM 构建不依赖 XCFramework。加载顺序：
@@ -119,8 +128,8 @@ Swift 侧通过 `Sources/ViaCore/WifiPolicy.swift` 使用 `dlopen`/`dlsym`
 2. 实现一个适配层，把平台事件翻译成核心调用：
    - 启动/停止、配置变化
    - 权限状态
-   - 扫描结果（是否发现 `P` / `B`）
-   - 关联开始、成功、超时、失败
+   - 三态扫描结果：`P` / `B` 是否发现、或扫描是否无法确认
+   - 关联开始、成功、超时、失败、建议结束（无冷却）
    - 观察到的 SSID 变化
 3. 执行核心返回的 `Action`：
    - `Scan` → 平台扫描 API

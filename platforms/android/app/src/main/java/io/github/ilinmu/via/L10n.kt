@@ -150,6 +150,10 @@ object L10n {
         "event_associationLateSuccess" to ("连接稍后成功" to "Connection succeeded later"),
         "event_associationLateFailure" to ("连接稍后失败" to "Connection failed later"),
         "event_permissionRequired" to ("需要权限" to "Permission required"),
+        "event_priorityVisibleUnknown" to (
+            "无法确认优先网络状态，保持当前连接" to
+                "Could not verify the priority network; keeping the current connection"
+        ),
     )
 
     fun t(key: String, language: String): String {

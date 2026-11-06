@@ -22,7 +22,7 @@ guard let engine = WifiPolicyEngine(ssidP: "P", ssidB: "B") else {
 var actions = engine.start(permission: .authorized, currentSSID: "X")
 require(actions == [.scan(.priorityCheck)], "expected priority scan, got \(actions)")
 
-actions = engine.scanResult(found: true)
+actions = engine.scanResult(found: Optional(true))
 require(
     actions == [.associate(ssid: "P", role: .priority)],
     "expected priority association, got \(actions)"
@@ -36,7 +36,7 @@ require(engine.snapshot().role == .priority, "expected role priority after assoc
 actions = engine.observedChange(previous: "P", new: "B")
 require(actions == [.scan(.priorityClassification)], "expected classification scan, got \(actions)")
 
-actions = engine.classificationResult(priorityVisible: true)
+actions = engine.classificationResult(priorityVisible: Optional(true))
 require(actions.contains(.stop(.manualOverrideBackup)), "expected manual override stop, got \(actions)")
 require(!engine.snapshot().running, "engine should be stopped after manual override")
 
@@ -48,7 +48,7 @@ if let recovery {
     recovery.setPersistedCooldown(target: "B", until: Date().addingTimeInterval(120))
     actions = recovery.checkBegin(permission: .authorized, currentSSID: "B")
     require(actions == [.scan(.priorityCheck)], "expected priority scan despite B cooldown, got \(actions)")
-    actions = recovery.scanResult(found: true)
+    actions = recovery.scanResult(found: Optional(true))
     require(
         actions == [.associate(ssid: "P", role: .priority)],
         "expected priority association despite B cooldown, got \(actions)"

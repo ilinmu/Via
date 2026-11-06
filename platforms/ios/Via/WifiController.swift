@@ -64,6 +64,18 @@ final class WifiController: ObservableObject {
            priority.caseInsensitiveCompare(backup) != .orderedSame {
             policy = PolicyEngine(ssidP: storedPriority, ssidB: storedBackup)
         }
+
+        // Restore the persisted monitoring intent. iOS only checks while the
+        // app is active, so the foreground scene is the sole place to resume it.
+        shouldRestoreMonitoring = defaults.bool(forKey: "isRunning")
+    }
+
+    private var shouldRestoreMonitoring = false
+
+    func resumeMonitoringIfNeeded() async {
+        guard shouldRestoreMonitoring, !isRunning else { return }
+        shouldRestoreMonitoring = false
+        await startMonitoring()
     }
 
     var isComplete: Bool {
@@ -152,14 +164,25 @@ final class WifiController: ObservableObject {
     }
 
     func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
+        pauseForBackground()
         if let policy {
             _ = policy.stop()
         }
         isRunning = false
+        shouldRestoreMonitoring = false
         defaults.set(false, forKey: "isRunning")
         message = L10n.t("monitor_stopped", language)
+    }
+
+    func resumeFromBackground() async {
+        guard isRunning else { return }
+        await checkNow()
+        scheduleTimer()
+    }
+
+    func pauseForBackground() {
+        timer?.invalidate()
+        timer = nil
     }
 
     func checkNow() async {
@@ -202,10 +225,15 @@ final class WifiController: ObservableObject {
         for action in actions {
             switch action {
             case .scan(let purpose):
+                // iOS has no public nearby-network scan. The current SSID only
+                // proves that the network is reachable; it cannot prove that the
+                // other configured network is absent. Report `nil` instead of
+                // `false` so the policy never treats a P/B check as a confirmed
+                // loss and never stops for a supposed manual override.
                 let target = purpose == .priorityCheck || purpose == .priorityClassification
                     ? ssidP
                     : ssidB
-                let visible = currentSSID == target
+                let visible: Bool? = currentSSID == target ? true : nil
                 let next: [PolicyAction]
                 switch purpose {
                 case .priorityClassification:
@@ -223,12 +251,25 @@ final class WifiController: ObservableObject {
                 if joined {
                     currentSSID = ssid
                     lastSSID = ssid
+                } else {
+                    // A user may dismiss iOS's join prompt. This is not a bad
+                    // password or a CoreWLAN-style association timeout, so end
+                    // the in-flight state without the 90-second cooldown.
+                    await execute(
+                        policy.associationResult(
+                            ssid: ssid,
+                            generation: generation,
+                            outcome: 3
+                        ),
+                        policy: policy
+                    )
+                    continue
                 }
                 await execute(
                     policy.associationResult(
                         ssid: ssid,
                         generation: generation,
-                        outcome: joined ? 0 : 2
+                        outcome: 0
                     ),
                     policy: policy
                 )
@@ -329,6 +370,8 @@ final class WifiController: ObservableObject {
             return L10n.t("role_priority", language)
         case .automaticFailover:
             return L10n.t("role_backup", language)
+        case .priorityVisibleUnknown:
+            return L10n.t("scan_unavailable", language)
         default:
             return "\(L10n.t("message", language)): \(event)"
         }

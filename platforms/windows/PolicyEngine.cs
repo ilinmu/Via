@@ -52,7 +52,8 @@ public enum PolicyLogEvent
     AssociationFailure = 18,
     AssociationLateSuccess = 19,
     AssociationLateFailure = 20,
-    PermissionRequired = 21
+    PermissionRequired = 21,
+    PriorityVisibleUnknown = 22
 }
 
 public sealed record PolicyAction(
@@ -134,36 +135,36 @@ public sealed class PolicyEngine : IDisposable
         }
     }
 
-    public PolicyResult ScanResult(bool found)
+    public PolicyResult ScanResult(bool? found)
     {
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.via_engine_scan_result(_handle, found ? 1 : 0, NowMs(), out var result);
+            Native.via_engine_scan_result(_handle, FoundCode(found), NowMs(), out var result);
             return Read(result);
         }
     }
 
-    public PolicyResult ClassificationResult(bool priorityVisible)
+    public PolicyResult ClassificationResult(bool? priorityVisible)
     {
         lock (_gate)
         {
             ThrowIfDisposed();
             Native.via_engine_classification_result(
                 _handle,
-                priorityVisible ? 1 : 0,
+                FoundCode(priorityVisible),
                 NowMs(),
                 out var result);
             return Read(result);
         }
     }
 
-    public PolicyResult BackupScanResult(bool found)
+    public PolicyResult BackupScanResult(bool? found)
     {
         lock (_gate)
         {
             ThrowIfDisposed();
-            Native.via_engine_backup_scan_result(_handle, found ? 1 : 0, NowMs(), out var result);
+            Native.via_engine_backup_scan_result(_handle, FoundCode(found), NowMs(), out var result);
             return Read(result);
         }
     }
@@ -258,6 +259,9 @@ public sealed class PolicyEngine : IDisposable
     }
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    // -1 = unknown, 0 = absent, 1 = visible.
+    private static int FoundCode(bool? found) => found is null ? -1 : (found.Value ? 1 : 0);
 
     private static PolicyResult Read(Native.ViaResult result)
     {

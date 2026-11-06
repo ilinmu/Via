@@ -49,6 +49,7 @@ enum PolicyLogEvent: Int32 {
     case associationLateSuccess = 19
     case associationLateFailure = 20
     case permissionRequired = 21
+    case priorityVisibleUnknown = 22
 }
 
 enum PolicyAction: Equatable {
@@ -125,26 +126,28 @@ final class PolicyEngine {
         return Self.consume(result)
     }
 
-    func scanResult(found: Bool) -> [PolicyAction] {
+    /// `found == nil` means iOS could not prove whether a configured network
+    /// is available; it must not be reported as a confirmed loss.
+    func scanResult(found: Bool?) -> [PolicyAction] {
         var result = ViaResult()
-        via_engine_scan_result(handle, found ? 1 : 0, Self.nowMs(), &result)
+        via_engine_scan_result(handle, Self.foundCode(found), Self.nowMs(), &result)
         return Self.consume(result)
     }
 
-    func classificationResult(priorityVisible: Bool) -> [PolicyAction] {
+    func classificationResult(priorityVisible: Bool?) -> [PolicyAction] {
         var result = ViaResult()
         via_engine_classification_result(
             handle,
-            priorityVisible ? 1 : 0,
+            Self.foundCode(priorityVisible),
             Self.nowMs(),
             &result
         )
         return Self.consume(result)
     }
 
-    func backupScanResult(found: Bool) -> [PolicyAction] {
+    func backupScanResult(found: Bool?) -> [PolicyAction] {
         var result = ViaResult()
-        via_engine_backup_scan_result(handle, found ? 1 : 0, Self.nowMs(), &result)
+        via_engine_backup_scan_result(handle, Self.foundCode(found), Self.nowMs(), &result)
         return Self.consume(result)
     }
 
@@ -258,5 +261,11 @@ final class PolicyEngine {
 
     private static func nowMs() -> Int64 {
         Int64(Date().timeIntervalSince1970 * 1000)
+    }
+
+    // -1 = unknown, 0 = absent, 1 = visible.
+    private static func foundCode(_ found: Bool?) -> Int32 {
+        guard let found else { return -1 }
+        return found ? 1 : 0
     }
 }

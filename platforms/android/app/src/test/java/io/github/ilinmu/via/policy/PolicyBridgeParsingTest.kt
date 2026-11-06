@@ -87,6 +87,39 @@ class PolicyBridgeParsingTest {
     }
 
     @Test
+    fun mapsEveryScanPurposeToItsPolicyCallback() {
+        assertEquals(
+            PolicyEngine.ScanTarget.PriorityCheck,
+            PolicyEngine.ScanTarget.from("priorityCheck"),
+        )
+        assertEquals(
+            PolicyEngine.ScanTarget.PriorityClassification,
+            PolicyEngine.ScanTarget.from("priorityClassification"),
+        )
+        assertEquals(
+            PolicyEngine.ScanTarget.BackupCheck,
+            PolicyEngine.ScanTarget.from("backupCheck"),
+        )
+        assertEquals(
+            PolicyEngine.ScanTarget.BackupFailover,
+            PolicyEngine.ScanTarget.from("backupFailover"),
+        )
+        assertEquals(
+            PolicyEngine.ScanTarget.BackupRecovery,
+            PolicyEngine.ScanTarget.from("backupRecovery"),
+        )
+        assertEquals(null, PolicyEngine.ScanTarget.from("unexpected"))
+
+        // The original P-loss regression: a regular B check must not be
+        // delivered through backupScanResult, which belongs to failover only.
+        val backupCheck = PolicyEngine.ScanTarget.BackupCheck
+        assertEquals(false, backupCheck.ssidP)
+        assertEquals(false, backupCheck.isClassification)
+        assertEquals(false, backupCheck.isFailoverOrRecovery)
+        assertEquals(true, PolicyEngine.ScanTarget.BackupFailover.isFailoverOrRecovery)
+    }
+
+    @Test
     fun rejectsMissingOrMalformedPayloads() {
         assertNull(parsePolicyResult(null))
         assertNull(parsePolicyResult(""))

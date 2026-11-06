@@ -45,7 +45,66 @@ final class PolicyCoreTests: XCTestCase {
         let engine = try XCTUnwrap(PolicyEngine(ssidP: "NetworkP", ssidB: "NetworkB"))
         _ = engine.start(permission: .authorized, currentSSID: "OtherNetwork")
 
-        XCTAssertEqual(engine.scanResult(found: false), [.scan(.backupCheck)])
+        XCTAssertEqual(engine.scanResult(found: Optional(false)), [.scan(.backupCheck)])
+    }
+
+    func testObservedChangeSupersedesStaleScanResult() throws {
+        let engine = try XCTUnwrap(PolicyEngine(ssidP: "NetworkP", ssidB: "NetworkB"))
+        _ = engine.start(permission: .authorized, currentSSID: "OtherNetwork")
+
+        let observed = engine.observedChange(previous: "NetworkP", new: "NetworkB")
+        let stale = engine.scanResult(found: Optional(true))
+
+        XCTAssertEqual(observed, [.scan(.priorityClassification)])
+        XCTAssertEqual(stale, [])
+        XCTAssertEqual(
+            engine.classificationResult(priorityVisible: Optional(false)),
+            [.log(.systemJoinedBackup), .checkNow]
+        )
+        XCTAssertTrue(engine.snapshot().running)
+    }
+
+    func testUnknownPriorityScanKeepsMonitoring() throws {
+        let engine = try XCTUnwrap(PolicyEngine(ssidP: "NetworkP", ssidB: "NetworkB"))
+        _ = engine.start(permission: .authorized, currentSSID: "NetworkP")
+        XCTAssertEqual(
+            engine.observedChange(previous: "NetworkP", new: nil),
+            [.scan(.priorityClassification)]
+        )
+
+        // An observed change routes the classification scan, so its result
+        // must come back through classificationResult.
+        let actions = engine.classificationResult(priorityVisible: nil)
+
+        XCTAssertEqual(actions, [.log(.priorityVisibleUnknown), .refreshStatus])
+        XCTAssertTrue(engine.snapshot().running)
+    }
+
+    func testUnknownRegularScanKeepsMonitoring() throws {
+        let engine = try XCTUnwrap(PolicyEngine(ssidP: "NetworkP", ssidB: "NetworkB"))
+        _ = engine.start(permission: .authorized, currentSSID: "OtherNetwork")
+
+        let actions = engine.scanResult(found: nil)
+
+        XCTAssertEqual(actions, [.log(.priorityVisibleUnknown), .refreshStatus])
+        XCTAssertTrue(engine.snapshot().running)
+    }
+
+    func testAdvisoryAssociationEndsWithoutCooldown() throws {
+        let engine = try XCTUnwrap(PolicyEngine(ssidP: "NetworkP", ssidB: "NetworkB"))
+        _ = engine.start(permission: .authorized, currentSSID: "NetworkP")
+        let generation = engine.associationStarted(ssid: "NetworkP")
+
+        let actions = engine.associationResult(
+            ssid: "NetworkP",
+            generation: generation,
+            outcome: 3
+        )
+
+        XCTAssertEqual(actions, [.refreshStatus])
+        XCTAssertFalse(engine.snapshot().isAssociating)
+        XCTAssertEqual(engine.snapshot().cooldownUntilMs, 0)
+        XCTAssertTrue(engine.snapshot().running)
     }
 
     func testPermissionRequiredWaits() throws {

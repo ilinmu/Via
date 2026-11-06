@@ -160,10 +160,20 @@ public partial class MainWindow : Window
         UpdateStatusBadge(AutoSwitchCheckBox.IsChecked == true);
     }
 
-    private void UpdateStatusBadge(bool running)
+    private void UpdateStatusBadge(bool running, bool restarting = false)
     {
-        StatusBadgeText.Text = L10n.T(running ? "status_running" : "status_paused");
-        StatusDot.Fill = (Brush)FindResource(running ? "SuccessBrush" : "TertiaryTextBrush");
+        StatusBadgeText.Text = L10n.T(
+            restarting
+                ? "status_restarting"
+                : running
+                    ? "status_running"
+                    : "status_paused");
+        StatusDot.Fill = (Brush)FindResource(
+            restarting
+                ? "WarningBrush"
+                : running
+                    ? "SuccessBrush"
+                    : "TertiaryTextBrush");
     }
 
     /// <summary>Validation text is red for errors and secondary for confirmations.</summary>
@@ -219,6 +229,10 @@ public partial class MainWindow : Window
                 ? L10n.T("no_networks")
                 : string.Join(", ", networks);
         }
+        catch (Exception exception)
+        {
+            LastMessageText.Text = exception.Message;
+        }
         finally
         {
             ScanButton.Content = previous;
@@ -253,6 +267,10 @@ public partial class MainWindow : Window
                 ? L10n.T("no_networks")
                 : string.Format(L10n.T("networks_found_format"), networks.Count);
             SetValidation("", false);
+        }
+        catch (Exception exception)
+        {
+            SetValidation(exception.Message, true);
         }
         finally
         {
@@ -388,7 +406,7 @@ public partial class MainWindow : Window
             _syncingUi = true;
             AutoSwitchCheckBox.IsChecked = status.Running;
             _syncingUi = false;
-            UpdateStatusBadge(status.Running);
+            UpdateStatusBadge(status.Running, status.Restarting);
         });
     }
 

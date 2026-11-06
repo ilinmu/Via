@@ -3,6 +3,10 @@ namespace Via.Windows;
 public sealed class MonitorService : IDisposable
 {
     private const int PermissionAuthorized = 1;
+    private const int MaxConsecutiveFailures = 5;
+    private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan RetryMaxDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HealthyRunThreshold = TimeSpan.FromMinutes(1);
 
     private readonly object _gate = new();
     private readonly CredentialStore _credentials;
@@ -48,6 +52,32 @@ public sealed class MonitorService : IDisposable
 
     public void Start()
     {
+        Task? previous;
+        lock (_gate)
+        {
+            if (_disposed || _running)
+            {
+                return;
+            }
+            previous = _loop;
+        }
+
+        // A stop/start toggle can arrive while the cancelled worker is still
+        // finishing a native call. Let it exit instead of silently refusing to
+        // start a new loop; cancellation-aware waits keep this bounded.
+        if (previous is { IsCompleted: false })
+        {
+            try
+            {
+                previous.Wait(TimeSpan.FromSeconds(3));
+            }
+            catch (Exception exception) when (
+                exception is AggregateException or ObjectDisposedException)
+            {
+                // Start will retry only if the old loop has actually finished.
+            }
+        }
+
         lock (_gate)
         {
             if (_disposed || _running || _loop is { IsCompleted: false })
@@ -56,16 +86,18 @@ public sealed class MonitorService : IDisposable
             }
 
             _settings.Normalize();
+            WlanApi.EnsureNotifications();
             _policy?.Dispose();
-            _policy = new PolicyEngine(_settings.SsidP, _settings.SsidB);
+            _policy = null;
+            _cts?.Dispose();
             _cts = new CancellationTokenSource();
             _running = true;
             _lastMessage = L10n.T("monitor_started");
 
-            var policy = _policy!;
             var token = _cts.Token;
-            _loop = Task.Run(() => RunAsync(policy, token), token);
-            Report(policy);
+            // The worker creates and owns its policy engine so a failed loop
+            // can be restarted with a fresh engine without racing the UI.
+            _loop = Task.Run(() => RunAsync(token), token);
         }
     }
 
@@ -92,6 +124,14 @@ public sealed class MonitorService : IDisposable
 
     public void Refresh()
     {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+        }
+
         try
         {
             if (_wake.CurrentCount == 0)
@@ -107,6 +147,8 @@ public sealed class MonitorService : IDisposable
 
     public void Dispose()
     {
+        Task? loop;
+        CancellationTokenSource? cts;
         lock (_gate)
         {
             if (_disposed)
@@ -117,66 +159,116 @@ public sealed class MonitorService : IDisposable
             _disposed = true;
             _running = false;
             _cts?.Cancel();
+            loop = _loop;
+            cts = _cts;
         }
 
+        var completed = true;
         try
         {
-            _loop?.Wait(TimeSpan.FromSeconds(5));
+            completed = loop?.Wait(TimeSpan.FromSeconds(5)) ?? true;
         }
-        catch
+        catch (Exception exception) when (
+            exception is AggregateException or ObjectDisposedException)
         {
             // Shutdown should never be blocked by a slow adapter.
         }
 
-        _policy?.Dispose();
-        _policy = null;
-        _cts?.Dispose();
-        _cts = null;
+        if (!completed)
+        {
+            // The worker may still be in a native call. Leaving its policy,
+            // CTS and semaphore alive is safer than disposing objects it is
+            // using; the process is exiting and will reclaim them.
+            return;
+        }
+
+        PolicyEngine? policy;
+        lock (_gate)
+        {
+            policy = _policy;
+            _policy = null;
+            if (ReferenceEquals(_cts, cts))
+            {
+                _cts = null;
+            }
+        }
+        policy?.Dispose();
+        cts?.Dispose();
         _wake.Dispose();
     }
 
-    private async Task RunAsync(PolicyEngine policy, CancellationToken token)
+    private async Task RunAsync(CancellationToken token)
     {
+        var consecutiveFailures = 0;
+        var retryDelay = RetryBaseDelay;
+
         try
         {
-            var current = _wifi.GetCurrentSsid();
-            Execute(policy, policy.Start(PermissionAuthorized, current).Actions, token);
-            var previous = current;
-
             while (!token.IsCancellationRequested)
             {
-                var interval = Compat.Clamp(_settings.CheckInterval, 5, 3600);
-                var delay = Task.Delay(TimeSpan.FromSeconds(interval), token);
-                var wake = _wake.WaitAsync(token);
-                await Task.WhenAny(delay, wake);
-
-                if (token.IsCancellationRequested)
+                PolicyEngine? policy = null;
+                var attemptStarted = DateTime.UtcNow;
+                try
                 {
-                    break;
+                    var settings = CurrentSettings();
+                    policy = new PolicyEngine(settings.SsidP, settings.SsidB);
+                    lock (_gate)
+                    {
+                        _policy = policy;
+                    }
+                    await RunPolicyLoopAsync(policy, token);
+                    return;
                 }
-
-                current = _wifi.GetCurrentSsid();
-                var result = string.Equals(previous, current, StringComparison.Ordinal)
-                    ? policy.CheckBegin(PermissionAuthorized, current)
-                    : policy.ObservedChange(previous, current);
-                previous = current;
-
-                Execute(policy, result.Actions, token);
-                Report(policy);
-
-                if (!policy.Snapshot().Running)
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
-                    break;
+                    // Normal stop.
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    if (_disposed || token.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    if (DateTime.UtcNow - attemptStarted >= HealthyRunThreshold)
+                    {
+                        consecutiveFailures = 0;
+                        retryDelay = RetryBaseDelay;
+                    }
+                    consecutiveFailures++;
+
+                    if (consecutiveFailures >= MaxConsecutiveFailures)
+                    {
+                        ReportFatal(exception);
+                        return;
+                    }
+
+                    ReportRestarting(exception, retryDelay);
+                    try
+                    {
+                        await Task.Delay(retryDelay, token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    retryDelay = TimeSpan.FromSeconds(Math.Min(
+                        RetryMaxDelay.TotalSeconds,
+                        retryDelay.TotalSeconds * 2));
+                }
+                finally
+                {
+                    lock (_gate)
+                    {
+                        if (ReferenceEquals(_policy, policy))
+                        {
+                            _policy = null;
+                        }
+                    }
+                    policy?.Dispose();
                 }
             }
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal stop.
-        }
-        catch (Exception exception)
-        {
-            SetMessage(exception.Message);
         }
         finally
         {
@@ -184,13 +276,78 @@ public sealed class MonitorService : IDisposable
             {
                 _running = false;
             }
+        }
+    }
 
-            StatusChanged?.Invoke(new MonitorStatus(
-                null,
-                WifiRole.None,
-                false,
-                _lastMessage,
-                null));
+    private async Task RunPolicyLoopAsync(PolicyEngine policy, CancellationToken token)
+    {
+        var current = _wifi.GetCurrentSsid();
+        Execute(policy, policy.Start(PermissionAuthorized, current).Actions, token);
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+        if (!policy.Snapshot().Running)
+        {
+            Report(policy);
+            return;
+        }
+        Report(policy);
+        var previous = current;
+
+        while (!token.IsCancellationRequested)
+        {
+            var settings = CurrentSettings();
+            var interval = Compat.Clamp(settings.CheckInterval, 5, 3600);
+            var delay = Task.Delay(TimeSpan.FromSeconds(interval), token);
+            var wake = _wake.WaitAsync(token);
+            await Task.WhenAny(delay, wake);
+
+            if (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            current = _wifi.GetCurrentSsid();
+            var transitions = _wifi.TakeTransitions();
+            PolicyResult result;
+            if (transitions.Length > 0)
+            {
+                // Deliver the oldest real transitions first so a fast
+                // P → disconnected → B sequence is not compressed.
+                foreach (var transition in transitions.Take(8))
+                {
+                    var observed = policy.ObservedChange(transition.Previous, transition.Current);
+                    Execute(policy, observed.Actions, token);
+                    if (!policy.Snapshot().Running)
+                    {
+                        break;
+                    }
+                }
+                result = policy.CheckBegin(PermissionAuthorized, current);
+            }
+            else
+            {
+                result = string.Equals(previous, current, StringComparison.Ordinal)
+                    ? policy.CheckBegin(PermissionAuthorized, current)
+                    : policy.ObservedChange(previous, current);
+            }
+            previous = current;
+
+            if (policy.Snapshot().Running)
+            {
+                Execute(policy, result.Actions, token);
+            }
+            if (token.IsCancellationRequested)
+            {
+                break;
+            }
+            Report(policy);
+
+            if (!policy.Snapshot().Running)
+            {
+                break;
+            }
         }
     }
 
@@ -214,7 +371,28 @@ public sealed class MonitorService : IDisposable
                     break;
 
                 case PolicyActionKind.Stop:
-                    SetMessage(StopText(action.Reason));
+                    if (!IsManualOverride(action.Reason))
+                    {
+                        SetMessage(StopText(action.Reason));
+                        break;
+                    }
+
+                    // A single stale cached scan can still list a lost P. Delay
+                    // the classification and confirm it before persisting a stop.
+                    if (token.WaitHandle.WaitOne(TimeSpan.FromSeconds(2)))
+                    {
+                        token.ThrowIfCancellationRequested();
+                    }
+                    var settings = CurrentSettings();
+                    var confirmation = _wifi.IsVisible(settings.SsidP, token);
+                    SetMessage(confirmation == true
+                        ? StopText(action.Reason)
+                        : L10n.T("monitor_started"));
+                    if (confirmation != true)
+                    {
+                        var restarted = policy.Start(PermissionAuthorized, _wifi.GetCurrentSsid());
+                        Execute(policy, restarted.Actions, token);
+                    }
                     break;
 
                 case PolicyActionKind.WaitForPermission:
@@ -230,6 +408,8 @@ public sealed class MonitorService : IDisposable
                     break;
 
                 case PolicyActionKind.CheckNow:
+                    // A fresh check is enough to re-evaluate P/B; the outer loop
+                    // schedules the next one after these actions complete.
                     break;
             }
         }
@@ -240,18 +420,19 @@ public sealed class MonitorService : IDisposable
         PolicyAction action,
         CancellationToken token)
     {
+        var settings = CurrentSettings();
         var purpose = (PolicyScanPurpose)action.Purpose;
         var target = purpose switch
         {
-            PolicyScanPurpose.PriorityCheck => _settings.SsidP,
-            PolicyScanPurpose.PriorityClassification => _settings.SsidP,
-            PolicyScanPurpose.BackupCheck => _settings.SsidB,
-            PolicyScanPurpose.BackupFailover => _settings.SsidB,
-            PolicyScanPurpose.BackupRecovery => _settings.SsidB,
+            PolicyScanPurpose.PriorityCheck => settings.SsidP,
+            PolicyScanPurpose.PriorityClassification => settings.SsidP,
+            PolicyScanPurpose.BackupCheck => settings.SsidB,
+            PolicyScanPurpose.BackupFailover => settings.SsidB,
+            PolicyScanPurpose.BackupRecovery => settings.SsidB,
             _ => ""
         };
 
-        var found = _wifi.IsVisible(target);
+        var found = _wifi.IsVisible(target, token);
         var next = purpose switch
         {
             PolicyScanPurpose.PriorityClassification => policy.ClassificationResult(found).Actions,
@@ -274,12 +455,13 @@ public sealed class MonitorService : IDisposable
             return;
         }
 
-        var account = string.Equals(ssid, _settings.SsidP, StringComparison.Ordinal)
+        var settings = CurrentSettings();
+        var account = string.Equals(ssid, settings.SsidP, StringComparison.Ordinal)
             ? "passwordP"
             : "passwordB";
         var password = _credentials.Load(account);
         var generation = policy.AssociationStarted(ssid);
-        var connected = _wifi.Connect(ssid, password);
+        var connected = _wifi.Connect(ssid, password, token);
 
         if (!connected)
         {
@@ -292,17 +474,66 @@ public sealed class MonitorService : IDisposable
             token);
     }
 
+    private void ReportRestarting(Exception exception, TimeSpan retryDelay)
+    {
+        var message = string.Format(
+            L10n.T("monitor_restarting_format"),
+            exception.Message,
+            Math.Round(retryDelay.TotalSeconds));
+        SetMessage(message);
+        StatusChanged?.Invoke(new MonitorStatus(
+            SafeCurrentSsid(),
+            WifiRole.None,
+            true,
+            message,
+            null,
+            true));
+    }
+
+    private void ReportFatal(Exception exception)
+    {
+        var message = string.Format(L10n.T("monitor_failed_format"), exception.Message);
+        SetMessage(message);
+        StatusChanged?.Invoke(new MonitorStatus(
+            SafeCurrentSsid(),
+            WifiRole.None,
+            false,
+            message,
+            null));
+    }
+
     private void Report(PolicyEngine policy)
     {
         var snapshot = policy.Snapshot();
+        var settings = CurrentSettings();
         StatusChanged?.Invoke(new MonitorStatus(
             snapshot.CurrentSsid,
             (WifiRole)snapshot.Role,
             snapshot.Running,
             _lastMessage,
             snapshot.Running
-                ? DateTimeOffset.Now.AddSeconds(Compat.Clamp(_settings.CheckInterval, 5, 3600))
+                ? DateTimeOffset.Now.AddSeconds(Compat.Clamp(settings.CheckInterval, 5, 3600))
                 : null));
+    }
+
+    private AppSettings CurrentSettings()
+    {
+        lock (_gate)
+        {
+            return _settings.Clone();
+        }
+    }
+
+    private string? SafeCurrentSsid()
+    {
+        try
+        {
+            return _wifi.GetCurrentSsid();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void SetMessage(string message)
@@ -310,6 +541,10 @@ public sealed class MonitorService : IDisposable
         _lastMessage = message;
         Log?.Invoke(message);
     }
+
+    private static bool IsManualOverride(int reasonCode) =>
+        (PolicyStopReason)reasonCode is PolicyStopReason.ManualOverrideBackup
+            or PolicyStopReason.ManualOverrideUnmanaged;
 
     private static string LogText(int eventCode)
     {
@@ -319,6 +554,7 @@ public sealed class MonitorService : IDisposable
             PolicyLogEvent.Stopped => "monitor_stopped",
             PolicyLogEvent.PriorityConnected => "role_priority",
             PolicyLogEvent.AutomaticFailover => "role_backup",
+            PolicyLogEvent.PriorityVisibleUnknown => "scan_empty_unknown",
             _ => null
         };
 

@@ -100,39 +100,70 @@ struct StatusTabView: View {
     }
 
     private var autoSwitchRow: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(i18n.localizedString("auto_switch"))
-                    .font(.body)
-                Text(i18n.localizedString("auto_switch_description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        Button(action: toggleAutoSwitch) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(i18n.localizedString("auto_switch"))
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                    Text(i18n.localizedString("auto_switch_description"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            if model.isStarting {
-                ProgressView()
-                    .controlSize(.small)
-            }
-
-            Toggle(
-                "",
-                isOn: Binding(
-                    get: { appState.isRunning },
-                    set: { newValue in
-                        if newValue {
-                            model.startMonitoring()
-                        } else {
-                            model.stopMonitoring()
-                        }
+                if model.isStarting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    HStack(spacing: 5) {
+                        Image(systemName: appState.isRunning ? "stop.circle.fill" : "play.circle.fill")
+                        Text(
+                            i18n.localizedString(
+                                appState.isRunning ? "auto_switch_disable" : "auto_switch_enable"
+                            )
+                        )
+                        .fontWeight(.semibold)
                     }
-                )
+                    .foregroundStyle(autoSwitchTint)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(autoSwitchTint.opacity(0.12))
             )
-            .labelsHidden()
-            .disabled(model.isStarting || (!appState.isRunning && !model.canAutomate))
-            .accessibilityLabel(i18n.localizedString("auto_switch"))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(autoSwitchTint.opacity(0.35), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(model.isStarting || (!appState.isRunning && !model.canAutomate))
+        .accessibilityLabel(
+            i18n.localizedString(
+                appState.isRunning ? "auto_switch_disable" : "auto_switch_enable"
+            )
+        )
+    }
+
+    private var autoSwitchTint: Color {
+        if appState.isRunning {
+            return .red
+        }
+        return model.canAutomate ? .accentColor : .secondary
+    }
+
+    private func toggleAutoSwitch() {
+        if appState.isRunning {
+            model.stopMonitoring()
+        } else {
+            model.startMonitoring()
         }
     }
 
