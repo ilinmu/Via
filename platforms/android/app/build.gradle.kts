@@ -25,12 +25,13 @@ android {
 
     signingConfigs {
         create("release") {
-            // CI publishes unsigned test APKs unless a keystore is configured.
-            // Set these in the local environment or CI secrets; never commit
-            // signing material.
+            // Release signing material comes from the environment (CI secrets);
+            // never commit a keystore.
             val store = System.getenv("VIA_RELEASE_KEYSTORE")
             if (!store.isNullOrBlank()) {
                 storeFile = file(store)
+                storeType = System.getenv("VIA_RELEASE_STORE_TYPE")
+                    ?.takeIf { it.isNotBlank() } ?: "PKCS12"
                 storePassword = System.getenv("VIA_RELEASE_STORE_PASSWORD")
                 keyAlias = System.getenv("VIA_RELEASE_KEY_ALIAS")
                 keyPassword = System.getenv("VIA_RELEASE_KEY_PASSWORD")
@@ -44,10 +45,15 @@ android {
             // icons alone add tens of megabytes.
             isMinifyEnabled = true
             isShrinkResources = true
-            // Without a configured keystore, Gradle leaves the APK unsigned
-            // rather than publishing a package signed with the shared debug key.
-            if (!System.getenv("VIA_RELEASE_KEYSTORE").isNullOrBlank()) {
-                signingConfig = signingConfigs.getByName("release")
+            // A configured keystore keeps the release identity stable, so new
+            // builds can be installed over older ones. Without one, fall back
+            // to the runner's debug key: the APK stays installable for testing
+            // (an unsigned APK is rejected by Android), but each runner signs
+            // with a different key.
+            signingConfig = if (!System.getenv("VIA_RELEASE_KEYSTORE").isNullOrBlank()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

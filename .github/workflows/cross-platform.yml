@@ -401,8 +401,25 @@ jobs:
       - name: Build JNI libraries
         run: scripts/build-android-core.sh
 
+      # The keystore itself never lives in the repository. Without the secret,
+      # Gradle signs with the runner's debug key so the APK stays installable.
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.VIA_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "No VIA_RELEASE_KEYSTORE_BASE64 secret; using the debug signing key." >&2
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/via-release.p12"
+          echo "VIA_RELEASE_KEYSTORE=$RUNNER_TEMP/via-release.p12" >> "$GITHUB_ENV"
+
       - name: Build release APK
         working-directory: platforms/android
+        env:
+          VIA_RELEASE_STORE_PASSWORD: ${{ secrets.VIA_RELEASE_STORE_PASSWORD }}
+          VIA_RELEASE_KEY_ALIAS: ${{ secrets.VIA_RELEASE_KEY_ALIAS }}
+          VIA_RELEASE_KEY_PASSWORD: ${{ secrets.VIA_RELEASE_KEY_PASSWORD }}
         run: >
           gradle assembleRelease
           --no-daemon --stacktrace
@@ -413,10 +430,15 @@ jobs:
           mkdir -p dist
           apk=platforms/android/app/build/outputs/apk/release/app-release.apk
           if [[ ! -f "$apk" ]]; then
-            # Without VIA_RELEASE_KEYSTORE the release build stays unsigned.
+            # Only reachable if signing was disabled in the Gradle build.
             apk=platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
           fi
           cp "$apk" dist/Via-android.apk
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose dist/Via-android.apk
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v7
