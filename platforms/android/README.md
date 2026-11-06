@@ -47,9 +47,9 @@ gradle assembleRelease
 ```
 
 release 构建启用 R8 代码压缩和资源裁剪。配置 `VIA_RELEASE_KEYSTORE` 等环境变量时
-使用正式 keystore 签名，未配置时产物未签名（`app-release-unsigned.apk`），不会使用
-共享调试密钥。产物在 `app/build/outputs/apk/release/`。CI 会传入
-`-PbuildNumber=<运行号>`，让 APK 的
+使用正式 keystore 签名（`VIA_RELEASE_STORE_TYPE` 默认 `PKCS12`）；未配置时回退到
+调试密钥，APK 仍可安装，但每次构建的密钥不同。产物在
+`app/build/outputs/apk/release/`。CI 会传入 `-PbuildNumber=<运行号>`，让 APK 的
 `versionName`（`1.0.<运行号>`）与 Release 标签一致。
 
 `scripts/build-android-core.sh` 生成 `libvia_jni.so` 到

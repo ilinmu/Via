@@ -123,10 +123,14 @@ gradle assembleRelease
 ```
 
 APK 输出在 `platforms/android/app/build/outputs/apk/release/`。release 构建启用 R8
-代码压缩和资源裁剪。只有设置 `VIA_RELEASE_KEYSTORE`、
+代码压缩和资源裁剪。设置 `VIA_RELEASE_KEYSTORE`（keystore 文件路径）、
 `VIA_RELEASE_STORE_PASSWORD`、`VIA_RELEASE_KEY_ALIAS` 和
-`VIA_RELEASE_KEY_PASSWORD` 时才用正式 keystore 签名；未配置时产物保持未签名，
-不会意外使用共享 debug key 发布。
+`VIA_RELEASE_KEY_PASSWORD` 时使用正式 keystore 签名；未配置时回退到调试密钥，
+产物仍可安装，但每次构建的密钥不同，无法覆盖安装其他构建。
+`VIA_RELEASE_STORE_TYPE` 可指定 keystore 类型（默认 `PKCS12`）。
+
+CI 从 `VIA_RELEASE_KEYSTORE_BASE64` secret 解码 keystore 后交给 Gradle，
+并在上传产物前用 `apksigner verify` 校验签名。keystore 与密码不要提交到仓库。
 
 ## 应用图标
 
@@ -190,7 +194,7 @@ iOS 使用面板内的三步向导，Android 使用全屏向导（授权定位 �
    - `build-macos`：打包未签名 `.app` 并压缩为 `Via-macos.zip`。
    - `build-ios`：构建 XCFramework、生成 Xcode 工程、模拟器编译并归档未签名设备包。
    - `build-windows`：编译 Rust DLL，`dotnet publish` .NET Framework 4.8 产物，再生成免安装单文件和 Inno Setup 安装包。
-   - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 R8 压缩的 release APK（未配置 keystore 时不签名）。
+   - `build-android`：用 `cargo-ndk` 生成三种 ABI 的 `.so`，Gradle 构建 R8 压缩的 release APK（未配置 keystore 时使用调试密钥签名）。
 
 Rust 构建用 `Swatinem/rust-cache` 缓存，.NET 用 `actions/cache` 缓存 NuGet 包，
 Gradle 由 `gradle/actions/setup-gradle` 缓存依赖和构建结果。Android SDK、NDK 和
@@ -207,9 +211,9 @@ artifacts，不会创建 Release。
 ## 发布说明
 
 `master` 每次构建都会在 GitHub Releases 中生成一个版本，包含四个平台的压缩包
-或安装包。这些是未签名的自动构建，适合内部测试；正式发布仍需要下面的签名流程。
+或安装包。这些是未正式签名的自动构建，适合内部测试；正式发布仍需要下面的签名流程。
 
 - Windows 产物未签名，首次运行可能出现 SmartScreen 提示；正式发布需要代码签名证书。
 - iOS 归档未签名，仅用于验证编译；上架或真机安装需要 Apple Developer 团队和描述文件。
-- Android release APK 经 R8 压缩；仅当 CI/本地环境提供四个 `VIA_RELEASE_*` 变量时用 release keystore 签名，否则保持未签名，不可直接上架。
+- Android release APK 经 R8 压缩；提供四个 `VIA_RELEASE_*` 变量时用 release keystore 签名，否则使用调试密钥签名（可直接侧载，但不能覆盖安装其他构建），不可直接上架。
 - macOS 默认使用 ad-hoc 签名；正式分发需要 Developer ID 证书并完成公证。
