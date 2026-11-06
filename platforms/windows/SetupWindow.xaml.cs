@@ -130,6 +130,10 @@ public partial class SetupWindow : Window
                 ? L10n.T("no_networks")
                 : string.Format(L10n.T("networks_found_format"), networks.Count);
         }
+        catch (Exception exception)
+        {
+            ScanStatus.Text = exception.Message;
+        }
         finally
         {
             ScanButton.Content = L10n.T("scan_networks");

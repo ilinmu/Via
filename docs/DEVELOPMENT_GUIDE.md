@@ -157,7 +157,9 @@ swift via-cli.swift <SSID-P> <SSID-B> [interval-seconds]
   中的动作、事件与状态类型
 - [core/crates/via-ffi/src/lib.rs](../core/crates/via-ffi/src/lib.rs)
   和 [core/include/via_core.h](../core/include/via_core.h)
-  的 C ABI 映射
+  的 C ABI 映射；扫描结果是 `1/0/-1` 三态，关联结果 `3` 表示建议结束
+- [core/crates/via-jni/src/lib.rs](../core/crates/via-jni/src/lib.rs)
+  的 Android JNI 映射，以及各平台调用点
 - [Sources/ViaCore/WifiPolicy.swift](../Sources/ViaCore/WifiPolicy.swift)
   的 Swift 枚举与结构
 

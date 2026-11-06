@@ -91,6 +91,7 @@ fn log_name(event: LogEvent) -> &'static str {
         LogEvent::AssociationLateSuccess => "associationLateSuccess",
         LogEvent::AssociationLateFailure => "associationLateFailure",
         LogEvent::PermissionRequired => "permissionRequired",
+        LogEvent::PriorityVisibleUnknown => "priorityVisibleUnknown",
     }
 }
 
@@ -160,7 +161,17 @@ fn outcome_from_code(code: jint) -> AssociationOutcome {
     match code {
         0 => AssociationOutcome::Success,
         2 => AssociationOutcome::Failure,
+        3 => AssociationOutcome::AdvisoryEnded,
         _ => AssociationOutcome::Timeout,
+    }
+}
+
+/// -1 = unknown, 0 = absent, 1 = visible.
+fn opt_found(code: jint) -> Option<bool> {
+    match code {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
     }
 }
 
@@ -264,13 +275,13 @@ pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeScanR
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
-    found: jboolean,
+    found: jint,
     now_ms: jlong,
 ) -> jstring {
     let Some(engine) = engine_mut(handle) else {
         return std::ptr::null_mut();
     };
-    let actions = engine.scan_result(found != 0, now_ms.max(0) as u64);
+    let actions = engine.scan_result(opt_found(found), now_ms.max(0) as u64);
     to_jstring(&mut env, result_json(engine, actions))
 }
 
@@ -279,13 +290,13 @@ pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeClass
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
-    priority_visible: jboolean,
+    priority_visible: jint,
     now_ms: jlong,
 ) -> jstring {
     let Some(engine) = engine_mut(handle) else {
         return std::ptr::null_mut();
     };
-    let actions = engine.classification_result(priority_visible != 0, now_ms.max(0) as u64);
+    let actions = engine.classification_result(opt_found(priority_visible), now_ms.max(0) as u64);
     to_jstring(&mut env, result_json(engine, actions))
 }
 
@@ -294,13 +305,13 @@ pub extern "system" fn Java_io_github_ilinmu_via_policy_PolicyEngine_nativeBacku
     mut env: JNIEnv,
     _this: JObject,
     handle: jlong,
-    found: jboolean,
+    found: jint,
     now_ms: jlong,
 ) -> jstring {
     let Some(engine) = engine_mut(handle) else {
         return std::ptr::null_mut();
     };
-    let actions = engine.backup_scan_result(found != 0, now_ms.max(0) as u64);
+    let actions = engine.backup_scan_result(opt_found(found), now_ms.max(0) as u64);
     to_jstring(&mut env, result_json(engine, actions))
 }
 
@@ -506,6 +517,13 @@ mod tests {
         assert_eq!(value["actions"][0]["kind"], "refreshStatus");
         assert_eq!(value["snapshot"]["running"], false);
         assert_eq!(value["snapshot"]["role"], "none");
+    }
+
+    #[test]
+    fn scan_codes_distinguish_unknown_from_absent() {
+        assert_eq!(opt_found(1), Some(true));
+        assert_eq!(opt_found(0), Some(false));
+        assert_eq!(opt_found(-1), None);
     }
 
     #[test]

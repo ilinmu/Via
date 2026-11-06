@@ -27,7 +27,6 @@ import io.github.ilinmu.via.data.SettingsStore
 import io.github.ilinmu.via.data.WifiRepository
 import io.github.ilinmu.via.policy.PolicyAction
 import io.github.ilinmu.via.policy.PolicyEngine
-import io.github.ilinmu.via.policy.PolicyResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,10 +41,9 @@ import kotlinx.coroutines.launch
  * Foreground service running the shared policy loop.
  *
  * Android cannot force a Wi-Fi connection, so an `associate` action is turned
- * into a best-effort refresh of the system's Wi-Fi suggestions. The result is
- * reported as success when the target SSID is already joined, otherwise as a
- * timeout, which lets the shared core apply its normal cooldown instead of
- * retrying every few seconds.
+ * into a best-effort refresh of the system's Wi-Fi suggestions. A successful
+ * join is reported as success; a suggestion the system did not apply ends the
+ * in-flight association without the shared core's failure cooldown.
  */
 class WifiMonitorService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -62,6 +60,9 @@ class WifiMonitorService : Service() {
 
     @Volatile
     private var refreshRequested = false
+
+    @Volatile
+    private var pendingObservedChange: Pair<String?, String?>? = null
 
     // Next check time for the in-app status tab; kept across intermediate
     // publishes (actions log, refresh status) so the countdown does not jump.
@@ -93,6 +94,10 @@ class WifiMonitorService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 settings.running = false
+                refreshRequested = true
+                loop?.cancel()
+                loop = null
+                publishStopped()
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -130,6 +135,12 @@ class WifiMonitorService : Service() {
     }
 
     private suspend fun runLoop() {
+        if (!settings.running) {
+            publishStopped()
+            stopSelf()
+            return
+        }
+
         val ssidP = settings.ssidP.trim()
         val ssidB = settings.ssidB.trim()
         if (ssidP.isEmpty() || ssidB.isEmpty()) {
@@ -140,12 +151,7 @@ class WifiMonitorService : Service() {
         }
 
         // Suggestions are registered up front; the system joins them on its own.
-        repository.applySuggestions(
-            listOf(
-                NetworkCredential(ssidP, settings.passwordP),
-                NetworkCredential(ssidB, settings.passwordB),
-            )
-        )
+        repository.applySuggestions(configuredCredentials())
 
         val policy = runCatching { PolicyEngine(ssidP, ssidB) }.getOrElse {
             addLog("stopped")
@@ -165,12 +171,16 @@ class WifiMonitorService : Service() {
                     PolicyEngine.PERMISSION_DENIED
                 }
                 val current = repository.currentSsid()
-                lastSeenSsid = current
                 val now = System.currentTimeMillis()
 
+                val change = pendingObservedChange
+                pendingObservedChange = null
+                lastSeenSsid = current
                 val result = if (firstRun) {
                     firstRun = false
                     policy.start(now, permission, current)
+                } else if (change != null) {
+                    policy.observedChange(change.first, change.second, now)
                 } else {
                     policy.checkBegin(now, permission, current)
                 }
@@ -201,19 +211,27 @@ class WifiMonitorService : Service() {
         refreshRequested = false
     }
 
+    private fun configuredCredentials(): List<NetworkCredential> = listOf(
+        NetworkCredential(settings.ssidP, settings.passwordP),
+        NetworkCredential(settings.ssidB, settings.passwordB),
+    )
+
     private suspend fun handleActions(policy: PolicyEngine, actions: List<PolicyAction>, depth: Int) {
         for (action in actions) {
             if (!currentCoroutineContext().isActive) return
             when (action.kind) {
                 "scan" -> {
+                    val scan = PolicyEngine.ScanTarget.from(action.purpose)
                     val networks = repository.scan()
                     val now = System.currentTimeMillis()
-                    val next = when (action.purpose) {
-                        "priorityClassification" ->
-                            policy.classificationResult(settings.ssidP in networks, now)
-                        "backupCheck", "backupFailover", "backupRecovery" ->
-                            policy.backupScanResult(settings.ssidB in networks, now)
-                        else -> policy.scanResult(settings.ssidP in networks, now)
+                    val target = if (scan?.ssidP != false) settings.ssidP else settings.ssidB
+                    val found = if (networks.isEmpty()) null else target in networks
+                    val next = when {
+                        scan?.isClassification == true ->
+                            policy.classificationResult(found, now)
+                        scan?.isFailoverOrRecovery == true ->
+                            policy.backupScanResult(found, now)
+                        else -> policy.scanResult(found, now)
                     }
                     if (next != null) {
                         publish(next.snapshot)
@@ -225,12 +243,18 @@ class WifiMonitorService : Service() {
                 "associate" -> {
                     val target = action.ssid ?: continue
                     val generation = policy.associationStarted(target, System.currentTimeMillis())
-                    repository.applySuggestions(listOf(credentialFor(target)))
+                    // Keep both managed suggestions registered so the system can
+                    // fall back; the requested target only gets a higher priority.
+                    repository.applySuggestions(configuredCredentials(), target)
                     val joined = waitForSsid(target, ASSOCIATION_TIMEOUT_MS)
+                    // A suggestion is advisory on Android: a short wait that
+                    // ends elsewhere is not an association failure. Ending the
+                    // association without a cooldown lets the next regular
+                    // check re-evaluate P/B instead of pausing for 90 seconds.
                     val outcome = if (joined) {
                         PolicyEngine.OUTCOME_SUCCESS
                     } else {
-                        PolicyEngine.OUTCOME_TIMEOUT
+                        PolicyEngine.OUTCOME_ADVISORY_ENDED
                     }
                     val next = policy.associationResult(
                         target,
@@ -281,15 +305,6 @@ class WifiMonitorService : Service() {
                 }
             }
         }
-    }
-
-    private fun credentialFor(ssid: String): NetworkCredential {
-        val password = when (ssid) {
-            settings.ssidP -> settings.passwordP
-            settings.ssidB -> settings.passwordB
-            else -> ""
-        }
-        return NetworkCredential(ssid, password)
     }
 
     private suspend fun waitForSsid(target: String, timeoutMs: Long): Boolean {
@@ -409,7 +424,8 @@ class WifiMonitorService : Service() {
             return
         }
 
-        lastSeenSsid = ssid
+        val previous = lastSeenSsid
+        pendingObservedChange = previous to ssid
         refreshRequested = true
     }
 
@@ -502,7 +518,12 @@ class WifiMonitorService : Service() {
         }
 
         fun stop(context: Context) {
+            // Clear the persisted intent before stopping. Starting the service
+            // again with ACTION_STOP can throw on Android 12+ when the app is
+            // in the background, so stop the existing service directly.
+            SettingsStore(context).running = false
             context.stopService(Intent(context, WifiMonitorService::class.java))
+            MonitorStateBus.markStopped()
         }
 
         fun refresh(context: Context) {

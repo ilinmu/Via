@@ -40,7 +40,9 @@ jobs:
         id: filter
         if: github.event_name == 'pull_request'
         with:
-          predicate-quantifier: every
+          # Default `some` semantics: one non-document change is enough to run
+          # the platform jobs. `every` made a mixed source + README pull request
+          # skip every check, because the README was excluded by a negative rule.
           filters: |
             code:
               - '**'
@@ -322,16 +324,9 @@ jobs:
 
       # .NET Framework 4.8 is part of Windows, so the publish output is just
       # the exe (with the Rust core embedded) of roughly 1 MB.
-      - name: Publish portable app
-        run: >
-          dotnet publish platforms/windows/Via.Windows.csproj
-          -c Release
-          -p:Platform=x64
-          -o dist/windows-portable
-
-      # Installer payload: the same app plus the core DLL next to it, which
-      # Inno Setup packs into setup.exe.
-      - name: Publish installer payload
+      # The installer uses the same publish output; Inno Setup includes both
+      # the exe and the core DLL that the project copies next to it.
+      - name: Publish app
         run: >
           dotnet publish platforms/windows/Via.Windows.csproj
           -c Release
@@ -346,7 +341,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/release | Out-Null
-          Copy-Item dist/windows-portable/Via.exe dist/release/Via-windows-portable.exe
+          Copy-Item dist/windows-app/Via.exe dist/release/Via-windows-portable.exe
           $iscc = @(
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
             "C:\Program Files\Inno Setup 6\ISCC.exe"
@@ -430,7 +425,18 @@ jobs:
   # number, so successive builds never overwrite each other.
   release:
     name: Publish release
-    needs: [build-macos, build-ios, build-windows, build-android]
+    # A failed test must stop the release, not just mark the workflow red.
+    needs: [
+      core-tests,
+      macos-tests,
+      windows-tests,
+      ios-tests,
+      android-tests,
+      build-macos,
+      build-ios,
+      build-windows,
+      build-android
+    ]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:

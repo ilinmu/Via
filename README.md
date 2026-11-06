@@ -55,8 +55,8 @@ Via 使用两个网络配置实现自动切换：
 
 Via 会区分自动切换和用户主动切换：
 
-- 自动回退：当 `P` 不可见时，Via 自动切换到 `B`，继续监控，并在 `P` 恢复后自动切回。
-- 手动覆盖：当 `P` 仍然可见时，如果用户主动切换到 `B` 或其他非受管网络，Via 会认为这是用户的主动选择，并暂停自动监控。
+- 自动回退：当确认 `P` 不可见时，Via 自动切换到 `B`，继续监控，并在 `P` 恢复后自动切回。
+- 手动覆盖：当确认 `P` 仍然可见时，如果用户主动切换到 `B` 或其他非受管网络，Via 会认为这是用户的主动选择，并暂停自动监控。扫描失败返回“未知”时，既不会回退也不会停止监控。
 
 在 macOS 菜单栏图标上，手动覆盖状态会通过红色圆点提示。
 
@@ -119,7 +119,7 @@ cd platforms/android && gradle assembleRelease && cd ../..
 
 ```
 ./scripts/build-windows-core.ps1
-dotnet publish platforms/windows/Via.Windows.csproj -c Release -p:Platform=x64 -o dist/windows-portable
+dotnet publish platforms/windows/Via.Windows.csproj -c Release -p:Platform=x64 -o dist/windows-app
 ```
 
 ### Run Tests
@@ -150,8 +150,9 @@ cargo test --manifest-path core/Cargo.toml
 - Pull Request 时触发。
 - 执行 Rust、macOS Swift、iOS XCTest、Windows xUnit 和 Android JUnit 测试。
 - 构建 macOS、Windows、iOS 和 Android 四个平台的产物。
-- 仅修改文档的 Pull Request 会跳过平台构建任务。
-- 连续推送时只保留最新一次工作流运行。
+- 仅修改文档的 Pull Request 会跳过平台构建任务；包含源码的 PR 不受影响。
+- 连续推送时只保留最新一次 PR 工作流运行；`master` 的每次提交独立运行。
+- Release 依赖全部测试和构建任务成功。
 
 每次 `master`分支构建都会在 GitHub Releases 中生成对应版本，版本号格式为：
 

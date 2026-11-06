@@ -53,4 +53,5 @@ public sealed record MonitorStatus(
     WifiRole Role,
     bool Running,
     string Message,
-    DateTimeOffset? NextCheck);
+    DateTimeOffset? NextCheck,
+    bool Restarting = false);

@@ -60,14 +60,15 @@ class PolicyEngine(ssidP: String, ssidB: String) : AutoCloseable {
     fun checkBegin(nowMs: Long, permission: Int, currentSsid: String?): PolicyResult? =
         parse(nativeCheckBegin(handle, nowMs, permission, currentSsid.orEmpty()))
 
-    fun scanResult(found: Boolean, nowMs: Long): PolicyResult? =
-        parse(nativeScanResult(handle, found, nowMs))
+    /** `found == null` means the scan could not prove the target was absent. */
+    fun scanResult(found: Boolean?, nowMs: Long): PolicyResult? =
+        parse(nativeScanResult(handle, found?.toFoundCode() ?: -1, nowMs))
 
-    fun classificationResult(priorityVisible: Boolean, nowMs: Long): PolicyResult? =
-        parse(nativeClassificationResult(handle, priorityVisible, nowMs))
+    fun classificationResult(priorityVisible: Boolean?, nowMs: Long): PolicyResult? =
+        parse(nativeClassificationResult(handle, priorityVisible?.toFoundCode() ?: -1, nowMs))
 
-    fun backupScanResult(found: Boolean, nowMs: Long): PolicyResult? =
-        parse(nativeBackupScanResult(handle, found, nowMs))
+    fun backupScanResult(found: Boolean?, nowMs: Long): PolicyResult? =
+        parse(nativeBackupScanResult(handle, found?.toFoundCode() ?: -1, nowMs))
 
     fun associationStarted(ssid: String, nowMs: Long): Long =
         nativeAssociationStarted(handle, ssid, nowMs)
@@ -114,6 +115,32 @@ class PolicyEngine(ssidP: String, ssidB: String) : AutoCloseable {
 
     private fun parse(raw: String?) = parsePolicyResult(raw)
 
+    private fun Boolean.toFoundCode(): Int = if (this) 1 else 0
+
+    /** Maps a policy scan purpose to the target SSID and result callback. */
+    internal enum class ScanTarget(val ssidP: Boolean) {
+        PriorityCheck(true),
+        PriorityClassification(true),
+        BackupCheck(false),
+        BackupFailover(false),
+        BackupRecovery(false);
+
+        val isClassification: Boolean get() = this == PriorityClassification
+        val isFailoverOrRecovery: Boolean get() =
+            this == BackupFailover || this == BackupRecovery
+
+        companion object {
+            fun from(purpose: String?): ScanTarget? = when (purpose) {
+                "priorityCheck" -> PriorityCheck
+                "priorityClassification" -> PriorityClassification
+                "backupCheck" -> BackupCheck
+                "backupFailover" -> BackupFailover
+                "backupRecovery" -> BackupRecovery
+                else -> null
+            }
+        }
+    }
+
     private external fun nativeNew(ssidP: String, ssidB: String): Long
 
     private external fun nativeFree(handle: Long)
@@ -136,15 +163,16 @@ class PolicyEngine(ssidP: String, ssidB: String) : AutoCloseable {
         currentSsid: String,
     ): String?
 
-    private external fun nativeScanResult(handle: Long, found: Boolean, nowMs: Long): String?
+    // -1 = unknown, 0 = absent, 1 = visible.
+    private external fun nativeScanResult(handle: Long, found: Int, nowMs: Long): String?
 
     private external fun nativeClassificationResult(
         handle: Long,
-        priorityVisible: Boolean,
+        priorityVisible: Int,
         nowMs: Long,
     ): String?
 
-    private external fun nativeBackupScanResult(handle: Long, found: Boolean, nowMs: Long): String?
+    private external fun nativeBackupScanResult(handle: Long, found: Int, nowMs: Long): String?
 
     private external fun nativeAssociationStarted(handle: Long, ssid: String, nowMs: Long): Long
 
@@ -189,6 +217,8 @@ class PolicyEngine(ssidP: String, ssidB: String) : AutoCloseable {
         const val OUTCOME_SUCCESS = 0
         const val OUTCOME_TIMEOUT = 1
         const val OUTCOME_FAILURE = 2
+        /** Ends an advisory association without applying a failure cooldown. */
+        const val OUTCOME_ADVISORY_ENDED = 3
 
         init {
             System.loadLibrary("via_jni")

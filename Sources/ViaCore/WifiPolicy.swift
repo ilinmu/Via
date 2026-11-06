@@ -21,6 +21,7 @@ public enum WifiPolicyAssociationOutcome: Int32, Sendable {
     case success = 0
     case timeout = 1
     case failure = 2
+    case advisoryEnded = 3
 }
 
 /// A decision returned by the shared policy core.
@@ -61,6 +62,7 @@ public enum WifiPolicyAction: Equatable, Sendable {
         case associationLateSuccess = 19
         case associationLateFailure = 20
         case permissionRequired = 21
+        case priorityVisibleUnknown = 22
     }
 
     case scan(ScanPurpose)
@@ -322,29 +324,30 @@ public final class WifiPolicyEngine {
         return consume(result)
     }
 
-    public func scanResult(found: Bool, now: Date = Date()) -> [WifiPolicyAction] {
+    /// `found == nil` means the scan failed or was inconclusive.
+    public func scanResult(found: Bool?, now: Date = Date()) -> [WifiPolicyAction] {
         var result = ViaResult()
-        bindings.scanResult(handle, found ? 1 : 0, Self.milliseconds(now), &result)
+        bindings.scanResult(handle, Self.foundCode(found), Self.milliseconds(now), &result)
         return consume(result)
     }
 
     public func classificationResult(
-        priorityVisible: Bool,
+        priorityVisible: Bool?,
         now: Date = Date()
     ) -> [WifiPolicyAction] {
         var result = ViaResult()
         bindings.classificationResult(
             handle,
-            priorityVisible ? 1 : 0,
+            Self.foundCode(priorityVisible),
             Self.milliseconds(now),
             &result
         )
         return consume(result)
     }
 
-    public func backupScanResult(found: Bool, now: Date = Date()) -> [WifiPolicyAction] {
+    public func backupScanResult(found: Bool?, now: Date = Date()) -> [WifiPolicyAction] {
         var result = ViaResult()
-        bindings.backupScanResult(handle, found ? 1 : 0, Self.milliseconds(now), &result)
+        bindings.backupScanResult(handle, Self.foundCode(found), Self.milliseconds(now), &result)
         return consume(result)
     }
 
@@ -504,6 +507,12 @@ public final class WifiPolicyEngine {
 
     private static func milliseconds(_ date: Date) -> Int64 {
         Int64((date.timeIntervalSince1970 * 1000).rounded())
+    }
+
+    // -1 = unknown, 0 = absent, 1 = visible.
+    private static func foundCode(_ found: Bool?) -> Int32 {
+        guard let found else { return -1 }
+        return found ? 1 : 0
     }
 
     private static func logLoadFailure() {

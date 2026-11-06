@@ -12,11 +12,15 @@ public sealed class TrayService : IDisposable
     private readonly NotifyIcon _icon;
     private readonly ToolStripMenuItem _openItem;
     private readonly ToolStripMenuItem _quitItem;
-
-    private Icon? _statusIcon;
+    private readonly Dictionary<(bool Running, WifiRole Role), Icon> _iconCache = new();
+    private readonly System.Windows.Threading.Dispatcher _dispatcher;
+    private readonly Icon _appIcon;
+    private readonly bool _ownsAppIcon;
     private string? _lastSsid;
     private WifiRole _lastRole = WifiRole.None;
     private bool _lastRunning;
+    private bool _lightTaskbar;
+    private bool _disposed;
 
     public TrayService(Action open, Action quit)
     {
@@ -30,14 +34,18 @@ public sealed class TrayService : IDisposable
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_quitItem);
 
+        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        _appIcon = LoadAppIcon(out _ownsAppIcon);
         _icon = new NotifyIcon
         {
-            Icon = LoadAppIcon(),
+            Icon = _appIcon,
             Text = "Via",
             Visible = true,
             ContextMenuStrip = menu
         };
         _icon.DoubleClick += (_, _) => open();
+        _lightTaskbar = UsesLightTaskbar();
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
 
     /// <summary>
@@ -51,12 +59,7 @@ public sealed class TrayService : IDisposable
         _lastRunning = running;
 
         _icon.Text = Truncate(BuildTooltip(currentSsid, role, running));
-
-        var icon = CreateStatusIcon(running, role);
-        var previous = _statusIcon;
-        _statusIcon = icon;
-        _icon.Icon = icon;
-        previous?.Dispose();
+        UpdateStatusIcon(forceThemeCheck: false);
     }
 
     public void RefreshLanguage()
@@ -68,9 +71,89 @@ public sealed class TrayService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         _icon.Visible = false;
         _icon.Dispose();
-        _statusIcon?.Dispose();
+        foreach (var icon in _iconCache.Values)
+        {
+            icon.Dispose();
+        }
+        _iconCache.Clear();
+        if (_ownsAppIcon)
+        {
+            _appIcon.Dispose();
+        }
+    }
+
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category != UserPreferenceCategory.General)
+        {
+            return;
+        }
+
+        // WinForms tray controls must only be touched from the UI thread.
+        if (_dispatcher.CheckAccess())
+        {
+            RefreshTheme();
+        }
+        else
+        {
+            _dispatcher.BeginInvoke((Action)RefreshTheme);
+        }
+    }
+
+    private void RefreshTheme() => UpdateStatusIcon(forceThemeCheck: true);
+
+    private void UpdateStatusIcon(bool forceThemeCheck)
+    {
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.BeginInvoke((Action)(() => UpdateStatusIcon(forceThemeCheck)));
+            return;
+        }
+        if (_disposed)
+        {
+            return;
+        }
+
+        var key = (_lastRunning, _lastRole);
+        if (forceThemeCheck)
+        {
+            var detected = UsesLightTaskbar();
+            if (detected != _lightTaskbar)
+            {
+                _lightTaskbar = detected;
+                var oldIcons = _iconCache.Values.ToArray();
+                _iconCache.Clear();
+                var replacement = CreateStatusIcon(key.Item1, key.Item2, detected);
+                _iconCache[key] = replacement;
+                // Install the new icon before disposing the one in the tray.
+                _icon.Icon = replacement;
+                foreach (var icon in oldIcons)
+                {
+                    icon.Dispose();
+                }
+            }
+        }
+
+        if (_iconCache.TryGetValue(key, out var cached))
+        {
+            if (!ReferenceEquals(_icon.Icon, cached))
+            {
+                _icon.Icon = cached;
+            }
+            return;
+        }
+
+        _iconCache[key] = CreateStatusIcon(key.Item1, key.Item2, _lightTaskbar);
+        _icon.Icon = _iconCache[key];
     }
 
     private static string BuildTooltip(string? currentSsid, WifiRole role, bool running)
@@ -98,7 +181,7 @@ public sealed class TrayService : IDisposable
     private static string Truncate(string text) =>
         text.Length <= 120 ? text : text.Substring(0, 120);
 
-    private static Icon CreateStatusIcon(bool running, WifiRole role)
+    private static Icon CreateStatusIcon(bool running, WifiRole role, bool lightTaskbar)
     {
         using var bitmap = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
         using (var graphics = Graphics.FromImage(bitmap))
@@ -106,7 +189,7 @@ public sealed class TrayService : IDisposable
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             // Black on a light taskbar, white on a dark one, like the native
             // Windows Wi-Fi icon.
-            var color = UsesLightTaskbar() ? Color.FromArgb(20, 20, 20) : Color.White;
+            var color = lightTaskbar ? Color.FromArgb(20, 20, 20) : Color.White;
             DrawWifi(graphics, color);
 
             if (!running)
@@ -164,7 +247,7 @@ public sealed class TrayService : IDisposable
         }
     }
 
-    private static Icon LoadAppIcon()
+    private static Icon LoadAppIcon(out bool ownsIcon)
     {
         var processPath = Compat.ProcessPath;
         if (!string.IsNullOrEmpty(processPath))
@@ -172,10 +255,13 @@ public sealed class TrayService : IDisposable
             var icon = Icon.ExtractAssociatedIcon(processPath);
             if (icon != null)
             {
+                ownsIcon = true;
                 return icon;
             }
         }
 
+        // SystemIcons exposes shared system resources; they are not owned here.
+        ownsIcon = false;
         return SystemIcons.Application;
     }
 

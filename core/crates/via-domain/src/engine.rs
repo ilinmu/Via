@@ -182,6 +182,9 @@ impl Engine {
             return Vec::new();
         }
 
+        // Every regular check supersedes a scan chain started by an older
+        // check, even when this one confirms we are already on P.
+        self.pending = Pending::None;
         self.permission = permission;
         self.current_ssid = current_ssid.map(str::to_string);
 
@@ -211,10 +214,22 @@ impl Engine {
     }
 
     /// Feed back the result of a scan requested by [`Action::Scan`].
-    pub fn scan_result(&mut self, found: bool, now_ms: u64) -> Vec<Action> {
+    pub fn scan_result(&mut self, found: Option<bool>, now_ms: u64) -> Vec<Action> {
         let pending = std::mem::replace(&mut self.pending, Pending::None);
-        let Pending::Scan { purpose, config } = pending else {
-            return Vec::new();
+        let (purpose, config) = match pending {
+            Pending::Scan { purpose, config } => (purpose, config),
+            other => {
+                // A newer SSID event superseded this scan. Keep its pending
+                // classification instead of letting a stale result consume it.
+                self.pending = other;
+                return Vec::new();
+            }
+        };
+        let Some(found) = found else {
+            return vec![
+                Action::Log(LogEvent::PriorityVisibleUnknown),
+                Action::RefreshStatus,
+            ];
         };
 
         if !self.config_matches(&config) {
@@ -268,10 +283,25 @@ impl Engine {
     }
 
     /// Feed back the classification scan requested after an SSID change.
-    pub fn classification_result(&mut self, priority_visible: bool, _now_ms: u64) -> Vec<Action> {
+    pub fn classification_result(
+        &mut self,
+        priority_visible: Option<bool>,
+        _now_ms: u64,
+    ) -> Vec<Action> {
         let pending = std::mem::replace(&mut self.pending, Pending::None);
-        let Pending::Classification(context) = pending else {
-            return Vec::new();
+        let context = match pending {
+            Pending::Classification(context) => context,
+            other => {
+                // A newer regular check or SSID event owns the pending state.
+                self.pending = other;
+                return Vec::new();
+            }
+        };
+        let Some(priority_visible) = priority_visible else {
+            return vec![
+                Action::Log(LogEvent::PriorityVisibleUnknown),
+                Action::RefreshStatus,
+            ];
         };
 
         match context {
@@ -319,8 +349,23 @@ impl Engine {
     }
 
     /// Feed back a failover / recovery scan for the configured backup network.
-    pub fn backup_scan_result(&mut self, found: bool, now_ms: u64) -> Vec<Action> {
+    pub fn backup_scan_result(&mut self, found: Option<bool>, now_ms: u64) -> Vec<Action> {
         let pending = std::mem::replace(&mut self.pending, Pending::None);
+        let pending = match pending {
+            Pending::Failover | Pending::Recovery => pending,
+            other => {
+                // Preserve a newer pending operation; this stale scan result
+                // must not consume it or trigger an obsolete association.
+                self.pending = other;
+                return Vec::new();
+            }
+        };
+        let Some(found) = found else {
+            return vec![
+                Action::Log(LogEvent::PriorityVisibleUnknown),
+                Action::RefreshStatus,
+            ];
+        };
 
         match pending {
             Pending::Failover => {
@@ -437,6 +482,14 @@ impl Engine {
                     Action::RefreshStatus,
                 ]
             }
+            AssociationOutcome::AdvisoryEnded => {
+                // System-managed suggestions can be ignored or delayed. End the
+                // in-flight association without marking a failure or applying
+                // a cooldown; the next regular check re-evaluates the target.
+                self.active_programmatic = None;
+                self.last_programmatic_backup_at_ms = None;
+                vec![Action::RefreshStatus]
+            }
         }
     }
 
@@ -489,6 +542,21 @@ impl Engine {
         }
         self.sync_config();
 
+        if previous_ssid != new_ssid {
+            // A real SSID transition supersedes any scan or classification that
+            // started before it. Its late result belongs to stale state.
+            self.pending = Pending::None;
+        }
+        self.current_ssid = new_ssid.map(str::to_string);
+        self.classify_observed_change(previous_ssid, new_ssid, now_ms)
+    }
+
+    fn classify_observed_change(
+        &mut self,
+        previous_ssid: Option<&str>,
+        new_ssid: Option<&str>,
+        now_ms: u64,
+    ) -> Vec<Action> {
         match new_ssid {
             Some(ssid) if ssid == self.config.ssid_p.as_str() => {
                 self.current_ssid = Some(ssid.to_string());
@@ -686,7 +754,7 @@ mod tests {
             engine.start(0, Permission::Authorized, Some("X")),
             vec![Action::Scan(ScanPurpose::PriorityCheck)]
         );
-        assert_eq!(engine.scan_result(true, 10), vec![p_associate()]);
+        assert_eq!(engine.scan_result(Some(true), 10), vec![p_associate()]);
     }
 
     #[test]
@@ -694,19 +762,19 @@ mod tests {
         let mut engine = engine();
         engine.start(0, Permission::Authorized, Some("X"));
         assert_eq!(
-            engine.scan_result(false, 10),
+            engine.scan_result(Some(false), 10),
             vec![Action::Scan(ScanPurpose::BackupCheck)]
         );
-        assert_eq!(engine.scan_result(true, 20), vec![b_associate()]);
+        assert_eq!(engine.scan_result(Some(true), 20), vec![b_associate()]);
     }
 
     #[test]
     fn regular_check_logs_when_neither_network_is_visible() {
         let mut engine = engine();
         engine.start(0, Permission::Authorized, Some("X"));
-        engine.scan_result(false, 10);
+        engine.scan_result(Some(false), 10);
         assert_eq!(
-            engine.scan_result(false, 20),
+            engine.scan_result(Some(false), 20),
             vec![Action::Log(LogEvent::NeitherFound)]
         );
     }
@@ -721,14 +789,14 @@ mod tests {
             engine.check_begin(10, Permission::Authorized, Some("B")),
             vec![Action::Scan(ScanPurpose::PriorityCheck)]
         );
-        assert_eq!(engine.scan_result(true, 20), vec![p_associate()]);
+        assert_eq!(engine.scan_result(Some(true), 20), vec![p_associate()]);
     }
 
     #[test]
     fn association_timeout_applies_cooldown_for_same_target() {
         let mut engine = engine();
         engine.start(0, Permission::Authorized, None);
-        engine.scan_result(true, 10);
+        engine.scan_result(Some(true), 10);
         let generation = engine.association_started("P", 20);
         assert_eq!(
             engine.association_result("P", generation, AssociationOutcome::Timeout, 30),
@@ -742,7 +810,7 @@ mod tests {
 
         engine.check_begin(50, Permission::Authorized, None);
         assert_eq!(
-            engine.scan_result(true, 60),
+            engine.scan_result(Some(true), 60),
             vec![Action::Log(LogEvent::CooldownSkipped)]
         );
     }
@@ -757,7 +825,7 @@ mod tests {
             vec![Action::Scan(ScanPurpose::PriorityClassification)]
         );
         assert_eq!(
-            engine.classification_result(true, 20),
+            engine.classification_result(Some(true), 20),
             vec![
                 Action::Stop(StopReason::ManualOverrideBackup),
                 Action::RefreshStatus
@@ -770,8 +838,8 @@ mod tests {
     fn programmatic_backup_change_keeps_monitoring() {
         let mut engine = engine();
         engine.start(0, Permission::Authorized, Some("X"));
-        engine.scan_result(false, 10);
-        engine.scan_result(true, 20);
+        engine.scan_result(Some(false), 10);
+        engine.scan_result(Some(true), 20);
         let generation = engine.association_started("B", 30);
 
         assert_eq!(
@@ -794,7 +862,7 @@ mod tests {
             vec![Action::Scan(ScanPurpose::PriorityClassification)]
         );
         assert_eq!(
-            engine.classification_result(true, 20),
+            engine.classification_result(Some(true), 20),
             vec![
                 Action::Log(LogEvent::PriorityVisibleWaiting),
                 Action::RefreshStatus
@@ -809,13 +877,16 @@ mod tests {
 
         engine.observed_change(Some("P"), None, 10);
         assert_eq!(
-            engine.classification_result(false, 20),
+            engine.classification_result(Some(false), 20),
             vec![
                 Action::Log(LogEvent::PriorityLostConnectingBackup),
                 Action::Scan(ScanPurpose::BackupFailover)
             ]
         );
-        assert_eq!(engine.backup_scan_result(true, 30), vec![b_associate()]);
+        assert_eq!(
+            engine.backup_scan_result(Some(true), 30),
+            vec![b_associate()]
+        );
     }
 
     #[test]
@@ -828,7 +899,7 @@ mod tests {
             vec![Action::Scan(ScanPurpose::PriorityClassification)]
         );
         assert_eq!(
-            engine.classification_result(true, 20),
+            engine.classification_result(Some(true), 20),
             vec![
                 Action::Stop(StopReason::ManualOverrideUnmanaged),
                 Action::RefreshStatus
@@ -844,13 +915,143 @@ mod tests {
 
         engine.observed_change(Some("P"), Some("CoffeeShop"), 10);
         assert_eq!(
-            engine.classification_result(false, 20),
+            engine.classification_result(Some(false), 20),
             vec![
                 Action::Log(LogEvent::TreatingAsFallback),
                 Action::Scan(ScanPurpose::BackupRecovery)
             ]
         );
-        assert_eq!(engine.backup_scan_result(true, 30), vec![b_associate()]);
+        assert_eq!(
+            engine.backup_scan_result(Some(true), 30),
+            vec![b_associate()]
+        );
+    }
+
+    #[test]
+    fn unknown_scan_does_not_fail_over_or_stop() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, Some("P"));
+        assert_eq!(
+            engine.observed_change(Some("P"), None, 10),
+            vec![Action::Scan(ScanPurpose::PriorityClassification)]
+        );
+        assert_eq!(
+            engine.classification_result(None, 20),
+            vec![
+                Action::Log(LogEvent::PriorityVisibleUnknown),
+                Action::RefreshStatus,
+            ]
+        );
+        assert!(engine.snapshot().running);
+    }
+
+    #[test]
+    fn regular_check_supersedes_stale_classification_and_backup_results() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, Some("P"));
+        assert_eq!(
+            engine.observed_change(Some("P"), None, 10),
+            vec![Action::Scan(ScanPurpose::PriorityClassification)]
+        );
+
+        // A scheduled check replaces the in-flight classification. Results
+        // from the old scan chain must not resume failover or recovery.
+        assert_eq!(
+            engine.check_begin(20, Permission::Authorized, Some("X")),
+            vec![Action::Scan(ScanPurpose::PriorityCheck)]
+        );
+        assert_eq!(
+            engine.classification_result(Some(false), 30),
+            Vec::<Action>::new()
+        );
+        assert_eq!(
+            engine.backup_scan_result(Some(true), 40),
+            Vec::<Action>::new()
+        );
+        assert_eq!(engine.scan_result(Some(true), 50), vec![p_associate()]);
+    }
+
+    #[test]
+    fn unknown_scan_after_failing_over_keeps_monitoring() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, Some("P"));
+        engine.observed_change(Some("P"), None, 10);
+        engine.classification_result(Some(false), 20);
+        assert_eq!(
+            engine.backup_scan_result(None, 30),
+            vec![
+                Action::Log(LogEvent::PriorityVisibleUnknown),
+                Action::RefreshStatus,
+            ]
+        );
+        assert!(engine.snapshot().running);
+    }
+
+    #[test]
+    fn observed_change_while_scanning_classifies_the_new_connection() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, Some("X"));
+        assert_eq!(
+            engine.check_begin(10, Permission::Authorized, Some("X")),
+            vec![Action::Scan(ScanPurpose::PriorityCheck)]
+        );
+
+        // A real P → disconnected → B transition supersedes the in-flight
+        // regular scan; the stale scan result must not associate with P.
+        assert_eq!(
+            engine.observed_change(Some("P"), Some("B"), 20),
+            vec![Action::Scan(ScanPurpose::PriorityClassification)]
+        );
+        assert_eq!(engine.scan_result(Some(true), 30), Vec::<Action>::new());
+        assert_eq!(
+            engine.classification_result(Some(false), 40),
+            vec![Action::Log(LogEvent::SystemJoinedBackup), Action::CheckNow]
+        );
+        assert!(engine.snapshot().running);
+    }
+
+    #[test]
+    fn observed_transition_to_priority_supersedes_a_stale_scan() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, Some("X"));
+
+        assert_eq!(
+            engine.observed_change(Some("B"), Some("P"), 10),
+            vec![
+                Action::Log(LogEvent::PriorityConnected),
+                Action::RefreshStatus,
+            ]
+        );
+        // The priority check that started before the SSID transition must not
+        // act on its stale result.
+        assert_eq!(engine.scan_result(Some(true), 20), Vec::<Action>::new());
+    }
+
+    #[test]
+    fn regular_check_on_priority_supersedes_a_stale_scan() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, Some("X"));
+
+        assert_eq!(
+            engine.check_begin(10, Permission::Authorized, Some("P")),
+            vec![Action::RefreshStatus]
+        );
+        assert_eq!(engine.scan_result(Some(true), 20), Vec::<Action>::new());
+    }
+
+    #[test]
+    fn advisory_association_ends_without_a_cooldown() {
+        let mut engine = engine();
+        engine.start(0, Permission::Authorized, None);
+        engine.scan_result(Some(true), 10);
+        let generation = engine.association_started("P", 20);
+        assert_eq!(
+            engine.association_result("P", generation, AssociationOutcome::AdvisoryEnded, 30),
+            vec![Action::RefreshStatus]
+        );
+        assert!(!engine.cooldown_active_for("P", 40));
+        assert!(!engine.snapshot().is_associating);
+        assert!(engine.snapshot().running);
     }
 
     #[test]
@@ -859,11 +1060,11 @@ mod tests {
         engine.start(0, Permission::Authorized, None);
         engine.set_config("P2", "B");
 
-        assert_eq!(engine.scan_result(true, 10), vec![Action::CheckNow]);
+        assert_eq!(engine.scan_result(Some(true), 10), vec![Action::CheckNow]);
 
         engine.check_begin(20, Permission::Authorized, None);
         assert_eq!(
-            engine.scan_result(true, 30),
+            engine.scan_result(Some(true), 30),
             vec![Action::Associate {
                 ssid: "P2".to_string(),
                 role: Role::Priority,
@@ -885,7 +1086,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            engine.backup_scan_result(true, 20),
+            engine.backup_scan_result(Some(true), 20),
             vec![Action::Associate {
                 ssid: "B2".to_string(),
                 role: Role::Backup,
@@ -897,8 +1098,8 @@ mod tests {
     fn late_association_success_clears_cooldown_and_keeps_monitoring() {
         let mut engine = engine();
         engine.start(0, Permission::Authorized, Some("X"));
-        engine.scan_result(false, 10);
-        engine.scan_result(true, 20);
+        engine.scan_result(Some(false), 10);
+        engine.scan_result(Some(true), 20);
         let generation = engine.association_started("B", 30);
 
         engine.association_result("B", generation, AssociationOutcome::Timeout, 40);

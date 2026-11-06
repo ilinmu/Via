@@ -39,9 +39,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 controller.refreshPermission()
-                if controller.isRunning {
-                    Task { await controller.checkNow() }
+                Task {
+                    await controller.resumeMonitoringIfNeeded()
+                    await controller.resumeFromBackground()
                 }
+            } else {
+                controller.pauseForBackground()
             }
         }
     }

@@ -7,10 +7,17 @@
  * Ownership:
  *   - ViaResult.actions and every `const char *` inside it are owned by the
  *     engine and remain valid only until the next call on that engine.
+ *   - ViaSnapshot strings returned by via_engine_snapshot live in a
+ *     thread-local cache and remain valid only until the next snapshot call
+ *     on that thread.
  *   - Copy any string you need to keep.
  *
  * Threading:
  *   - Call one engine from one thread at a time (the UI/monitoring thread).
+ *   - Scan results and classification use tri-state codes:
+ *     1 = target visible, 0 = confirmed absent, -1 = unknown/scan failed.
+ *     Unknown must never be interpreted as a confirmed loss.
+ *   - Association outcome 3 ends an advisory association without a cooldown.
  */
 
 #ifndef VIA_CORE_H
@@ -82,13 +89,17 @@ typedef enum {
     VIA_LOG_ASSOCIATION_FAILURE = 18,
     VIA_LOG_ASSOCIATION_LATE_SUCCESS = 19,
     VIA_LOG_ASSOCIATION_LATE_FAILURE = 20,
-    VIA_LOG_PERMISSION_REQUIRED = 21
+    VIA_LOG_PERMISSION_REQUIRED = 21,
+    /* A scan failed; P availability is unknown and must not trigger failover. */
+    VIA_LOG_PRIORITY_VISIBLE_UNKNOWN = 22
 } ViaLogEvent;
 
 typedef enum {
     VIA_ASSOCIATION_SUCCESS = 0,
     VIA_ASSOCIATION_TIMEOUT = 1,
-    VIA_ASSOCIATION_FAILURE = 2
+    VIA_ASSOCIATION_FAILURE = 2,
+    /* System-managed suggestions: end in-flight state, apply no cooldown. */
+    VIA_ASSOCIATION_ADVISORY_ENDED = 3
 } ViaAssociationOutcome;
 
 typedef struct {

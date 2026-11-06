@@ -5,7 +5,9 @@
 //! engine and remain valid only until the next call on the same engine.
 //!
 //! All functions are single-threaded: call them from the UI/main thread that
-//! owns the native monitoring loop.
+//! owns the native monitoring loop. `via_engine_snapshot` uses a thread-local
+//! string cache, so its pointers remain valid only until the next snapshot
+//! call on that thread.
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -129,6 +131,7 @@ fn log_code(event: LogEvent) -> i32 {
         LogEvent::AssociationLateSuccess => 19,
         LogEvent::AssociationLateFailure => 20,
         LogEvent::PermissionRequired => 21,
+        LogEvent::PriorityVisibleUnknown => 22,
     }
 }
 
@@ -136,24 +139,55 @@ fn outcome_from_code(code: i32) -> AssociationOutcome {
     match code {
         0 => AssociationOutcome::Success,
         2 => AssociationOutcome::Failure,
+        3 => AssociationOutcome::AdvisoryEnded,
         _ => AssociationOutcome::Timeout,
     }
 }
 
+/// -1 = unknown, 0 = absent, 1 = visible.
+fn opt_found(code: i32) -> Option<bool> {
+    match code {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
+/// Returns `None` for null/invalid UTF-8 and `Some("")` for an empty C string.
+/// Callers that treat empty as "no SSID" do so explicitly via `opt_ssid`.
 unsafe fn opt_string(ptr: *const c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
     }
-    let value = CStr::from_ptr(ptr).to_string_lossy();
-    if value.is_empty() {
-        None
-    } else {
-        Some(value.into_owned())
-    }
+    CStr::from_ptr(ptr).to_str().ok().map(str::to_string)
+}
+
+unsafe fn opt_ssid(ptr: *const c_char) -> Option<String> {
+    opt_string(ptr).filter(|value| !value.is_empty())
 }
 
 unsafe fn req_string(ptr: *const c_char) -> String {
     opt_string(ptr).unwrap_or_default()
+}
+
+fn zero_result() -> ViaResult {
+    ViaResult {
+        count: 0,
+        actions: std::ptr::null(),
+        snapshot: zero_snapshot(),
+    }
+}
+
+fn zero_snapshot() -> ViaSnapshot {
+    ViaSnapshot {
+        running: 0,
+        role: 0,
+        permission: 0,
+        is_associating: 0,
+        cooldown_until_ms: 0,
+        current_ssid: std::ptr::null(),
+        cooldown_target: std::ptr::null(),
+    }
 }
 
 fn render_actions(engine: &mut ViaEngine, actions: Vec<Action>) {
@@ -176,14 +210,17 @@ fn render_actions(engine: &mut ViaEngine, actions: Vec<Action>) {
                 raw.purpose = scan_code(purpose);
             }
             Action::Associate { ssid, role } => {
+                let Ok(value) = CString::new(ssid) else {
+                    // An interior NUL makes the SSID unrenderable. Never emit
+                    // a kind=2 action with a null or empty ssid pointer.
+                    continue;
+                };
                 raw.kind = 2;
                 raw.role = role_code(role);
-                if let Ok(value) = CString::new(ssid) {
-                    raw.ssid = value.as_ptr();
-                    // Moving the CString into the Vec does not move its heap
-                    // buffer, so the pointer stays valid until the next call.
-                    strings.push(value);
-                }
+                raw.ssid = value.as_ptr();
+                // Moving the CString into the Vec does not move its heap
+                // buffer, so the pointer stays valid until the next call.
+                strings.push(value);
             }
             Action::CheckNow => raw.kind = 3,
             Action::Stop(reason) => {
@@ -239,6 +276,11 @@ fn make_snapshot(engine: &mut ViaEngine) -> ViaSnapshot {
 unsafe fn write_result(engine: &mut ViaEngine, actions: Vec<Action>, out: *mut ViaResult) {
     if out.is_null() {
         return;
+    }
+    if !engine.actions.is_empty() {
+        // Invalidate cached pointers even if the next operation is skipped.
+        engine.actions.clear();
+        engine.strings.clear();
     }
 
     render_actions(engine, actions);
@@ -296,7 +338,7 @@ pub unsafe extern "C" fn via_engine_set_persisted_cooldown(
     let Some(engine) = engine.as_mut() else {
         return;
     };
-    let target = opt_string(target);
+    let target = opt_ssid(target);
     let until = if until_ms > 0 {
         Some(until_ms as u64)
     } else {
@@ -316,9 +358,12 @@ pub unsafe extern "C" fn via_engine_start(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
-    let current = opt_string(current_ssid);
+    let current = opt_ssid(current_ssid);
     let actions = engine.inner.start(
         now_ms.max(0) as u64,
         permission_from_code(permission),
@@ -330,6 +375,9 @@ pub unsafe extern "C" fn via_engine_start(
 #[no_mangle]
 pub unsafe extern "C" fn via_engine_stop(engine: *mut ViaEngine, out: *mut ViaResult) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
     let actions = engine.inner.stop();
@@ -345,9 +393,12 @@ pub unsafe extern "C" fn via_engine_check_begin(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
-    let current = opt_string(current_ssid);
+    let current = opt_ssid(current_ssid);
     let actions = engine.inner.check_begin(
         now_ms.max(0) as u64,
         permission_from_code(permission),
@@ -364,9 +415,14 @@ pub unsafe extern "C" fn via_engine_scan_result(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
-    let actions = engine.inner.scan_result(found != 0, now_ms.max(0) as u64);
+    let actions = engine
+        .inner
+        .scan_result(opt_found(found), now_ms.max(0) as u64);
     write_result(engine, actions, out);
 }
 
@@ -378,11 +434,14 @@ pub unsafe extern "C" fn via_engine_classification_result(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
     let actions = engine
         .inner
-        .classification_result(priority_visible != 0, now_ms.max(0) as u64);
+        .classification_result(opt_found(priority_visible), now_ms.max(0) as u64);
     write_result(engine, actions, out);
 }
 
@@ -394,11 +453,14 @@ pub unsafe extern "C" fn via_engine_backup_scan_result(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
     let actions = engine
         .inner
-        .backup_scan_result(found != 0, now_ms.max(0) as u64);
+        .backup_scan_result(opt_found(found), now_ms.max(0) as u64);
     write_result(engine, actions, out);
 }
 
@@ -427,6 +489,9 @@ pub unsafe extern "C" fn via_engine_association_result(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
     let ssid = req_string(ssid);
@@ -449,6 +514,9 @@ pub unsafe extern "C" fn via_engine_late_association_result(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
     let ssid = req_string(ssid);
@@ -470,10 +538,13 @@ pub unsafe extern "C" fn via_engine_observed_change(
     out: *mut ViaResult,
 ) {
     let Some(engine) = engine.as_mut() else {
+        if !out.is_null() {
+            *out = zero_result();
+        }
         return;
     };
-    let previous = opt_string(previous_ssid);
-    let new = opt_string(new_ssid);
+    let previous = opt_ssid(previous_ssid);
+    let new = opt_ssid(new_ssid);
     let actions =
         engine
             .inner
@@ -483,11 +554,53 @@ pub unsafe extern "C" fn via_engine_observed_change(
 
 #[no_mangle]
 pub unsafe extern "C" fn via_engine_snapshot(engine: *const ViaEngine, out: *mut ViaSnapshot) {
-    if engine.is_null() || out.is_null() {
+    if out.is_null() {
         return;
     }
-    let engine = &mut *(engine as *mut ViaEngine);
-    *out = make_snapshot(engine);
+    let Some(engine) = engine.as_ref() else {
+        *out = zero_snapshot();
+        return;
+    };
+    // Snapshot is a read-only query. Build a temporary cache rather than
+    // mutating the engine through a `const` pointer.
+    let snapshot: Snapshot = engine.inner.snapshot();
+    let current_ssid = snapshot
+        .current_ssid
+        .as_deref()
+        .and_then(|ssid| CString::new(ssid).ok());
+    let cooldown_target = snapshot
+        .cooldown_target
+        .as_deref()
+        .and_then(|ssid| CString::new(ssid).ok());
+
+    // These strings live in a thread-local cache until the next snapshot call.
+    // This keeps the returned pointers valid while avoiding aliased &mut.
+    thread_local! {
+        static SNAPSHOT_STRINGS: std::cell::RefCell<(
+            Option<CString>,
+            Option<CString>,
+        )> = const { std::cell::RefCell::new((None, None)) };
+    }
+    let current_ptr = current_ssid
+        .as_ref()
+        .map_or(std::ptr::null(), |s| s.as_ptr());
+    let target_ptr = cooldown_target
+        .as_ref()
+        .map_or(std::ptr::null(), |s| s.as_ptr());
+    SNAPSHOT_STRINGS.with(|cache| *cache.borrow_mut() = (current_ssid, cooldown_target));
+
+    *out = ViaSnapshot {
+        running: if snapshot.running { 1 } else { 0 },
+        role: role_code(snapshot.role),
+        permission: permission_code(snapshot.permission),
+        is_associating: if snapshot.is_associating { 1 } else { 0 },
+        cooldown_until_ms: snapshot
+            .cooldown_until_ms
+            .map(|value| value as i64)
+            .unwrap_or(0),
+        current_ssid: current_ptr,
+        cooldown_target: target_ptr,
+    };
 }
 
 #[no_mangle]
@@ -495,7 +608,7 @@ pub unsafe extern "C" fn via_engine_role(engine: *const ViaEngine, ssid: *const 
     let Some(engine) = engine.as_ref() else {
         return 0;
     };
-    let ssid = opt_string(ssid);
+    let ssid = opt_ssid(ssid);
     role_code(engine.inner.role_for(ssid.as_deref()))
 }
 
@@ -508,7 +621,7 @@ pub unsafe extern "C" fn via_engine_cooldown_active(
     let Some(engine) = engine.as_ref() else {
         return 0;
     };
-    let Some(ssid) = opt_string(ssid) else {
+    let Some(ssid) = opt_ssid(ssid) else {
         return 0;
     };
     if engine

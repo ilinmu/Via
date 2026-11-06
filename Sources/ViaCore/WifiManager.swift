@@ -193,8 +193,9 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     private var locationManager: LocationManagerProtocol
     private var cancellables = Set<AnyCancellable>()
 
-    /// Shared, platform-neutral policy core. It is optional so a machine
-    /// without the built dylib keeps the Swift fallback working.
+    /// Association lifecycle bridge to the Rust core. The macOS monitoring
+    /// loop itself is Swift-owned; policy state is kept in exactly one place so
+    /// the two implementations cannot diverge on P-loss classification.
     private var policy: WifiPolicyEngine?
 
     @Published public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -555,9 +556,17 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
 
             guard !Task.isCancelled, !self.appState.isRunning else { return }
 
-            if priorityVisible {
+            switch priorityVisible {
+            case .some(true):
                 self.appState.log("Manual switch confirmed. Auto-switch remains off.")
                 return
+            case .none:
+                // Inconclusive scans cannot prove a P loss either. Stay stopped
+                // until the user decides; only confirmed absence auto-resumes.
+                self.appState.log("Could not verify P after the manual-switch stop; auto-switch remains off.")
+                return
+            case .some(false):
+                break
             }
 
             self.appState.log(
@@ -626,7 +635,13 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         }
 
         let currentSSID = interface.ssid()
-        lastObservedSSID = currentSSID
+        // A scheduled check can run just before CoreWLAN delivers `P -> nil`.
+        // Do not erase the prior SSID here; only the event handler owns that
+        // transition state. Observed-change processing below needs it to tell
+        // a real P loss from an unrelated disconnect.
+        if !isHandlingObservedChange, !isConfirmingPriorityVisibility {
+            lastObservedSSID = currentSSID
+        }
         if let currentSSID {
             appState.setNetworkStatus(.connected(ssid: currentSSID, role: networkRole(for: currentSSID)))
         } else {
@@ -773,12 +788,15 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         // follow-up SSID event instead of acting prematurely.
         if newSSID == nil {
             if previousSSID == appState.ssidP {
-                let priorityStillVisible = await isPriorityVisibleAfterSettling()
-                if priorityStillVisible {
+                switch await isPriorityVisibleAfterSettling() {
+                case .some(true):
                     appState.log("Disconnected from P while it is still visible. Waiting for the manual switch to complete.")
-                } else {
+                case .some(false):
                     appState.log("Priority network lost. Connecting to backup network B.")
                     await failoverToBackupIfAvailable()
+                case .none:
+                    appState.log("Could not verify whether P is still available. Keeping the current state.")
+                    appState.diagnostic("classification.priority_visibility_unknown")
                 }
             } else {
                 appState.log("Network disconnected. Waiting...")
@@ -796,15 +814,18 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
                 appState.log("ℹ️ Automatic failover to B (app initiated). Auto-switch continues.")
                 await checkConnection()
             } else {
-                let priorityVisible = await isPriorityVisibleAfterSettling()
-                if priorityVisible {
+                switch await isPriorityVisibleAfterSettling() {
+                case .some(true):
                     appState.log("⚠️ Switched to backup network while P is still available. Assuming manual override.")
                     stopForManualOverride(
                         logMessage: "⚠️ Manual switch to backup network (\(appState.ssidB)). Auto-switch stopped."
                     )
-                } else {
+                case .some(false):
                     appState.log("ℹ️ P was lost; system joined backup network B. Auto-switch continues.")
                     await checkConnection()
+                case .none:
+                    appState.log("Could not verify P after joining B; keeping monitoring active.")
+                    appState.diagnostic("classification.priority_visibility_unknown")
                 }
             }
             return
@@ -833,12 +854,12 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         // Any other network is unmanaged. Wait for the radio to settle and
         // rescan P: P visible means a manual switch (stop); P missing means the
         // system fell back after P was lost (try to recover to B and continue).
-        let priorityVisible = await isPriorityVisibleAfterSettling()
-        if priorityVisible {
+        switch await isPriorityVisibleAfterSettling() {
+        case .some(true):
             stopForManualOverride(
                 logMessage: "⚠️ Switched to unmanaged network (\(newSSID ?? "Unknown")). Auto-switch stopped."
             )
-        } else {
+        case .some(false):
             appState.log(
                 "ℹ️ P was lost after switch to \(newSSID ?? "Unknown"). Treating it as system fallback."
             )
@@ -853,6 +874,9 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
                     "⚠️ Could not recover backup network: \(Self.errorDescription(error))"
                 )
             }
+        case .none:
+            appState.log("Could not verify P after an unmanaged network change; keeping monitoring active.")
+            appState.diagnostic("classification.priority_visibility_unknown")
         }
     }
 
@@ -870,7 +894,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         interval: TimeInterval? = nil,
         considerEarlierScans: Bool = false,
         confirmsObservedChange: Bool = true
-    ) async -> Bool {
+    ) async -> Bool? {
         if confirmsObservedChange {
             isConfirmingPriorityVisibility = true
         }
@@ -895,7 +919,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
                 try? await Task.sleep(for: .seconds(rescanInterval))
             }
             if confirmsObservedChange, !appState.isRunning {
-                return false
+                return nil
             }
 
             // Re-resolve the interface so a scan does not reuse a CoreWLAN
@@ -916,17 +940,15 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
             }
         }
 
-        if considerEarlierScans {
-            return sawPriority
+        if considerEarlierScans, sawPriority {
+            return true
         }
-        return lastSuccessfulObservation ?? false
+        // `nil` means every scan failed. It must not be collapsed into
+        // `false`, which would claim that P was proven unavailable.
+        return lastSuccessfulObservation
     }
 
     private var isRecentProgrammaticBackup: Bool {
-        if let policy {
-            return policy.isRecentProgrammaticBackup()
-        }
-
         let now = Date()
 
         // A timed-out association may still complete later. Keep honoring its
@@ -1073,7 +1095,9 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
                 )
             }
             activeProgrammaticAssociation = nil
-            lastObservedSSID = ssid
+            if !isHandlingObservedChange, !isConfirmingPriorityVisibility {
+                lastObservedSSID = ssid
+            }
             if ssid == appState.ssidP {
                 lastProgrammaticBackupAt = nil
             } else if ssid == appState.ssidB {
@@ -1158,7 +1182,9 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
 
         switch result {
         case .succeeded:
-            lastObservedSSID = ssid
+            if !isHandlingObservedChange, !isConfirmingPriorityVisibility {
+                lastObservedSSID = ssid
+            }
             if ssid == appState.ssidB {
                 lastProgrammaticBackupAt = Date()
             }

@@ -87,6 +87,8 @@ pub enum LogEvent {
     AssociationLateSuccess,
     AssociationLateFailure,
     PermissionRequired,
+    /// A scan could not prove whether P is available. Never treat this as loss.
+    PriorityVisibleUnknown,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,6 +96,8 @@ pub enum AssociationOutcome {
     Success,
     Timeout,
     Failure,
+    /// An advisory association ended elsewhere; clear in-flight state only.
+    AdvisoryEnded,
 }
 
 /// A decision produced by the policy. The native shell is responsible for

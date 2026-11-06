@@ -66,11 +66,62 @@ public sealed class PolicyEngineTests
         using var engine = new PolicyEngine("NetworkP", "NetworkB");
         _ = engine.Start(Authorized, "SomeOtherNetwork");
 
-        var result = engine.ScanResult(found: false);
+        var result = engine.ScanResult(found: (bool?)false);
 
         var action = Assert.Single(result.Actions);
         Assert.Equal(PolicyActionKind.Scan, action.Kind);
         Assert.Equal((int)PolicyScanPurpose.BackupCheck, action.Purpose);
+    }
+
+    [Fact]
+    public void ObservedChangeSupersedesAnInFlightScan()
+    {
+        using var engine = new PolicyEngine("NetworkP", "NetworkB");
+        _ = engine.Start(Authorized, "SomeOtherNetwork");
+
+        var observed = engine.ObservedChange("NetworkP", "NetworkB");
+        var stale = engine.ScanResult(found: true);
+
+        Assert.Equal(
+            new[] { PolicyActionKind.Scan },
+            observed.Actions.Select(a => a.Kind));
+        Assert.Equal(
+            (int)PolicyScanPurpose.PriorityClassification,
+            observed.Actions[0].Purpose);
+        Assert.Empty(stale.Actions);
+        var classification = engine.ClassificationResult(priorityVisible: false);
+        Assert.Contains(
+            classification.Actions,
+            a => a.Kind == PolicyActionKind.CheckNow);
+    }
+
+    [Fact]
+    public void UnknownScanKeepsMonitoringWithoutAnotherAction()
+    {
+        using var engine = new PolicyEngine("NetworkP", "NetworkB");
+        _ = engine.Start(Authorized, "NetworkP");
+        _ = engine.ObservedChange("NetworkP", null);
+
+        var result = engine.ScanResult(found: null);
+
+        var action = Assert.Single(result.Actions);
+        Assert.Equal(PolicyActionKind.Log, action.Kind);
+        Assert.Equal((int)PolicyLogEvent.PriorityVisibleUnknown, action.Reason);
+        Assert.True(result.Snapshot.Running);
+    }
+
+    [Fact]
+    public void AdvisoryAssociationEndsWithoutCooldown()
+    {
+        using var engine = new PolicyEngine("NetworkP", "NetworkB");
+        _ = engine.Start(Authorized, "NetworkP");
+        var generation = engine.AssociationStarted("NetworkP");
+
+        var result = engine.AssociationResult("NetworkP", generation, outcome: 3);
+
+        Assert.False(result.Snapshot.IsAssociating);
+        Assert.Equal(0, result.Snapshot.CooldownUntilMs);
+        Assert.True(result.Snapshot.Running);
     }
 
     [Fact]
