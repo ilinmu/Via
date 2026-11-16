@@ -55,6 +55,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let panelMetrics = PanelMetrics()
     var panelModel: PanelModel!
     private var statusImageCache: [StatusImageKey: NSImage] = [:]
+    private var statusButtonAppearanceObservation: NSKeyValueObservation?
 
     private struct StatusImageKey: Hashable {
         let type: AppState.ConnectedNetworkType
@@ -119,6 +120,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem.button {
             button.action = #selector(togglePopover(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+
+            // Right after launch the status bar window still reports a light
+            // appearance for a moment, even when the menu bar is dark. Rendering
+            // then left a black glyph until the next status change. Observe the
+            // button's effectiveAppearance so the icon is redrawn as soon as
+            // AppKit resolves the menu bar's real appearance.
+            statusButtonAppearanceObservation = button.observe(
+                \.effectiveAppearance,
+                options: [.new]
+            ) { [weak self] _, _ in
+                Task { @MainActor in
+                    self?.updateStatusItemImage()
+                }
+            }
         }
         updateStatusItemImage()
         updateStatusItemTooltip()

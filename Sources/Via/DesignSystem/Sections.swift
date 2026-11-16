@@ -112,9 +112,6 @@ struct StatusBadge: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.trailing)
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
-        .background(Color.primary.opacity(0.06), in: Capsule())
         .accessibilityElement(children: .combine)
     }
 }
