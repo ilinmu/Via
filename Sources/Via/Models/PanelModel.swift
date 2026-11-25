@@ -47,6 +47,13 @@ public final class PanelModel: ObservableObject {
         permissionReady
     }
 
+    var currentSSID: String? {
+        if case let .connected(ssid, _) = appState.networkStatus {
+            return ssid
+        }
+        return nil
+    }
+
     var hasUnsavedDraft: Bool {
         draft.hasChanges
     }

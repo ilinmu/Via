@@ -8,11 +8,11 @@ struct NetworksStepView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(i18n.localizedString("onboarding_networks_title"))
-                .font(.title3.weight(.semibold))
+                .font(PanelFont.title)
 
             Text(i18n.localizedString("onboarding_networks_body"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.body)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             NetworkSetupForm(
@@ -21,12 +21,13 @@ struct NetworksStepView: View {
                 isScanning: model.isScanning,
                 scanOutcome: model.scanOutcome,
                 canScan: model.canScan,
-                onScan: { model.scan() }
+                onScan: { model.scan() },
+                currentSSID: model.currentSSID
             )
 
             Text(i18n.localizedString("onboarding_networks_hint"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

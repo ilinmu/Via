@@ -58,7 +58,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusButtonAppearanceObservation: NSKeyValueObservation?
 
     private struct StatusImageKey: Hashable {
-        let type: AppState.ConnectedNetworkType
         let isRunning: Bool
         let isDark: Bool
         let scale: Int
@@ -204,6 +203,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusTooltip(for status: AppState.NetworkStatus) -> String {
         let i18n = LocalizationManager.shared
+        if !appState.isRunning, wifiManager?.autoSwitchStopReason == .manualOverride {
+            return "Via: \(i18n.localizedString("status_manual_stopped"))"
+        }
         switch status {
         case let .connected(ssid, role):
             let roleText: String
@@ -217,7 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case .none:
                 roleText = i18n.localizedString("role_offline")
             }
-            return "Via: \(ssid) · \(roleText)"
+            return "Via: \(ssid) — \(roleText)"
         case .notConnected:
             return "Via: \(i18n.localizedString("not_connected"))"
         case .permissionPending:
@@ -231,12 +233,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateStatusItemImage() {
         guard let button = statusItem?.button else { return }
-        let type = appState.connectedNetworkType
         let isRunning = appState.isRunning
         let isDark = usesDarkMenuBarContent()
         let scale = button.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
         let key = StatusImageKey(
-            type: type,
             isRunning: isRunning,
             isDark: isDark,
             scale: Int((scale * 100).rounded())
@@ -246,7 +246,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = cached
         } else {
             let image = createStatusImage(
-                type: type,
                 isRunning: isRunning,
                 isDark: isDark,
                 scale: scale
@@ -273,7 +272,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func createStatusImage(
-        type: AppState.ConnectedNetworkType,
         isRunning: Bool,
         isDark: Bool,
         scale: CGFloat
@@ -302,7 +300,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Pure white on a dark menu bar, pure black on a light one, matching
         // the native Wi-Fi menu bar icon's full-contrast monochrome look.
         let iconColor: NSColor = isDark ? .white : .black
-        let letterColor: NSColor = iconColor
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -314,31 +311,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if !isRunning {
+            // A small red dot is the only hint that auto-switch is off; the
+            // panel explains why and offers to turn it back on.
             NSColor.systemRed.setFill()
             let dotRect = NSRect(x: 16, y: 2, width: 6, height: 6)
             NSBezierPath(ovalIn: dotRect).fill()
-        } else {
-            let text: String
-            switch type {
-            case .priority: text = "P"
-            case .backup: text = "B"
-            default: text = ""
-            }
-
-            if !text.isEmpty {
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                    .foregroundColor: letterColor
-                ]
-                NSAttributedString(string: text, attributes: attributes).draw(at: NSPoint(x: 15, y: 0))
-            }
         }
 
         NSGraphicsContext.restoreGraphicsState()
 
         let image = NSImage(size: size)
         image.addRepresentation(rep)
-        image.isTemplate = false // Disable template mode to allow the red dot/P-B colors
+        image.isTemplate = false
         return image
     }
 

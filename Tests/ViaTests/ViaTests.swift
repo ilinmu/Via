@@ -207,7 +207,7 @@ final class MockLocationManager: LocationManagerProtocol {
     var authorizationStatus: CLAuthorizationStatus = .authorizedAlways
     var requestAuthorizationCalled = false
 
-    func requestWhenInUseAuthorization() {
+    func requestAlwaysAuthorization() {
         requestAuthorizationCalled = true
     }
 }

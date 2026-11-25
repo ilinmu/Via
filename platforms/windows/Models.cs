@@ -12,7 +12,7 @@ public sealed class AppSettings
     public string SsidB { get; set; } = "";
 
     [DataMember(Order = 3)]
-    public int CheckInterval { get; set; } = 15;
+    public int CheckInterval { get; set; } = 60;
 
     [DataMember(Order = 4)]
     public bool Running { get; set; }

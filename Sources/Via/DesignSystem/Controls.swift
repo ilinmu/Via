@@ -33,12 +33,12 @@ struct FieldContainer<Content: View>: View {
         .padding(.horizontal, 10)
         .frame(height: PanelLayout.controlHeight)
         .background(
-            Color(nsColor: .textBackgroundColor),
+            PanelColor.surface,
             in: RoundedRectangle(cornerRadius: 8)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                .stroke(PanelColor.separator, lineWidth: 1)
         )
     }
 }

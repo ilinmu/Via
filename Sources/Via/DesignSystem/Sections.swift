@@ -13,8 +13,8 @@ struct SettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(PanelFont.captionStrong)
+                .foregroundStyle(PanelColor.textSecondary)
             VStack(alignment: .leading, spacing: 10) {
                 content
             }
@@ -37,11 +37,11 @@ struct SettingsRow<Content: View>: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.body)
+                    .font(PanelFont.body)
                 if let description {
                     Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(PanelFont.caption)
+                        .foregroundStyle(PanelColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -61,7 +61,7 @@ struct WarningBanner: View {
     init(
         message: String,
         systemImage: String = "exclamationmark.triangle",
-        tint: Color = .orange,
+        tint: Color = PanelColor.warning,
         actionTitle: String? = nil,
         action: (() -> Void)? = nil
     ) {
@@ -75,26 +75,26 @@ struct WarningBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(tint)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(message)
-                    .font(.caption)
+                    .font(PanelFont.caption)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let actionTitle, let action {
                     Button(actionTitle, action: action)
                         .buttonStyle(.link)
-                        .font(.caption)
+                        .font(PanelFont.caption)
                 }
             }
 
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+        .background(PanelColor.soft(tint), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -108,7 +108,7 @@ struct StatusBadge: View {
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text(text)
-                .font(.body.weight(.medium))
+                .font(PanelFont.captionStrong)
                 .lineLimit(2)
                 .multilineTextAlignment(.trailing)
         }
@@ -136,16 +136,17 @@ struct PanelSummaryRow: View {
     private var rowContent: some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.body)
+                .font(PanelFont.body)
             Spacer(minLength: 8)
             Text(value)
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.body)
+                .foregroundStyle(PanelColor.textSecondary)
                 .lineLimit(1)
+                .truncationMode(.middle)
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(PanelColor.textSecondary)
             }
         }
         .padding(.vertical, PanelLayout.rowVerticalPadding)

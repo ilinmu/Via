@@ -9,27 +9,27 @@ struct PermissionStepView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Image(systemName: "location.circle")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(.tint)
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(PanelColor.accentText)
 
             Text(i18n.localizedString("onboarding_permission_title"))
-                .font(.title3.weight(.semibold))
+                .font(PanelFont.title)
 
             Text(i18n.localizedString("onboarding_permission_body"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.body)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             permissionControl
 
             Text(i18n.localizedString("onboarding_permission_later_hint"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(i18n.localizedString("onboarding_privacy_note"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -42,33 +42,38 @@ struct PermissionStepView: View {
                 i18n.localizedString("onboarding_permission_granted"),
                 systemImage: "checkmark.circle.fill"
             )
-            .font(.callout)
-            .foregroundStyle(.green)
+            .font(PanelFont.body)
+            .foregroundStyle(PanelColor.accentText)
 
         case .notDetermined:
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Button(i18n.localizedString("permission_grant")) {
                     wifiManager.requestPermissions()
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button(i18n.localizedString("permission_open_settings")) {
-                    SystemLinks.openLocationSettings()
+                HStack(spacing: 6) {
+                    Text(i18n.localizedString("onboarding_permission_settings_hint"))
+                        .font(PanelFont.caption)
+                        .foregroundStyle(PanelColor.textSecondary)
+                    Button(i18n.localizedString("permission_open_settings")) {
+                        SystemLinks.openLocationSettings()
+                    }
+                    .buttonStyle(.link)
+                    .font(PanelFont.caption)
                 }
-                .buttonStyle(.link)
-                .font(.callout)
             }
 
         default:
-            HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Button(i18n.localizedString("permission_open_settings")) {
                     SystemLinks.openLocationSettings()
                 }
                 .buttonStyle(.borderedProminent)
 
                 Text(i18n.localizedString("permission_always_required"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

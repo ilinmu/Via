@@ -9,6 +9,7 @@ struct NetworkSetupForm: View {
     let scanOutcome: ScanOutcome
     let canScan: Bool
     let onScan: () -> Void
+    var currentSSID: String? = nil
     var showValidation = false
 
     @ObservedObject var i18n = LocalizationManager.shared
@@ -17,8 +18,8 @@ struct NetworkSetupForm: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 10) {
                 Text(i18n.localizedString("network_scan_hint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 8)
@@ -32,15 +33,15 @@ struct NetworkSetupForm: View {
 
             if let scanMessage {
                 Text(scanMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if !canScan {
                 Text(i18n.localizedString("permission_required_for_automation"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -50,9 +51,8 @@ struct NetworkSetupForm: View {
                 ssid: $draft.ssidP,
                 password: $draft.passwordP,
                 networks: availableNetworks,
-                isScanning: isScanning,
-                canScan: canScan,
-                onScan: onScan
+                currentSSID: currentSSID,
+                validationMessage: fieldError(for: .missingPrimary)
             )
 
             Divider()
@@ -63,22 +63,26 @@ struct NetworkSetupForm: View {
                 ssid: $draft.ssidB,
                 password: $draft.passwordB,
                 networks: availableNetworks,
-                isScanning: isScanning,
-                canScan: canScan,
-                onScan: onScan
+                currentSSID: currentSSID,
+                validationMessage: fieldError(for: .missingBackup)
             )
 
-            if showValidation, let errorKey = draft.validation.errorKey {
-                Text(i18n.localizedString(errorKey))
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            if showValidation, draft.validation == .sameNetwork {
+                Text(i18n.localizedString("same_network_error"))
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text(i18n.localizedString("password_optional_hint"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
         }
+    }
+
+    private func fieldError(for validation: NetworkDraft.Validation) -> String? {
+        guard showValidation, draft.validation == validation else { return nil }
+        return i18n.localizedString(validation.errorKey ?? "")
     }
 
     private var scanMessage: String? {
@@ -86,10 +90,7 @@ struct NetworkSetupForm: View {
         case .idle, .scanning:
             return nil
         case let .success(count):
-            return String(
-                format: i18n.localizedString("networks_found_count"),
-                count
-            )
+            return i18n.networksFound(count)
         case .empty:
             return i18n.localizedString("no_networks_found")
         case .permissionPending:
@@ -106,9 +107,8 @@ private struct NetworkEditor: View {
     @Binding var ssid: String
     @Binding var password: String
     let networks: [String]
-    let isScanning: Bool
-    let canScan: Bool
-    let onScan: () -> Void
+    var currentSSID: String? = nil
+    var validationMessage: String? = nil
 
     @ObservedObject var i18n = LocalizationManager.shared
     @State private var showPassword = false
@@ -131,20 +131,20 @@ private struct NetworkEditor: View {
                     .foregroundStyle(.tint)
 
                 Text(i18n.localizedString(titleKey))
-                    .font(.subheadline.weight(.semibold))
+                    .font(PanelFont.bodyStrong)
 
                 Spacer(minLength: 8)
 
                 Text(i18n.localizedString(isConfigured ? "configured" : "not_configured"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
             }
 
             HStack(spacing: 8) {
                 FieldContainer {
                     TextField(i18n.localizedString("ssid_placeholder"), text: $ssid)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13))
+                        .font(PanelFont.body)
                         .accessibilityLabel(i18n.localizedString("ssid_label"))
                 }
 
@@ -154,15 +154,15 @@ private struct NetworkEditor: View {
                     } label: {
                         Image(systemName: showSuggestions ? "chevron.up" : "chevron.down")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(PanelColor.textSecondary)
                             .frame(width: 34, height: PanelLayout.controlHeight)
                             .background(
-                                Color(nsColor: .textBackgroundColor),
+                                PanelColor.surface,
                                 in: RoundedRectangle(cornerRadius: 8)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                                    .stroke(PanelColor.separator, lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -172,31 +172,6 @@ private struct NetworkEditor: View {
 
             if showSuggestions && !networks.isEmpty {
                 VStack(spacing: 0) {
-                    // Scan from inside the list, so refreshing does not mean
-                    // scrolling back to the scan row at the top of the form.
-                    Button(action: onScan) {
-                        HStack(spacing: 6) {
-                            if isScanning {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "wifi")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            Text(i18n.localizedString("scan_networks"))
-                                .font(.system(size: 13))
-                            Spacer(minLength: 8)
-                        }
-                        .padding(.horizontal, 10)
-                        .frame(height: 30)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canScan || isScanning)
-                    .accessibilityLabel(i18n.localizedString("scan_networks"))
-
-                    Divider()
-
                     ScrollView(.vertical) {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(networks.enumerated()), id: \.element) { index, network in
@@ -206,8 +181,9 @@ private struct NetworkEditor: View {
                                 } label: {
                                     HStack(spacing: 8) {
                                         Text(network)
-                                            .font(.system(size: 13))
+                                            .font(PanelFont.body)
                                             .lineLimit(1)
+                                            .truncationMode(.middle)
                                         Spacer(minLength: 8)
                                         if network == ssid {
                                             Image(systemName: "checkmark")
@@ -230,12 +206,12 @@ private struct NetworkEditor: View {
                     .frame(height: suggestionListHeight)
                 }
                 .background(
-                    Color(nsColor: .textBackgroundColor),
+                    PanelColor.surface,
                     in: RoundedRectangle(cornerRadius: 8)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        .stroke(PanelColor.separator, lineWidth: 1)
                 )
             }
 
@@ -252,7 +228,7 @@ private struct NetworkEditor: View {
                 Button(action: { showPassword.toggle() }) {
                     Image(systemName: showPassword ? "eye.slash" : "eye")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PanelColor.textSecondary)
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }

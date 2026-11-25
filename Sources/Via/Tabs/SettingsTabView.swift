@@ -12,9 +12,6 @@ struct SettingsTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(i18n.localizedString("settings_title"))
-                .font(.title3.weight(.semibold))
-
             generalSection
 
             Divider()
@@ -30,6 +27,12 @@ struct SettingsTabView: View {
         .onChange(of: appState.checkInterval) { _ in
             if !intervalFocused {
                 model.syncIntervalDraft()
+            }
+        }
+        .onChange(of: model.intervalDraft) { newValue in
+            let digits = String(newValue.filter(\.isNumber).prefix(4))
+            if digits != newValue {
+                model.intervalDraft = digits
             }
         }
     }
@@ -75,14 +78,15 @@ struct SettingsTabView: View {
 
             DisclosureGroup(isExpanded: $showHelp) {
                 Text(i18n.localizedString("help_content"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.body)
+                    .foregroundStyle(PanelColor.textSecondary)
+                    .lineSpacing(3)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
             } label: {
                 Text(i18n.localizedString("help"))
-                    .font(.body)
+                    .font(PanelFont.body)
             }
 
             Button(i18n.localizedString("rerun_setup")) {
@@ -91,7 +95,7 @@ struct SettingsTabView: View {
                 )
             }
             .buttonStyle(.link)
-            .font(.body)
+            .font(PanelFont.body)
         }
     }
 
@@ -101,7 +105,7 @@ struct SettingsTabView: View {
                 FieldContainer {
                     TextField("", text: $model.intervalDraft)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13))
+                        .font(PanelFont.body)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 48)
                         .focused($intervalFocused)
@@ -109,16 +113,30 @@ struct SettingsTabView: View {
                         .accessibilityLabel(i18n.localizedString("check_frequency"))
 
                     Text(i18n.localizedString("seconds_unit"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(PanelFont.caption)
+                        .foregroundStyle(PanelColor.textSecondary)
                 }
                 .frame(width: 100)
             }
 
-            Text(i18n.localizedString("interval_range_hint"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(intervalSummary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
+                Text(
+                    intervalWasAdjusted
+                        ? String(
+                            format: i18n.localizedString("interval_adjusted_format"),
+                            i18n.duration(effectiveInterval)
+                        )
+                        : i18n.localizedString("interval_range_hint")
+                )
+                .font(PanelFont.caption)
+                .foregroundStyle(
+                    intervalWasAdjusted ? PanelColor.warning : PanelColor.textSecondary
+                )
                 .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .onChange(of: intervalFocused) { focused in
             if !focused {
@@ -131,13 +149,13 @@ struct SettingsTabView: View {
         SettingsSection(i18n.localizedString("about")) {
             SettingsRow(i18n.localizedString("version")) {
                 Text(versionText)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.body)
+                    .foregroundStyle(PanelColor.textSecondary)
             }
 
             Text(i18n.localizedString("privacy_note"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Divider()
@@ -146,9 +164,33 @@ struct SettingsTabView: View {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.plain)
-            .font(.body)
-            .foregroundStyle(.red)
+            .font(PanelFont.body)
+            .foregroundStyle(PanelColor.textSecondary)
         }
+    }
+
+    private var effectiveInterval: Double {
+        let text = model.intervalDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(text), value.isFinite else {
+            return appState.checkInterval
+        }
+        return min(
+            max(value, AppState.minimumCheckInterval),
+            AppState.maximumCheckInterval
+        )
+    }
+
+    private var intervalSummary: String {
+        String(
+            format: i18n.localizedString("interval_summary"),
+            i18n.duration(effectiveInterval)
+        )
+    }
+
+    private var intervalWasAdjusted: Bool {
+        let text = model.intervalDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(text), value.isFinite else { return false }
+        return value != effectiveInterval.rounded()
     }
 
     private var versionText: String {

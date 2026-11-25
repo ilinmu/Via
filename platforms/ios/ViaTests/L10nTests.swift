@@ -5,8 +5,8 @@ final class L10nTests: XCTestCase {
     func testKnownKeysAreLocalized() {
         XCTAssertEqual(L10n.t("tab_status", "zh"), "状态")
         XCTAssertEqual(L10n.t("tab_status", "en"), "Status")
-        XCTAssertEqual(L10n.t("role_priority", "zh"), "优先网络")
-        XCTAssertEqual(L10n.t("role_priority", "en"), "Priority")
+        XCTAssertEqual(L10n.t("role_priority", "zh"), "首选网络")
+        XCTAssertEqual(L10n.t("role_priority", "en"), "Preferred network")
     }
 
     func testUnknownKeyFallsBackToKey() {

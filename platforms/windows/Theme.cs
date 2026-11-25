@@ -11,9 +11,9 @@ namespace Via.Windows;
 
 /// <summary>
 /// Replaces the brush tokens from <c>Styles.xaml</c> with values that follow
-/// the Windows light/dark setting and the user's accent colour. WPF on .NET
-/// Framework has no built-in dark theme, so the palette is applied by hand and
-/// refreshed when the system preference changes.
+/// the Windows light/dark setting. WPF on .NET Framework has no built-in dark
+/// theme, so the palette is applied by hand and refreshed when the system
+/// preference changes.
 /// </summary>
 public static class Theme
 {
@@ -28,28 +28,34 @@ public static class Theme
         }
 
         var dark = IsDark();
-        var accent = AccentColor();
+        var accent = dark
+            ? Color.FromRgb(0x3C, 0x7D, 0x6C)
+            : Color.FromRgb(0x2E, 0x6B, 0x5C);
+        var accentLink = dark
+            ? Color.FromRgb(0x8C, 0xC4, 0xB2)
+            : Color.FromRgb(0x2E, 0x6B, 0x5C);
         var hover = dark ? Lighten(accent, 1.18) : Darken(accent, 0.86);
 
-        Set(resources, "BackgroundBrush", dark ? "#1E1E1E" : "#F6F6F6");
-        Set(resources, "SurfaceBrush", dark ? "#2A2A2C" : "#FFFFFF");
-        Set(resources, "FieldBrush", dark ? "#1A1A1C" : "#FFFFFF");
-        Set(resources, "HoverBrush", dark ? "#3A3A3C" : "#F0F0F2");
-        Set(resources, "PressedBrush", dark ? "#454547" : "#E6E6E8");
-        Set(resources, "TextBrush", dark ? "#F2F2F7" : "#1C1C1E");
-        Set(resources, "SecondaryTextBrush", dark ? "#A1A1A6" : "#6E6E73");
-        Set(resources, "TertiaryTextBrush", dark ? "#7C7C80" : "#9A9AA0");
-        Set(resources, "SeparatorBrush", dark ? "#3A3A3C" : "#E2E2E6");
-        Set(resources, "SegmentTrackBrush", dark ? "#333335" : "#EDEDF0");
-        Set(resources, "SegmentSelectedBrush", dark ? "#5A5A5E" : "#FFFFFF");
-        Set(resources, "ControlTrackBrush", dark ? "#5A5A5E" : "#D2D2D7");
+        Set(resources, "BackgroundBrush", dark ? "#1B1A18" : "#F7F5F1");
+        Set(resources, "SurfaceBrush", dark ? "#232120" : "#FFFFFF");
+        Set(resources, "FieldBrush", dark ? "#232120" : "#FFFFFF");
+        Set(resources, "HoverBrush", dark ? "#33302C" : "#EFEAE2");
+        Set(resources, "PressedBrush", dark ? "#3D3934" : "#E6E0D6");
+        Set(resources, "TextBrush", dark ? "#F2EEE8" : "#1F1D1A");
+        Set(resources, "SecondaryTextBrush", dark ? "#A8A29A" : "#726D65");
+        Set(resources, "TertiaryTextBrush", dark ? "#A8A29A" : "#726D65");
+        Set(resources, "SeparatorBrush", dark ? "#3A3733" : "#E4DFD7");
+        Set(resources, "SegmentTrackBrush", dark ? "#2E2B27" : "#EDE7DE");
+        Set(resources, "SegmentSelectedBrush", dark ? "#3D3934" : "#FFFFFF");
+        Set(resources, "ControlTrackBrush", dark ? "#5A554E" : "#C9C2B8");
         Set(resources, "AccentBrush", accent);
+        Set(resources, "AccentLinkBrush", accentLink);
         Set(resources, "AccentHoverBrush", hover);
         Set(resources, "AccentSoftBrush", Color.FromArgb(0x22, accent.R, accent.G, accent.B));
         Set(resources, "AccentTextBrush", Colors.White);
-        Set(resources, "DangerBrush", dark ? "#FF6B6B" : "#D70015");
-        Set(resources, "WarningBrush", dark ? "#FFB340" : "#C93400");
-        Set(resources, "SuccessBrush", dark ? "#4CD964" : "#248A3D");
+        Set(resources, "DangerBrush", dark ? "#E58C82" : "#A33A32");
+        Set(resources, "WarningBrush", dark ? "#E0A458" : "#A15C00");
+        Set(resources, "SuccessBrush", accent);
         Set(resources, "BadgeBrush", dark ? "#2EFFFFFF" : "#14000000");
     }
 
@@ -88,31 +94,6 @@ public static class Theme
         {
             return false;
         }
-    }
-
-    private static Color AccentColor()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\DWM");
-            if (key?.GetValue("AccentColor") is int value)
-            {
-                // AccentColor is stored as 0xAABBGGRR.
-                var r = (byte)(value & 0xFF);
-                var g = (byte)((value >> 8) & 0xFF);
-                var b = (byte)((value >> 16) & 0xFF);
-                if (r + g + b > 30)
-                {
-                    return Color.FromRgb(r, g, b);
-                }
-            }
-        }
-        catch
-        {
-            // Fall through to the default Windows accent.
-        }
-
-        return Color.FromRgb(0x00, 0x78, 0xD4);
     }
 
     private static Color Lighten(Color color, double factor)

@@ -50,14 +50,18 @@ public sealed class MonitorService : IDisposable
         }
     }
 
-    public void Start()
+    public bool Start()
     {
         Task? previous;
         lock (_gate)
         {
-            if (_disposed || _running)
+            if (_disposed)
             {
-                return;
+                return false;
+            }
+            if (_running)
+            {
+                return true;
             }
             previous = _loop;
         }
@@ -80,9 +84,17 @@ public sealed class MonitorService : IDisposable
 
         lock (_gate)
         {
-            if (_disposed || _running || _loop is { IsCompleted: false })
+            if (_disposed)
             {
-                return;
+                return false;
+            }
+            if (_running)
+            {
+                return true;
+            }
+            if (_loop is { IsCompleted: false })
+            {
+                return false;
             }
 
             _settings.Normalize();
@@ -99,6 +111,8 @@ public sealed class MonitorService : IDisposable
             // can be restarted with a fresh engine without racing the UI.
             _loop = Task.Run(() => RunAsync(token), token);
         }
+
+        return true;
     }
 
     public void Stop()
@@ -299,9 +313,23 @@ public sealed class MonitorService : IDisposable
         {
             var settings = CurrentSettings();
             var interval = Compat.Clamp(settings.CheckInterval, 5, 3600);
-            var delay = Task.Delay(TimeSpan.FromSeconds(interval), token);
-            var wake = _wake.WaitAsync(token);
+            // Give both waiters their own cancellation token so the losing one
+            // is removed from the semaphore queue instead of leaking a waiter
+            // that would swallow the next Refresh().
+            using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(
+                token, CancellationToken.None);
+            var delay = Task.Delay(TimeSpan.FromSeconds(interval), waitCts.Token);
+            var wake = _wake.WaitAsync(waitCts.Token);
             await Task.WhenAny(delay, wake);
+            waitCts.Cancel();
+            try
+            {
+                await Task.WhenAll(delay, wake);
+            }
+            catch (OperationCanceledException)
+            {
+                // The other waiter was cancelled on purpose.
+            }
 
             if (token.IsCancellationRequested)
             {
@@ -555,19 +583,36 @@ public sealed class MonitorService : IDisposable
             PolicyLogEvent.PriorityConnected => "role_priority",
             PolicyLogEvent.AutomaticFailover => "role_backup",
             PolicyLogEvent.PriorityVisibleUnknown => "scan_empty_unknown",
+            PolicyLogEvent.PriorityVisibleWaiting => "event_priorityWaiting",
+            PolicyLogEvent.NetworkDisconnectedWaiting => "event_disconnectedWaiting",
+            PolicyLogEvent.PriorityLostConnectingBackup => "event_connectingBackup",
+            PolicyLogEvent.BackupConnectedPNotFound => "event_backupWaiting",
+            PolicyLogEvent.NeitherFound => "event_neitherFound",
+            PolicyLogEvent.BackupNotFound => "event_backupNotFound",
+            PolicyLogEvent.BackupNotFoundWaiting => "event_backupWaitingAgain",
+            PolicyLogEvent.PreviousBackupReconnect => "event_previousBackup",
+            PolicyLogEvent.SystemJoinedBackup => "event_systemJoinedBackup",
+            PolicyLogEvent.TreatingAsFallback => "event_treatingAsFallback",
+            PolicyLogEvent.CooldownSkipped => "event_cooldown",
+            PolicyLogEvent.AssociationSuccess => "event_associated",
+            PolicyLogEvent.AssociationTimeout => "event_associationTimeout",
+            PolicyLogEvent.AssociationFailure => "connect_failed",
+            PolicyLogEvent.AssociationLateSuccess => "event_lateSuccess",
+            PolicyLogEvent.AssociationLateFailure => "event_lateFailure",
+            PolicyLogEvent.PermissionRequired => "permission_needed",
             _ => null
         };
 
-        return key is null ? $"policy event {eventCode}" : L10n.T(key);
+        return L10n.T(key ?? "waiting");
     }
 
     private static string StopText(int reasonCode)
     {
         return ((PolicyStopReason)reasonCode) switch
         {
-            PolicyStopReason.NotConfigured => L10n.T("missing_primary"),
-            PolicyStopReason.ManualOverrideBackup => L10n.T("monitor_stopped"),
-            PolicyStopReason.ManualOverrideUnmanaged => L10n.T("monitor_stopped"),
+            PolicyStopReason.NotConfigured => L10n.T("not_configured_hint"),
+            PolicyStopReason.ManualOverrideBackup => L10n.T("monitor_stopped_manual"),
+            PolicyStopReason.ManualOverrideUnmanaged => L10n.T("monitor_stopped_manual"),
             _ => L10n.T("monitor_stopped")
         };
     }

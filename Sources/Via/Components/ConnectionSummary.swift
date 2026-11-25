@@ -50,11 +50,26 @@ struct ConnectionSummary: View {
     private var iconTint: Color {
         switch appState.networkStatus {
         case .connected:
-            return .accentColor
+            return PanelColor.accentText
         case .permissionDenied:
-            return .orange
+            return PanelColor.warning
         case .permissionPending, .noInterface, .notConnected:
-            return .secondary
+            return PanelColor.textSecondary
+        }
+    }
+
+    private var detailText: String? {
+        switch appState.networkStatus {
+        case .connected:
+            return roleText
+        case .permissionPending:
+            return i18n.localizedString("connection_permission_hint")
+        case .permissionDenied:
+            return i18n.localizedString("location_permission_hint")
+        case .noInterface:
+            return i18n.localizedString("connection_wifi_off_hint")
+        case .notConnected:
+            return nil
         }
     }
 
@@ -62,7 +77,7 @@ struct ConnectionSummary: View {
         HStack(alignment: .center, spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(iconTint.opacity(0.12))
+                    .fill(PanelColor.soft(iconTint))
                 Image(systemName: iconName)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(iconTint)
@@ -71,11 +86,15 @@ struct ConnectionSummary: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(networkName)
-                    .font(.title3.weight(.semibold))
-                    .lineLimit(1)
-                Text(roleText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.title)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detailText {
+                    Text(detailText)
+                        .font(PanelFont.caption)
+                        .foregroundStyle(PanelColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: 8)

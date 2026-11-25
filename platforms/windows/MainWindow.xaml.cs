@@ -19,6 +19,8 @@ public partial class MainWindow : Window
     private bool _loading = true;
     private bool _syncingUi;
     private bool _allowClose;
+    private bool _restarting;
+    private WifiRole _lastRole = WifiRole.None;
 
     public MainWindow()
     {
@@ -37,7 +39,16 @@ public partial class MainWindow : Window
         if (_settings.Running)
         {
             _monitor.Configure(_settings);
-            _monitor.Start();
+            if (!_monitor.Start())
+            {
+                _settings.Running = false;
+                SettingsStore.Save(_settings);
+                _syncingUi = true;
+                AutoSwitchCheckBox.IsChecked = false;
+                _syncingUi = false;
+                UpdateStatusBadge(false);
+                LastMessageText.Text = L10n.T("start_failed");
+            }
         }
     }
 
@@ -71,14 +82,29 @@ public partial class MainWindow : Window
 
         if (wizard.StartRequested)
         {
-            _settings.Running = true;
-            SettingsStore.Save(_settings);
             _monitor.Configure(_settings);
-            _monitor.Start();
-            _syncingUi = true;
-            AutoSwitchCheckBox.IsChecked = true;
-            _syncingUi = false;
-            UpdateStatusBadge(true);
+            if (_monitor.Start())
+            {
+                _settings.Running = true;
+                SettingsStore.Save(_settings);
+                _syncingUi = true;
+                AutoSwitchCheckBox.IsChecked = true;
+                _syncingUi = false;
+                UpdateStatusBadge(true);
+            }
+            else
+            {
+                _settings.Running = false;
+                SettingsStore.Save(_settings);
+                LastMessageText.Text = L10n.T("start_failed");
+                UpdateStatusBadge(false);
+            }
+        }
+        else
+        {
+            // The wizard may have changed the networks while monitoring was
+            // running, even when the user chose "Save only".
+            _monitor.Configure(_settings);
         }
     }
 
@@ -114,6 +140,10 @@ public partial class MainWindow : Window
 
         VersionValue.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString()
             ?? "1.0.0";
+        CurrentSsidValue.Text = L10n.T("not_connected");
+        NextCheckValue.Text = "—";
+        ScanStatusText.Text = "";
+        ValidationText.Text = "";
     }
 
     private void ApplyLanguage()
@@ -129,10 +159,8 @@ public partial class MainWindow : Window
         AutoSwitchTitle.Text = L10n.T("auto_switch");
         AutoSwitchHint.Text = L10n.T("auto_switch_hint");
         NextCheckLabel.Text = L10n.T("next_check");
-        ScanButton.Content = L10n.T("scan_networks");
         RefreshButton.Content = L10n.T("refresh_status");
 
-        NetworksTitle.Text = L10n.T("tab_networks");
         NetworksDescription.Text = L10n.T("networks_description");
         PriorityLabel.Text = L10n.T("priority_network");
         BackupLabel.Text = L10n.T("backup_network");
@@ -142,7 +170,6 @@ public partial class MainWindow : Window
         SaveButton.Content = L10n.T("save_changes");
         NetworkHint.Text = L10n.T("password_optional");
 
-        SettingsTitle.Text = L10n.T("tab_settings");
         GeneralLabel.Text = L10n.T("settings_general");
         LanguageLabel.Text = L10n.T("language");
         IntervalLabel.Text = L10n.T("interval");
@@ -154,10 +181,37 @@ public partial class MainWindow : Window
         PrivacyText.Text = L10n.T("privacy_note");
         QuitButton.Content = L10n.T("quit_app");
         RerunSetupButton.Content = L10n.T("rerun_setup");
+        WindowsLimitText.Text = L10n.T("windows_limits");
 
-        RoleValue.Text = $"{L10n.T("role")}: {RoleText(WifiRole.None)}";
-        LastMessageText.Text = L10n.T("windows_limit_hint");
-        UpdateStatusBadge(AutoSwitchCheckBox.IsChecked == true);
+        RoleValue.Text = RoleText(_lastRole);
+        ScanStatusText.Text = "";
+        ValidationText.Text = "";
+        LastMessageText.Text = _settings.IsComplete
+            ? L10n.T("waiting")
+            : L10n.T("not_configured_hint");
+        UpdateIntervalSummary();
+        UpdateStatusBadge(AutoSwitchCheckBox.IsChecked == true, _restarting);
+    }
+
+    private void UpdateIntervalSummary()
+    {
+        var value = int.TryParse(IntervalBox.Text.Trim(), out var parsed)
+            ? parsed
+            : _settings.CheckInterval;
+        value = Compat.Clamp(value, 5, 3600);
+        IntervalSummary.Text = string.Format(
+            L10n.T("interval_summary_format"),
+            L10n.Duration(value));
+        IntervalRange.Text = L10n.T("interval_range");
+    }
+
+    private void IntervalBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+        UpdateIntervalSummary();
     }
 
     private void UpdateStatusBadge(bool running, bool restarting = false)
@@ -198,13 +252,25 @@ public partial class MainWindow : Window
                 _syncingUi = true;
                 AutoSwitchCheckBox.IsChecked = false;
                 _syncingUi = false;
+                LastMessageText.Text = L10n.T("not_configured_hint");
+                Tabs.SelectedItem = NetworksTab;
                 return;
             }
 
             _settings.Running = true;
             SettingsStore.Save(_settings);
             _monitor.Configure(_settings);
-            _monitor.Start();
+            if (!_monitor.Start())
+            {
+                _settings.Running = false;
+                SettingsStore.Save(_settings);
+                _syncingUi = true;
+                AutoSwitchCheckBox.IsChecked = false;
+                _syncingUi = false;
+                UpdateStatusBadge(false);
+                LastMessageText.Text = L10n.T("start_failed");
+                return;
+            }
             UpdateStatusBadge(true);
         }
         else
@@ -214,29 +280,6 @@ public partial class MainWindow : Window
             SettingsStore.Save(_settings);
             _tray?.UpdateStatus(null, WifiRole.None, false);
             UpdateStatusBadge(false);
-        }
-    }
-
-    private async void ScanButton_Click(object sender, RoutedEventArgs e)
-    {
-        var previous = ScanButton.Content;
-        ScanButton.IsEnabled = false;
-        ScanButton.Content = L10n.T("scanning");
-        try
-        {
-            var networks = await Task.Run(() => _wifi.Scan());
-            LastMessageText.Text = networks.Count == 0
-                ? L10n.T("no_networks")
-                : string.Join(", ", networks);
-        }
-        catch (Exception exception)
-        {
-            LastMessageText.Text = exception.Message;
-        }
-        finally
-        {
-            ScanButton.Content = previous;
-            ScanButton.IsEnabled = true;
         }
     }
 
@@ -265,12 +308,12 @@ public partial class MainWindow : Window
             BackupSsidBox.ItemsSource = networks;
             ScanStatusText.Text = networks.Count == 0
                 ? L10n.T("no_networks")
-                : string.Format(L10n.T("networks_found_format"), networks.Count);
+                : L10n.NetworksFound(networks.Count);
             SetValidation("", false);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            SetValidation(exception.Message, true);
+            SetValidation(L10n.T("scan_failed"), true);
         }
         finally
         {
@@ -352,9 +395,16 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (string.Equals(ssidP, ssidB, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(ssidP, ssidB, StringComparison.Ordinal))
         {
             SetValidation(L10n.T("same_network"), true);
+            return false;
+        }
+
+        if (!IsPasswordValid(PriorityPasswordBox.Password) ||
+            !IsPasswordValid(BackupPasswordBox.Password))
+        {
+            SetValidation(L10n.T("invalid_password"), true);
             return false;
         }
 
@@ -382,9 +432,15 @@ public partial class MainWindow : Window
         }
 
         IntervalBox.Text = _settings.CheckInterval.ToString();
+        UpdateIntervalSummary();
         SetValidation(L10n.T("saved"), false);
         _monitor.Configure(_settings);
         return true;
+    }
+
+    private static bool IsPasswordValid(string password)
+    {
+        return password.Length == 0 || (password.Length >= 8 && password.Length <= 63);
     }
 
     private void OnMonitorStatus(MonitorStatus status)
@@ -394,10 +450,12 @@ public partial class MainWindow : Window
             CurrentSsidValue.Text = string.IsNullOrWhiteSpace(status.CurrentSsid)
                 ? L10n.T("not_connected")
                 : status.CurrentSsid;
-            RoleValue.Text = $"{L10n.T("role")}: {RoleText(status.Role)}";
+            RoleValue.Text = RoleText(status.Role);
+            _lastRole = status.Role;
             _tray?.UpdateStatus(status.CurrentSsid, status.Role, status.Running);
             NextCheckValue.Text = status.NextCheck?.ToString("HH:mm:ss") ?? "—";
             LastMessageText.Text = status.Message;
+            _restarting = status.Restarting;
             if (_settings.Running != status.Running)
             {
                 _settings.Running = status.Running;

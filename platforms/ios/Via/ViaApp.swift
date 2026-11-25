@@ -8,6 +8,7 @@ struct ViaApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(controller)
+                .tint(ViaColors.accent)
         }
     }
 }

@@ -31,7 +31,7 @@ public protocol WiFiInterfaceProtocol: AnyObject {
 public protocol LocationManagerProtocol: AnyObject {
     var delegate: CLLocationManagerDelegate? { get set }
     var authorizationStatus: CLAuthorizationStatus { get }
-    func requestWhenInUseAuthorization()
+    func requestAlwaysAuthorization()
 }
 
 // MARK: - System Implementations
@@ -342,7 +342,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     public func requestPermissions() {
         guard !hasRequestedPermissions else { return }
         hasRequestedPermissions = true
-        locationManager.requestWhenInUseAuthorization()
+        locationManager.requestAlwaysAuthorization()
     }
 
     nonisolated public func locationManagerDidChangeAuthorization(_: CLLocationManager) {
@@ -419,16 +419,28 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
     
     @Published public var nextCheckTime: Date?
-    
+
+    /// Why monitoring is currently stopped. The panel uses this to explain a
+    /// manual-switch stop instead of only showing a red dot.
+    public enum AutoSwitchStopReason: Equatable {
+        case manualOverride
+        case user
+        case configurationError
+    }
+
+    @Published public private(set) var autoSwitchStopReason: AutoSwitchStopReason?
+
     public func startMonitoring() async {
         requestPermissions()
 
         guard !appState.ssidP.isEmpty, !appState.ssidB.isEmpty else {
+            autoSwitchStopReason = .configurationError
             stopMonitoring(logMessage: "Error: SSIDs not configured. Auto-switch stopped.")
             return
         }
 
         resetMonitoringState()
+        autoSwitchStopReason = nil
         appState.clearAssociationCooldown()
         appState.isRunning = true
         appState.log("Started monitoring...")
@@ -510,6 +522,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
 
     public func stopMonitoring() {
+        autoSwitchStopReason = .user
         manualOverrideVerificationTask?.cancel()
         manualOverrideVerificationTask = nil
         stopMonitoring(logMessage: "Stopped monitoring.")
@@ -530,6 +543,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
     /// app permanently stopped after P is lost: if P is really unavailable,
     /// auto-switch resumes on its own and will reconnect when P returns.
     private func stopForManualOverride(logMessage: String) {
+        autoSwitchStopReason = .manualOverride
         stopMonitoring(logMessage: logMessage)
         scheduleManualOverrideVerification()
     }
@@ -630,6 +644,7 @@ public class WifiManager: NSObject, ObservableObject, CLLocationManagerDelegate,
         let ssidB = appState.ssidB
 
         guard !ssidP.isEmpty, !ssidB.isEmpty else {
+            autoSwitchStopReason = .configurationError
             stopMonitoring(logMessage: "Error: SSIDs not configured. Auto-switch stopped.")
             return
         }

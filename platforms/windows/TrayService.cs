@@ -175,7 +175,7 @@ public sealed class TrayService : IDisposable
             WifiRole.Other => L10n.T("role_other"),
             _ => L10n.T("role_none")
         };
-        return $"Via: {currentSsid} · {roleText}";
+        return $"Via: {currentSsid} — {roleText}";
     }
 
     private static string Truncate(string text) =>
@@ -194,14 +194,8 @@ public sealed class TrayService : IDisposable
 
             if (!running)
             {
-                using var red = new SolidBrush(Color.FromArgb(255, 59, 48));
+                using var red = new SolidBrush(Color.FromArgb(0xA3, 0x3A, 0x32));
                 graphics.FillEllipse(red, 20, 19, 10, 10);
-            }
-            else if (role is WifiRole.Priority or WifiRole.Backup)
-            {
-                using var font = new Font("Segoe UI", 11f, FontStyle.Bold, GraphicsUnit.Pixel);
-                using var brush = new SolidBrush(color);
-                graphics.DrawString(role == WifiRole.Priority ? "P" : "B", font, brush, 18, 12);
             }
         }
 
