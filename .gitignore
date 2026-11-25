@@ -44,3 +44,6 @@ platforms/windows.tests/obj/
 .netrc
 .npmrc
 *.bundle
+
+# Local scratch (CI logs, downloads)
+tmp/
