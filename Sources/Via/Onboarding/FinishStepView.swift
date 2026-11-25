@@ -2,17 +2,18 @@ import SwiftUI
 import ViaCore
 
 struct FinishStepView: View {
+    @ObservedObject var wifiManager: WifiManager
     @ObservedObject var model: PanelModel
     @ObservedObject var i18n = LocalizationManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(i18n.localizedString("onboarding_finish_title"))
-                .font(.title3.weight(.semibold))
+                .font(PanelFont.title)
 
             Text(i18n.localizedString("onboarding_finish_body"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.body)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 0) {
@@ -40,7 +41,7 @@ struct FinishStepView: View {
 
             if !model.permissionReady {
                 WarningBanner(
-                    message: i18n.localizedString("permission_required_for_automation"),
+                    message: i18n.localizedString("onboarding_permission_required_hint"),
                     actionTitle: i18n.localizedString("permission_open_settings")
                 ) {
                     SystemLinks.openLocationSettings()
@@ -48,18 +49,20 @@ struct FinishStepView: View {
             }
 
             Text(i18n.localizedString("onboarding_privacy_note"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var permissionText: String {
-        switch model.wifiManager.locationAuthorizationStatus {
+        switch wifiManager.locationAuthorizationStatus {
         case .authorizedAlways:
             return i18n.localizedString("permission_granted")
         case .notDetermined:
             return i18n.localizedString("permission_pending")
+        case .authorizedWhenInUse:
+            return i18n.localizedString("permission_always_needed")
         default:
             return i18n.localizedString("location_permission_denied")
         }

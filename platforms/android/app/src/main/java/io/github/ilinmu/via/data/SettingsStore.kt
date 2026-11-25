@@ -82,7 +82,7 @@ class SettingsStore(context: Context) {
     companion object {
         const val MIN_INTERVAL = 5
         const val MAX_INTERVAL = 3600
-        const val DEFAULT_INTERVAL = 15
+        const val DEFAULT_INTERVAL = 60
 
         private const val FILE_PLAIN = "via"
         private const val FILE_SECURE = "via_secure"

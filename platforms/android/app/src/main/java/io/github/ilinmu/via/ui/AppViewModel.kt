@@ -61,6 +61,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun t(key: String): String = L10n.t(key, language)
 
+    val hasConfiguration: Boolean
+        get() = ssidP.isNotBlank() && ssidB.isNotBlank()
+
     fun eventName(key: String): String = L10n.event(key, language)
 
     fun hasPermissions(): Boolean {
@@ -105,7 +108,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         intervalText = value.toString()
         if (store.intervalSeconds != value) {
             store.intervalSeconds = value
-            restartIfRunning()
+            // The running loop reads the interval on every cycle; no service
+            // restart is needed (and starting one from onPause is restricted).
         }
     }
 
@@ -120,7 +124,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return when {
             p.isEmpty() -> "missing_primary"
             b.isEmpty() -> "missing_backup"
-            p.equals(b, ignoreCase = true) -> "same_network_error"
+            p == b -> "same_network_error"
             passwordP.isNotEmpty() && passwordP.length !in 8..63 -> "invalid_password"
             passwordB.isNotEmpty() && passwordB.length !in 8..63 -> "invalid_password"
             else -> null
@@ -133,13 +137,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             saveError = error
             return false
         }
-        return runCatching {
+        val saved = runCatching {
             val p = ssidP.trim()
             val b = ssidB.trim()
+            val previousPasswordP = store.passwordP
+            val previousPasswordB = store.passwordB
+            // Write secrets first. If encrypted storage fails, the network
+            // names must not be left half-saved.
+            try {
+                store.passwordP = passwordP
+                store.passwordB = passwordB
+            } catch (error: Exception) {
+                runCatching {
+                    store.passwordP = previousPasswordP
+                    store.passwordB = previousPasswordB
+                }
+                throw error
+            }
             store.ssidP = p
             store.ssidB = b
-            store.passwordP = passwordP
-            store.passwordB = passwordB
             val interval = intervalText.toIntOrNull()
                 ?.coerceIn(SettingsStore.MIN_INTERVAL, SettingsStore.MAX_INTERVAL)
                 ?: store.intervalSeconds
@@ -149,12 +165,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ssidB = b
             saveError = null
             savedOnce = true
-            restartIfRunning()
             true
         }.getOrElse {
             saveError = "storage_error"
             false
         }
+        if (!saved) return false
+        // A failure to restart the foreground service must not turn a saved
+        // configuration into a misleading storage error.
+        runCatching { restartIfRunning() }
+            .onFailure { saveError = "service_start_failed" }
+        return true
     }
 
     fun startMonitoring() {
@@ -163,14 +184,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         if (!save()) return
-        store.running = true
-        WifiMonitorService.start(app)
+        val started = runCatching {
+            store.running = true
+            WifiMonitorService.start(app)
+        }.isSuccess
+        if (!started) {
+            store.running = false
+            saveError = "service_start_failed"
+        }
     }
 
     fun stopMonitoring() {
         store.running = false
         WifiMonitorService.stop(app)
         MonitorStateBus.markStopped()
+        refreshCurrentSsid()
     }
 
     fun checkNow() {
@@ -193,14 +221,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         if (isScanning) return
+        // Set the flag before launching so two quick taps cannot start two
+        // scans at once.
+        isScanning = true
         viewModelScope.launch {
-            isScanning = true
-            val found = runCatching { repository.scan(force = true) }
-                .getOrDefault(emptySet())
-                .sorted()
-            scanResults = found
-            scanMessage = if (found.isEmpty()) "no_networks" else null
-            isScanning = false
+            try {
+                val found = runCatching { repository.scan(force = true) }
+                    .getOrDefault(emptySet())
+                    .sorted()
+                scanResults = found
+                scanMessage = if (found.isEmpty()) "no_networks" else null
+            } finally {
+                isScanning = false
+            }
         }
     }
 

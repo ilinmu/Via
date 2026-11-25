@@ -27,8 +27,8 @@ struct OnboardingView: View {
                 Capsule()
                     .fill(
                         step.rawValue <= model.step.rawValue
-                            ? Color.accentColor
-                            : Color(nsColor: .separatorColor)
+                            ? PanelColor.accent
+                            : PanelColor.separator
                     )
                     .frame(height: 3)
             }
@@ -50,7 +50,7 @@ struct OnboardingView: View {
         case .networks:
             NetworksStepView(model: model)
         case .finish:
-            FinishStepView(model: model)
+            FinishStepView(wifiManager: wifiManager, model: model)
         }
     }
 
@@ -73,18 +73,25 @@ struct OnboardingView: View {
                 .buttonStyle(.bordered)
                 .disabled(!model.draft.isValid || model.isStarting)
 
-                Button {
-                    model.finishOnboarding(enableMonitoring: true)
-                } label: {
-                    if model.isStarting {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text(i18n.localizedString("onboarding_start"))
+                if model.permissionReady {
+                    Button {
+                        model.finishOnboarding(enableMonitoring: true)
+                    } label: {
+                        if model.isStarting {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text(i18n.localizedString("onboarding_start"))
+                        }
                     }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.draft.isValid || model.isStarting)
+                } else {
+                    Button(i18n.localizedString("permission_open_settings")) {
+                        SystemLinks.openLocationSettings()
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!model.draft.isValid || !model.permissionReady || model.isStarting)
             } else {
                 Button(i18n.localizedString("onboarding_next")) {
                     model.advanceStep()

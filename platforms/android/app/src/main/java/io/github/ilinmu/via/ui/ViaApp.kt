@@ -29,13 +29,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -79,6 +78,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.ilinmu.via.BuildConfig
+import io.github.ilinmu.via.data.SettingsStore
 import io.github.ilinmu.via.service.MonitorState
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -181,11 +181,13 @@ private fun MainTabs(
                     onRequestPermission = onRequestPermission,
                     onRequestNotifications = onRequestNotifications,
                     onOpenAppSettings = onOpenAppSettings,
+                    onOpenNetworks = {
+                        scope.launch { pagerState.animateScrollToPage(1) }
+                    },
                 )
                 1 -> NetworksTab(viewModel = viewModel, hasPermission = hasPermission)
                 else -> SettingsTab(
                     viewModel = viewModel,
-                    state = state,
                     hasPermission = hasPermission,
                     onRequestPermission = onRequestPermission,
                     onOpenAppSettings = onOpenAppSettings,
@@ -203,6 +205,7 @@ private fun StatusTab(
     onRequestPermission: () -> Unit,
     onRequestNotifications: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onOpenNetworks: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -221,50 +224,71 @@ private fun StatusTab(
 
         ConnectionCard(viewModel = viewModel, state = state, hasPermission = hasPermission)
 
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-            modifier = Modifier.fillMaxWidth(),
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = viewModel.t("auto_switch"),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = viewModel.t("auto_switch_hint"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = state.running,
+                enabled = state.running || (hasPermission && viewModel.hasConfiguration),
+                onCheckedChange = { wanted ->
+                    if (wanted) {
+                        onRequestNotifications()
+                        viewModel.startMonitoring()
+                    } else {
+                        viewModel.stopMonitoring()
+                    }
+                },
+            )
+        }
+
+        if (!viewModel.hasConfiguration) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = viewModel.t("auto_switch"),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = viewModel.t("auto_switch_hint"),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(
-                    checked = state.running,
-                    enabled = hasPermission,
-                    onCheckedChange = { wanted ->
-                        if (wanted) {
-                            onRequestNotifications()
-                            viewModel.startMonitoring()
-                        } else {
-                            viewModel.stopMonitoring()
-                        }
-                    },
+                Text(
+                    text = viewModel.t("status_setup_hint"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = onOpenNetworks) {
+                    Text(viewModel.t("open_networks"))
+                }
             }
         }
 
-        if (state.running && state.nextCheckAtMs > 0L) {
-            val formatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+        viewModel.saveError?.let { key ->
             Text(
-                text = "${viewModel.t("status_next_check")} · " +
+                text = viewModel.t(key),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+
+        if (state.running && state.nextCheckAtMs > 0L) {
+            val formatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+            Text(
+                text = String.format(
+                    Locale.getDefault(),
+                    viewModel.t("next_check_at_format"),
+                    viewModel.t("status_next_check"),
                     formatter.format(Date(state.nextCheckAtMs)),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -288,12 +312,6 @@ private fun StatusTab(
                 Text(viewModel.t("status_refresh"))
             }
         }
-
-        Text(
-            text = viewModel.t("status_android_note"),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -306,7 +324,7 @@ private fun ConnectionCard(
     val statusColor: Color
     val statusLabel: String
     if (!hasPermission) {
-        statusColor = MaterialTheme.colorScheme.error
+        statusColor = MaterialTheme.colorScheme.tertiary
         statusLabel = viewModel.t("status_waiting_permission")
     } else if (state.running) {
         statusColor = MaterialTheme.colorScheme.primary
@@ -316,44 +334,41 @@ private fun ConnectionCard(
         statusLabel = viewModel.t("status_paused")
     }
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = viewModel.t("status_title"),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = if (state.running) {
+                state.currentSsid ?: viewModel.currentSsid
+                    ?: viewModel.t("status_not_connected")
+            } else {
+                viewModel.currentSsid ?: state.currentSsid
+                    ?: viewModel.t("status_not_connected")
+            },
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(statusColor, CircleShape),
+            )
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = viewModel.t("status_title"),
-                style = MaterialTheme.typography.labelMedium,
+                text = statusLabel,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = state.currentSsid ?: viewModel.currentSsid
-                    ?: viewModel.t("status_not_connected"),
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(statusColor, CircleShape),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = statusLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             if (state.currentSsid != null && state.role != "none") {
-                Spacer(Modifier.height(4.dp))
                 Text(
-                    text = io.github.ilinmu.via.L10n.role(state.role, viewModel.language),
+                    text = "  ${io.github.ilinmu.via.L10n.role(state.role, viewModel.language)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -368,16 +383,16 @@ private fun PermissionCard(
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
 ) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
-        ),
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 text = viewModel.t("status_permission_banner"),
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -444,12 +459,17 @@ private fun NetworksTab(viewModel: AppViewModel, hasPermission: Boolean) {
         }
 
         if (viewModel.scanResults.isNotEmpty()) {
+            val count = viewModel.scanResults.size
             Text(
-                text = io.github.ilinmu.via.L10n.tf(
-                    "networks_found",
-                    viewModel.language,
-                    viewModel.scanResults.size,
-                ),
+                text = if (count == 1) {
+                    viewModel.t("networks_found_one")
+                } else {
+                    io.github.ilinmu.via.L10n.tf(
+                        "networks_found",
+                        viewModel.language,
+                        count,
+                    )
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -597,14 +617,22 @@ private fun NetworkEditor(
                                 releaseInputFocus()
                                 expanded = false
                             },
-                            modifier = Modifier.widthIn(max = 190.dp),
+                            modifier = Modifier.widthIn(max = 220.dp),
                         ) {
-                            Text(
-                                text = "${viewModel.t("use_current")} · $currentSsid",
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Column {
+                                Text(
+                                    text = viewModel.t("use_current"),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    text = currentSsid,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -724,6 +752,7 @@ private fun CompactNumberField(
     onValueChange: (String) -> Unit,
     onCommit: () -> Unit,
 ) {
+    var wasFocused by remember { mutableStateOf(false) }
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -742,7 +771,12 @@ private fun CompactNumberField(
                 shape = RoundedCornerShape(8.dp),
             )
             .onFocusChanged { focus ->
-                if (!focus.isFocused) onCommit()
+                if (focus.isFocused) {
+                    wasFocused = true
+                } else if (wasFocused) {
+                    wasFocused = false
+                    onCommit()
+                }
             },
         decorationBox = { inner ->
             Box(
@@ -759,7 +793,6 @@ private fun CompactNumberField(
 @Composable
 private fun SettingsTab(
     viewModel: AppViewModel,
-    state: MonitorState,
     hasPermission: Boolean,
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -806,6 +839,20 @@ private fun SettingsTab(
                 )
             }
             Text(
+                text = io.github.ilinmu.via.L10n.tf(
+                    "interval_summary_format",
+                    viewModel.language,
+                    io.github.ilinmu.via.L10n.duration(
+                        viewModel.intervalText.toIntOrNull()
+                            ?.coerceIn(SettingsStore.MIN_INTERVAL, SettingsStore.MAX_INTERVAL)
+                            ?: SettingsStore.DEFAULT_INTERVAL,
+                        viewModel.language,
+                    ),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
                 text = viewModel.t("interval_hint"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -834,7 +881,11 @@ private fun SettingsTab(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Filled.CheckCircle,
+                imageVector = if (hasPermission) {
+                    Icons.Filled.CheckCircle
+                } else {
+                    Icons.Filled.Info
+                },
                 contentDescription = null,
                 tint = if (hasPermission) {
                     MaterialTheme.colorScheme.primary
@@ -861,35 +912,21 @@ private fun SettingsTab(
             }
         }
 
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Text(
-                    text = viewModel.t("android_limits"),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = viewModel.t("android_limits_body"),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = viewModel.t("android_limits"),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = viewModel.t("android_limits_body"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         TextButton(onClick = { viewModel.rerunWizard() }) {
             Text(viewModel.t("rerun_setup"))
-        }
-
-        if (state.running) {
-            OutlinedButton(onClick = { viewModel.stopMonitoring() }) {
-                Text(viewModel.t("stop_monitoring"))
-            }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -934,8 +971,10 @@ private fun SetupWizard(
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { viewModel.skipWizard() }) {
-                Text(viewModel.t("wizard_skip"))
+            if (step < 2) {
+                TextButton(onClick = { viewModel.skipWizard() }) {
+                    Text(viewModel.t("wizard_skip"))
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -985,6 +1024,11 @@ private fun SetupWizard(
                         TextButton(onClick = onOpenAppSettings) {
                             Text(viewModel.t("open_settings"))
                         }
+                        Text(
+                            text = viewModel.t("wizard_permission_settings_hint"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
                 1 -> {
@@ -1092,6 +1136,13 @@ private fun SetupWizard(
                             Text(viewModel.t("grant_permission"))
                         }
                     }
+                    viewModel.saveError?.let { key ->
+                        Text(
+                            text = viewModel.t(key),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Text(
                         text = viewModel.t("privacy"),
                         style = MaterialTheme.typography.bodySmall,
@@ -1128,7 +1179,7 @@ private fun SetupWizard(
                             onRequestNotifications()
                             viewModel.finishWizard(start = true)
                         },
-                        enabled = hasPermission,
+                        enabled = hasPermission && viewModel.hasConfiguration,
                     ) {
                         Text(viewModel.t("wizard_start"))
                     }

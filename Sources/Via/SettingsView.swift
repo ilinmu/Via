@@ -62,7 +62,8 @@ public struct SettingsView: View {
         }
         .frame(width: PanelLayout.width)
         .frame(height: totalHeight)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .tint(PanelColor.accent)
+        .background(PanelColor.background)
         .clipShape(
             RoundedRectangle(
                 cornerRadius: PanelLayout.cornerRadius,
@@ -74,7 +75,7 @@ public struct SettingsView: View {
                 cornerRadius: PanelLayout.cornerRadius,
                 style: .continuous
             )
-            .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
+            .stroke(PanelColor.separator, lineWidth: 1)
         )
         .onPreferenceChange(ChromeHeightKey.self) { newValue in
             guard newValue > 1, abs(newValue - chromeHeight) > 0.5 else { return }
@@ -154,26 +155,26 @@ public struct SettingsView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: "wifi")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.tint)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(PanelColor.accentText)
 
             Text(i18n.localizedString("app_title"))
-                .font(.headline)
+                .font(PanelFont.bodyStrong)
 
             Spacer(minLength: 8)
 
             if model.route == .onboarding {
                 Text(stepText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
 
                 if model.step != .finish {
                     Button(i18n.localizedString("onboarding_skip")) {
                         model.skipOnboarding()
                     }
                     .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
                 }
             }
         }
@@ -226,7 +227,9 @@ public struct SettingsView: View {
             return nil
         case .notDetermined:
             return i18n.localizedString("permission_required_for_automation")
-        case .denied, .restricted, .authorizedWhenInUse:
+        case .authorizedWhenInUse:
+            return i18n.localizedString("permission_always_hint")
+        case .denied, .restricted:
             return i18n.localizedString("location_permission_hint")
         @unknown default:
             return i18n.localizedString("location_permission_hint")

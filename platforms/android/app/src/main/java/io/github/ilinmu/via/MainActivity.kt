@@ -75,6 +75,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        // The interval field commits on focus loss; a Home press can skip that.
+        viewModel.commitInterval()
+    }
+
     override fun onResume() {
         super.onResume()
         permissionVersion++

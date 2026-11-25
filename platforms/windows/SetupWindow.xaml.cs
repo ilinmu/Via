@@ -70,8 +70,14 @@ public partial class SetupWindow : Window
         Validation.Text = "";
         if (_step == 2)
         {
-            SummaryP.Text = $"{L10n.T("priority_network")}: {PriorityCombo.Text.Trim()}";
-            SummaryB.Text = $"{L10n.T("backup_network")}: {BackupCombo.Text.Trim()}";
+            SummaryP.Text = string.Format(
+                L10n.T("summary_format"),
+                L10n.T("priority_network"),
+                PriorityCombo.Text.Trim());
+            SummaryB.Text = string.Format(
+                L10n.T("summary_format"),
+                L10n.T("backup_network"),
+                BackupCombo.Text.Trim());
         }
     }
 
@@ -128,11 +134,11 @@ public partial class SetupWindow : Window
             BackupCombo.ItemsSource = networks;
             ScanStatus.Text = networks.Count == 0
                 ? L10n.T("no_networks")
-                : string.Format(L10n.T("networks_found_format"), networks.Count);
+                : L10n.NetworksFound(networks.Count);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            ScanStatus.Text = exception.Message;
+            ScanStatus.Text = L10n.T("scan_failed");
         }
         finally
         {
@@ -158,14 +164,26 @@ public partial class SetupWindow : Window
             return false;
         }
 
-        if (string.Equals(priority, backup, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(priority, backup, StringComparison.Ordinal))
         {
             Validation.Text = L10n.T("same_network");
             return false;
         }
 
+        if (!IsPasswordValid(PriorityPassword.Password) ||
+            !IsPasswordValid(BackupPassword.Password))
+        {
+            Validation.Text = L10n.T("invalid_password");
+            return false;
+        }
+
         Validation.Text = "";
         return true;
+    }
+
+    private static bool IsPasswordValid(string password)
+    {
+        return password.Length == 0 || (password.Length >= 8 && password.Length <= 63);
     }
 
     private void Commit(bool start)

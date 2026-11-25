@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Via — 找到合适的路</title>
-  <meta name="description" content="Via 是一款跨平台的 Wi-Fi 自动切换工具：优先网络不可用时自动连接备用网络，恢复后安静地切回。">
-  <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Via 会在首选网络不可用时自动连接备用网络，恢复后安静地切回。支持 macOS、Windows、iOS 和 Android。">
+  <meta name="theme-color" content="#F7F5F1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1B1A18" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="Via — 找到合适的路">
   <meta property="og:description" content="跨平台的 Wi-Fi 自动切换工具，支持 macOS、Windows、iOS 和 Android。">
   <meta property="og:type" content="website">
@@ -44,13 +44,13 @@
         <p class="tagline reveal">Find the right way.</p>
         <p class="lede reveal">
           跨平台的 Wi-Fi 自动切换工具。<br>
-          优先网络不可用时自动接管，恢复之后，安静地回到原来的路。
+          首选网络不可用时自动连接备用网络，恢复之后，安静地切回来。
         </p>
         <div class="actions reveal">
           <a class="button button-primary" href="https://github.com/ilinmu/Via/releases/latest">下载最新版本</a>
           <a class="button button-quiet" href="https://github.com/ilinmu/Via">在 GitHub 查看</a>
         </div>
-        <p class="meta reveal">macOS · Windows · iOS · Android</p>
+        <p class="meta reveal">macOS、Windows、iOS 与 Android</p>
       </div>
     </section>
 
@@ -71,12 +71,12 @@
           <article class="point reveal">
             <span class="point-index">01</span>
             <h3>自动接管</h3>
-            <p>优先网络 <b>P</b> 不可用时立即连接备用网络 <b>B</b>；<b>P</b> 回来的那一刻，自动切回去。</p>
+            <p>首选网络不可用时连接备用网络；等它恢复，Via 会自动切回。</p>
           </article>
           <article class="point reveal">
             <span class="point-index">02</span>
             <h3>认得你的选择</h3>
-            <p>如果你在 <b>P</b> 仍然可见时主动切到别的网络，Via 会停下自动切换，不和你的决定抢方向盘。</p>
+            <p>如果你在首选网络仍然可用时主动换了网络，Via 会停下自动切换，不和你的决定抢方向盘。</p>
           </article>
           <article class="point reveal">
             <span class="point-index">03</span>
@@ -92,31 +92,29 @@
         <p class="eyebrow reveal">工作原理</p>
         <h2 class="reveal">两条路，一套规则</h2>
 
-        <div class="diagram reveal" role="img" aria-label="优先网络 P 不可用时切换到备用网络 B，P 恢复后切回">
+        <div class="diagram reveal" role="img" aria-label="首选网络不可用时切换到备用网络，恢复后切回">
           <div class="node node-p">
-            <span class="node-key">P</span>
-            <span class="node-label">优先网络</span>
+            <span class="node-label">首选网络</span>
           </div>
           <div class="path">
             <span class="path-line" aria-hidden="true"></span>
-            <span class="path-caption">P 不可用</span>
+            <span class="path-caption">首选网络不可用</span>
           </div>
           <div class="node node-b">
-            <span class="node-key">B</span>
             <span class="node-label">备用网络</span>
           </div>
           <div class="path path-back">
             <span class="path-line" aria-hidden="true"></span>
-            <span class="path-caption">P 恢复</span>
+            <span class="path-caption">恢复后切回</span>
           </div>
         </div>
 
         <ol class="steps">
-          <li class="reveal">读取当前 SSID，扫描周围的网络。</li>
-          <li class="reveal">已经在 <b>P</b> 上，就只更新状态，不做多余动作。</li>
-          <li class="reveal"><b>P</b> 不可用且不在 <b>B</b> 上，就连接 <b>B</b>。</li>
-          <li class="reveal">在 <b>B</b> 上按设定间隔继续检查，发现 <b>P</b> 恢复就切回。</li>
-          <li class="reveal">发现你主动换了网络，就暂停监控，直到你再次开启。</li>
+          <li class="reveal">读取当前网络名称，查看附近有哪些网络。</li>
+          <li class="reveal">已经连着首选网络，就只更新状态。</li>
+          <li class="reveal">首选网络不可用时，连接备用网络。</li>
+          <li class="reveal">在备用网络上按设定间隔继续检查，发现首选网络恢复就切回。</li>
+          <li class="reveal">发现你主动换了网络，就关闭自动切换，直到你再次开启。</li>
         </ol>
       </div>
     </section>
@@ -165,7 +163,7 @@
 
   <footer class="site-footer">
     <div class="wrap footer-inner">
-      <p>© 2025–2026 Linmu · MIT License</p>
+      <p>© 2025–2026 Linmu，MIT License</p>
       <nav aria-label="页脚导航">
         <a href="https://github.com/ilinmu/Via">GitHub</a>
         <a href="https://github.com/ilinmu/Via/blob/master/docs/DEVELOPMENT_GUIDE.md">开发文档</a>

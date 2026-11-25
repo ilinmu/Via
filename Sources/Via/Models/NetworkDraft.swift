@@ -65,7 +65,7 @@ struct NetworkDraft {
     var validation: Validation {
         guard !trimmedSSIDP.isEmpty else { return .missingPrimary }
         guard !trimmedSSIDB.isEmpty else { return .missingBackup }
-        guard trimmedSSIDP.caseInsensitiveCompare(trimmedSSIDB) != .orderedSame else {
+        guard trimmedSSIDP != trimmedSSIDB else {
             return .sameNetwork
         }
         return .valid

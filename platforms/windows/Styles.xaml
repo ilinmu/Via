@@ -7,19 +7,20 @@
     with light or dark values at startup (and when Windows switches theme).
   -->
 
-  <SolidColorBrush x:Key="BackgroundBrush" Color="#F6F6F6" />
+  <SolidColorBrush x:Key="BackgroundBrush" Color="#F7F5F1" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="FieldBrush" Color="#FFFFFF" />
-  <SolidColorBrush x:Key="HoverBrush" Color="#F0F0F2" />
-  <SolidColorBrush x:Key="PressedBrush" Color="#E6E6E8" />
-  <SolidColorBrush x:Key="TextBrush" Color="#1C1C1E" />
-  <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6E6E73" />
-  <SolidColorBrush x:Key="TertiaryTextBrush" Color="#9A9AA0" />
-  <SolidColorBrush x:Key="SeparatorBrush" Color="#E2E2E6" />
-  <SolidColorBrush x:Key="SegmentTrackBrush" Color="#EDEDF0" />
+  <SolidColorBrush x:Key="HoverBrush" Color="#EFEAE2" />
+  <SolidColorBrush x:Key="PressedBrush" Color="#E6E0D6" />
+  <SolidColorBrush x:Key="TextBrush" Color="#1F1D1A" />
+  <SolidColorBrush x:Key="SecondaryTextBrush" Color="#726D65" />
+  <SolidColorBrush x:Key="TertiaryTextBrush" Color="#726D65" />
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#E4DFD7" />
+  <SolidColorBrush x:Key="SegmentTrackBrush" Color="#EDE7DE" />
   <SolidColorBrush x:Key="SegmentSelectedBrush" Color="#FFFFFF" />
-  <SolidColorBrush x:Key="ControlTrackBrush" Color="#D2D2D7" />
-  <SolidColorBrush x:Key="AccentBrush" Color="#0078D4" />
+  <SolidColorBrush x:Key="ControlTrackBrush" Color="#C9C2B8" />
+  <SolidColorBrush x:Key="AccentBrush" Color="#2E6B5C" />
+  <SolidColorBrush x:Key="AccentLinkBrush" Color="#2E6B5C" />
   <SolidColorBrush x:Key="AccentHoverBrush" Color="#0067B8" />
   <SolidColorBrush x:Key="AccentSoftBrush" Color="#220078D4" />
   <SolidColorBrush x:Key="AccentTextBrush" Color="#FFFFFF" />
@@ -37,12 +38,12 @@
   </Style>
 
   <Style x:Key="HeaderTitle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style x:Key="PageTitle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="19" />
+    <Setter Property="FontSize" Value="20" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
@@ -53,27 +54,26 @@
   </Style>
 
   <Style x:Key="RowTitle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
   </Style>
 
   <Style x:Key="Caption" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
   </Style>
 
-  <Style x:Key="TertiaryCaption" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="11" />
-    <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+  <Style x:Key="TertiaryCaption" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
   </Style>
 
   <Style x:Key="SsidValue" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontSize" Value="24" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style x:Key="MonoValue" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
     <Setter Property="FontFamily" Value="Consolas" />
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
   </Style>
 
@@ -101,7 +101,7 @@
   </Style>
 
   <Style x:Key="BadgeText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="FontSize" Value="12" />
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
@@ -114,7 +114,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource SeparatorBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="14,6" />
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="Template">
@@ -181,10 +181,10 @@
 
   <Style x:Key="LinkButton" TargetType="Button">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentLinkBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -225,7 +225,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="10,0" />
     <Setter Property="Height" Value="34" />
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="Template">
@@ -262,7 +262,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="10,0" />
     <Setter Property="Height" Value="34" />
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="Template">
@@ -324,7 +324,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="10,0" />
     <Setter Property="Height" Value="34" />
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="ItemContainerStyle" Value="{StaticResource RoundedComboBoxItem}" />
@@ -463,7 +463,7 @@
 
   <Style x:Key="SmallCheckBox" TargetType="CheckBox">
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="Template">

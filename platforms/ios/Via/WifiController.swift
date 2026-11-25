@@ -27,6 +27,7 @@ final class WifiController: ObservableObject {
     @Published var message: String
     @Published var showOnboarding: Bool
     @Published var isChecking = false
+    @Published var nextCheck: Date?
 
     private let defaults: UserDefaults
     private let keychain: KeychainStore
@@ -34,6 +35,15 @@ final class WifiController: ObservableObject {
     private var policy: PolicyEngine?
     private var timer: Timer?
     private var lastSSID: String?
+
+    // The configuration the running policy was built with. Editing the form
+    // must not change which password a background association uses.
+    private var engineSsidP = ""
+    private var engineSsidB = ""
+    private var enginePasswordP = ""
+    private var enginePasswordB = ""
+
+    private let onboardingSeenKey = "onboardingSeen"
 
     init() {
         let defaults = UserDefaults.standard
@@ -46,23 +56,31 @@ final class WifiController: ObservableObject {
         let priority = storedPriority.trimmingCharacters(in: .whitespacesAndNewlines)
         let backup = storedBackup.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let storedPasswordP = keychain.string(for: "passwordP") ?? ""
+        let storedPasswordB = keychain.string(for: "passwordB") ?? ""
+
         self.defaults = defaults
         self.keychain = keychain
         self.locationManager = locationManager
 
-        ssidP = storedPriority
-        ssidB = storedBackup
-        passwordP = keychain.string(for: "passwordP") ?? ""
-        passwordB = keychain.string(for: "passwordB") ?? ""
+        ssidP = priority
+        ssidB = backup
+        passwordP = storedPasswordP
+        passwordB = storedPasswordB
+        engineSsidP = priority
+        engineSsidB = backup
+        enginePasswordP = storedPasswordP
+        enginePasswordB = storedPasswordB
         language = defaults.string(forKey: "language") ?? "zh"
-        checkInterval = storedInterval == 0 ? 15 : max(5, storedInterval)
+        checkInterval = storedInterval == 0 ? 60 : max(5, storedInterval)
         permission = locationManager.authorizationStatus
         message = ""
-        showOnboarding = priority.isEmpty || backup.isEmpty
+        showOnboarding = (priority.isEmpty || backup.isEmpty)
+            && !defaults.bool(forKey: onboardingSeenKey)
 
         if !priority.isEmpty, !backup.isEmpty,
-           priority.caseInsensitiveCompare(backup) != .orderedSame {
-            policy = PolicyEngine(ssidP: storedPriority, ssidB: storedBackup)
+           priority != backup {
+            policy = PolicyEngine(ssidP: priority, ssidB: backup)
         }
 
         // Restore the persisted monitoring intent. iOS only checks while the
@@ -72,10 +90,20 @@ final class WifiController: ObservableObject {
 
     private var shouldRestoreMonitoring = false
 
+    func markOnboardingSeen() {
+        defaults.set(true, forKey: onboardingSeenKey)
+        showOnboarding = false
+    }
+
     func resumeMonitoringIfNeeded() async {
         guard shouldRestoreMonitoring, !isRunning else { return }
         shouldRestoreMonitoring = false
         await startMonitoring()
+    }
+
+    var hasUnsavedChanges: Bool {
+        ssidP != engineSsidP || ssidB != engineSsidB
+            || passwordP != enginePasswordP || passwordB != enginePasswordB
     }
 
     var isComplete: Bool {
@@ -83,7 +111,7 @@ final class WifiController: ObservableObject {
         let backup = ssidB.trimmingCharacters(in: .whitespacesAndNewlines)
         return !priority.isEmpty
             && !backup.isEmpty
-            && priority.caseInsensitiveCompare(backup) != .orderedSame
+            && priority != backup
     }
 
     @discardableResult
@@ -99,8 +127,13 @@ final class WifiController: ObservableObject {
             message = L10n.t("missing_backup", language)
             return false
         }
-        guard priority.caseInsensitiveCompare(backup) != .orderedSame else {
+        guard priority != backup else {
             message = L10n.t("same_network", language)
+            return false
+        }
+        guard passwordP.isEmpty || (8...63).contains(passwordP.count),
+              passwordB.isEmpty || (8...63).contains(passwordB.count) else {
+            message = L10n.t("invalid_password", language)
             return false
         }
 
@@ -113,6 +146,10 @@ final class WifiController: ObservableObject {
         defaults.set(language, forKey: "language")
         keychain.set(passwordP.isEmpty ? nil : passwordP, for: "passwordP")
         keychain.set(passwordB.isEmpty ? nil : passwordB, for: "passwordB")
+        engineSsidP = ssidP
+        engineSsidB = ssidB
+        enginePasswordP = passwordP
+        enginePasswordB = passwordB
 
         if policy == nil {
             policy = PolicyEngine(ssidP: ssidP, ssidB: ssidB)
@@ -170,6 +207,7 @@ final class WifiController: ObservableObject {
         }
         isRunning = false
         shouldRestoreMonitoring = false
+        nextCheck = nil
         defaults.set(false, forKey: "isRunning")
         message = L10n.t("monitor_stopped", language)
     }
@@ -183,6 +221,7 @@ final class WifiController: ObservableObject {
     func pauseForBackground() {
         timer?.invalidate()
         timer = nil
+        nextCheck = nil
     }
 
     func checkNow() async {
@@ -206,15 +245,18 @@ final class WifiController: ObservableObject {
         lastSSID = current
         await execute(actions, policy: policy)
         updateRole(policy)
+        if isRunning {
+            nextCheck = Date().addingTimeInterval(TimeInterval(max(5, checkInterval)))
+        }
     }
 
-    func useCurrentNetwork() async {
+    func useCurrent(primary: Bool) async {
         guard let current = await fetchCurrentSSID() else {
             message = L10n.t("no_current", language)
             return
         }
         currentSSID = current
-        if ssidP.isEmpty {
+        if primary {
             ssidP = current
         } else {
             ssidB = current
@@ -231,8 +273,8 @@ final class WifiController: ObservableObject {
                 // `false` so the policy never treats a P/B check as a confirmed
                 // loss and never stops for a supposed manual override.
                 let target = purpose == .priorityCheck || purpose == .priorityClassification
-                    ? ssidP
-                    : ssidB
+                    ? engineSsidP
+                    : engineSsidB
                 let visible: Bool? = currentSSID == target ? true : nil
                 let next: [PolicyAction]
                 switch purpose {
@@ -247,24 +289,25 @@ final class WifiController: ObservableObject {
 
             case .associate(let ssid, _):
                 let generation = policy.associationStarted(ssid: ssid)
-                let joined = await join(ssid: ssid)
-                if joined {
-                    currentSSID = ssid
-                    lastSSID = ssid
-                } else {
-                    // A user may dismiss iOS's join prompt. This is not a bad
-                    // password or a CoreWLAN-style association timeout, so end
-                    // the in-flight state without the 90-second cooldown.
+                let outcome = await join(ssid: ssid)
+                if outcome != 0 {
+                    // Dismissing the system prompt is not a failed password;
+                    // other errors go through the policy's failure cooldown.
+                    if outcome == 2 {
+                        message = L10n.t("connection_failed", language)
+                    }
                     await execute(
                         policy.associationResult(
                             ssid: ssid,
                             generation: generation,
-                            outcome: 3
+                            outcome: outcome
                         ),
                         policy: policy
                     )
                     continue
                 }
+                currentSSID = ssid
+                lastSSID = ssid
                 await execute(
                     policy.associationResult(
                         ssid: ssid,
@@ -280,11 +323,17 @@ final class WifiController: ObservableObject {
             case .stop:
                 timer?.invalidate()
                 timer = nil
+                nextCheck = nil
                 isRunning = false
                 defaults.set(false, forKey: "isRunning")
                 message = L10n.t("monitor_stopped", language)
 
             case .waitForPermission:
+                timer?.invalidate()
+                timer = nil
+                nextCheck = nil
+                isRunning = false
+                defaults.set(false, forKey: "isRunning")
                 message = L10n.t("permission_required", language)
 
             case .log(let event):
@@ -296,12 +345,12 @@ final class WifiController: ObservableObject {
         }
     }
 
-    private func join(ssid: String) async -> Bool {
+    private func join(ssid: String) async -> Int32 {
         if currentSSID == ssid {
-            return true
+            return 0
         }
 
-        let password = ssid == ssidP ? passwordP : passwordB
+        let password = ssid == engineSsidP ? enginePasswordP : enginePasswordB
         let configuration: NEHotspotConfiguration
         if password.isEmpty {
             configuration = NEHotspotConfiguration(ssid: ssid)
@@ -316,7 +365,16 @@ final class WifiController: ObservableObject {
 
         return await withCheckedContinuation { continuation in
             NEHotspotConfigurationManager.shared.apply(configuration) { error in
-                continuation.resume(returning: error == nil)
+                guard let error else {
+                    continuation.resume(returning: 0)
+                    return
+                }
+                let code = (error as NSError).code
+                if code == NEHotspotConfigurationError.userDenied.rawValue {
+                    continuation.resume(returning: 3)
+                } else {
+                    continuation.resume(returning: 2)
+                }
             }
         }
     }
@@ -331,8 +389,10 @@ final class WifiController: ObservableObject {
 
     private func scheduleTimer() {
         timer?.invalidate()
+        let interval = TimeInterval(max(5, checkInterval))
+        nextCheck = Date().addingTimeInterval(interval)
         timer = Timer.scheduledTimer(
-            withTimeInterval: TimeInterval(max(5, checkInterval)),
+            withTimeInterval: interval,
             repeats: true
         ) { [weak self] _ in
             Task { @MainActor in
@@ -372,8 +432,10 @@ final class WifiController: ObservableObject {
             return L10n.t("role_backup", language)
         case .priorityVisibleUnknown:
             return L10n.t("scan_unavailable", language)
+        case .priorityLostConnectingBackup, .backupConnectedPNotFound:
+            return L10n.t("role_backup", language)
         default:
-            return "\(L10n.t("message", language)): \(event)"
+            return L10n.t("status_updated", language)
         }
     }
 }

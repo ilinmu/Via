@@ -16,14 +16,25 @@ struct StatusTabView: View {
                 badgeColor: statusBadgeColor
             )
 
+            if appState.isRunning, let explanation = statusExplanation {
+                Text(explanation)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Divider()
 
             autoSwitchRow
 
             if appState.isRunning {
                 nextCheckRow
-            } else if !model.canAutomate {
+            } else if !model.isConfigurationComplete {
                 setupHintRow
+            }
+
+            if !appState.isRunning, model.canAutomate, wifiManager.autoSwitchStopReason == .manualOverride {
+                manualStopRow
             }
 
             if model.hasUnsavedDraft {
@@ -52,29 +63,31 @@ struct StatusTabView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                ScanButton(
-                    isScanning: model.isScanning,
-                    isEnabled: model.canScan,
-                    action: { model.scan() }
-                )
-
+            HStack {
                 Button(i18n.localizedString("refresh_status")) {
                     model.refreshAll()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-            }
 
-            if let scanFeedback {
-                Text(scanFeedback)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
         }
         .padding(.horizontal, PanelLayout.horizontalPadding)
         .padding(.vertical, 16)
+    }
+
+    private var autoSwitchBinding: Binding<Bool> {
+        Binding(
+            get: { appState.isRunning },
+            set: { wanted in
+                if wanted {
+                    model.startMonitoring()
+                } else {
+                    model.stopMonitoring()
+                }
+            }
+        )
     }
 
     private var statusBadgeText: String {
@@ -91,122 +104,84 @@ struct StatusTabView: View {
 
     private var statusBadgeColor: Color {
         if model.isStarting {
-            return .accentColor
+            return PanelColor.accent
         }
         if appState.isRunning {
-            return model.permissionReady ? .green : .orange
+            return model.permissionReady ? PanelColor.accent : PanelColor.warning
         }
-        return .secondary
+        return PanelColor.textSecondary
+    }
+
+    /// Only added when it tells the user something the network name and role
+    /// do not already say.
+    private var statusExplanation: String? {
+        switch appState.connectedNetworkType {
+        case .backup:
+            return i18n.localizedString("status_explanation_backup")
+        case .other:
+            return i18n.localizedString("status_explanation_other")
+        case .none:
+            return i18n.localizedString("status_explanation_offline")
+        case .priority:
+            return nil
+        }
     }
 
     private var autoSwitchRow: some View {
-        Button(action: toggleAutoSwitch) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(i18n.localizedString("auto_switch"))
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                    Text(i18n.localizedString("auto_switch_description"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 8)
-
-                if model.isStarting {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    HStack(spacing: 5) {
-                        Image(systemName: appState.isRunning ? "stop.circle.fill" : "play.circle.fill")
-                        Text(
-                            i18n.localizedString(
-                                appState.isRunning ? "auto_switch_disable" : "auto_switch_enable"
-                            )
-                        )
-                        .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(autoSwitchTint)
-                }
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(i18n.localizedString("auto_switch"))
+                    .font(PanelFont.body)
+                    .foregroundStyle(.primary)
+                Text(i18n.localizedString("auto_switch_description"))
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 10))
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(autoSwitchTint.opacity(0.12))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(autoSwitchTint.opacity(0.35), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(model.isStarting || (!appState.isRunning && !model.canAutomate))
-        .accessibilityLabel(
-            i18n.localizedString(
-                appState.isRunning ? "auto_switch_disable" : "auto_switch_enable"
-            )
-        )
-    }
 
-    private var autoSwitchTint: Color {
-        if appState.isRunning {
-            return .red
-        }
-        return model.canAutomate ? .accentColor : .secondary
-    }
+            Spacer(minLength: 8)
 
-    private func toggleAutoSwitch() {
-        if appState.isRunning {
-            model.stopMonitoring()
-        } else {
-            model.startMonitoring()
+            if model.isStarting {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Toggle("", isOn: autoSwitchBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .disabled(!appState.isRunning && !model.canAutomate)
+                    .accessibilityLabel(i18n.localizedString("auto_switch"))
+            }
         }
     }
 
     @ViewBuilder
     private var nextCheckRow: some View {
-        if model.isStarting {
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
+        HStack(spacing: 8) {
+            Text(i18n.localizedString("next_check"))
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
+
+            Spacer(minLength: 8)
+
+            if model.isStarting {
                 Text(i18n.localizedString("status_checking"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-        } else if let nextCheck = wifiManager.nextCheckTime {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let remaining = max(0, nextCheck.timeIntervalSince(context.date))
-                HStack(spacing: 8) {
-                    Label(i18n.localizedString("next_check"), systemImage: "timer")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 8)
-                    Text(
-                        String(
-                            format: i18n.localizedString("seconds_short"),
-                            remaining
-                        )
-                    )
-                    .font(.subheadline.monospacedDigit())
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
+            } else if let nextCheck = wifiManager.nextCheckTime {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let remaining = max(0, nextCheck.timeIntervalSince(context.date))
+                    Text(i18n.duration(remaining))
+                        .font(PanelFont.caption.monospacedDigit())
+                        .foregroundStyle(PanelColor.textSecondary)
                 }
-            }
-        } else {
-            HStack(spacing: 8) {
-                Image(systemName: "timer")
-                    .foregroundStyle(.secondary)
+            } else {
                 Text(
                     i18n.localizedString(
                         model.permissionReady ? "status_checking" : "status_waiting_permission"
                     )
                 )
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
             }
         }
     }
@@ -215,80 +190,56 @@ struct StatusTabView: View {
     private var setupHintRow: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "info.circle")
-                .foregroundStyle(.secondary)
-            Text(
-                i18n.localizedString(
-                    model.isConfigurationComplete
-                        ? "permission_required_for_automation"
-                        : "configure_networks_hint"
-                )
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(PanelColor.textSecondary)
+            Text(i18n.localizedString("start_unavailable_networks"))
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 8)
 
-            Button(
-                i18n.localizedString(
-                    model.isConfigurationComplete
-                        ? permissionActionTitle
-                        : "go_to_networks"
-                )
-            ) {
-                if model.isConfigurationComplete {
-                    handlePermissionAction()
-                } else {
-                    model.tab = .networks
-                }
+            Button(i18n.localizedString("go_to_networks")) {
+                model.tab = .networks
             }
             .buttonStyle(.link)
-            .font(.caption)
+            .font(PanelFont.caption)
+        }
+    }
+
+    private var manualStopRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "hand.raised")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(PanelColor.warning)
+            Text(i18n.localizedString("status_manual_stopped"))
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button(i18n.localizedString("resume_auto_switch")) {
+                model.startMonitoring()
+            }
+            .buttonStyle(.link)
+            .font(PanelFont.caption)
         }
     }
 
     private var unsavedDraftRow: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "square.and.pencil")
-                .foregroundStyle(.orange)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(PanelColor.warning)
             Text(i18n.localizedString("unsaved_changes"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             Button(i18n.localizedString("go_to_networks")) {
                 model.tab = .networks
             }
             .buttonStyle(.link)
-            .font(.caption)
-        }
-    }
-
-    private var permissionActionTitle: String {
-        wifiManager.locationAuthorizationStatus == .notDetermined
-            ? i18n.localizedString("permission_grant")
-            : i18n.localizedString("permission_open_settings")
-    }
-
-    private func handlePermissionAction() {
-        if wifiManager.locationAuthorizationStatus == .notDetermined {
-            wifiManager.requestPermissions()
-        } else {
-            SystemLinks.openLocationSettings()
-        }
-    }
-
-    private var scanFeedback: String? {
-        switch model.scanOutcome {
-        case let .success(count):
-            return String(
-                format: i18n.localizedString("networks_found_count"),
-                count
-            )
-        case .empty:
-            return i18n.localizedString("no_networks_found")
-        case .idle, .scanning, .permissionPending, .permissionDenied:
-            return nil
+            .font(PanelFont.caption)
         }
     }
 

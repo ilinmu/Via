@@ -11,11 +11,9 @@ struct NetworksTabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(i18n.localizedString("networks_title"))
-                    .font(.title3.weight(.semibold))
                 Text(i18n.localizedString("networks_description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(PanelFont.caption)
+                    .foregroundStyle(PanelColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -26,6 +24,7 @@ struct NetworksTabView: View {
                 scanOutcome: model.scanOutcome,
                 canScan: model.canScan,
                 onScan: { model.scan() },
+                currentSSID: model.currentSSID,
                 showValidation: showValidation
             )
 
@@ -41,8 +40,10 @@ struct NetworksTabView: View {
                         model.draft.hasChanges ? "unsaved_changes" : "saved"
                     )
                 )
-                .font(.caption)
-                .foregroundStyle(model.draft.hasChanges ? .orange : .secondary)
+                .font(PanelFont.caption)
+                .foregroundStyle(
+                    model.draft.hasChanges ? PanelColor.warning : PanelColor.textSecondary
+                )
 
                 Spacer(minLength: 8)
 
@@ -59,8 +60,8 @@ struct NetworksTabView: View {
             }
 
             Text(i18n.localizedString("networks_auto_save"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(PanelFont.caption)
+                .foregroundStyle(PanelColor.textSecondary)
         }
         .padding(.horizontal, PanelLayout.horizontalPadding)
         .padding(.vertical, 16)

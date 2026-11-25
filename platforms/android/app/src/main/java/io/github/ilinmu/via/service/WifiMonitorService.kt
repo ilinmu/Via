@@ -474,7 +474,12 @@ class WifiMonitorService : Service() {
         val text = when {
             !state.running -> L10n.t("status_paused", language)
             state.currentSsid.isNullOrBlank() -> L10n.t("status_not_connected", language)
-            else -> "${state.currentSsid} · ${L10n.role(state.role, language)}"
+            else -> L10n.tf(
+                "notification_network",
+                language,
+                state.currentSsid,
+                L10n.role(state.role, language),
+            )
         }
 
         val openIntent = PendingIntent.getActivity(

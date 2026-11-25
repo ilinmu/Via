@@ -8,7 +8,7 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            StatusView()
+            StatusView(selection: $selection)
                 .tag(0)
                 .tabItem {
                     Label(L10n.t("tab_status", controller.language), systemImage: "wifi")
@@ -32,7 +32,10 @@ struct ContentView: View {
                     )
                 }
         }
-        .sheet(isPresented: $controller.showOnboarding) {
+        .tint(ViaColors.accent)
+        .sheet(isPresented: $controller.showOnboarding, onDismiss: {
+            controller.markOnboardingSeen()
+        }) {
             OnboardingView()
                 .environmentObject(controller)
         }
@@ -52,28 +55,17 @@ struct ContentView: View {
 
 private struct StatusView: View {
     @EnvironmentObject private var controller: WifiController
+    @Binding var selection: Int
+
+    private var hasLocationAccess: Bool {
+        controller.permission == .authorizedAlways || controller.permission == .authorizedWhenInUse
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 14) {
-                        StatusIcon(
-                            role: controller.role,
-                            isRunning: controller.isRunning,
-                            size: 32
-                        )
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L10n.t("current_network", controller.language))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(controller.currentSSID ?? L10n.t("not_connected", controller.language))
-                                .font(.title2.weight(.semibold))
-                            Text(roleText)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 20) {
+                    connectionHeader
 
                     Divider()
 
@@ -87,24 +79,37 @@ private struct StatusView: View {
                             }
                         }
                     )) {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text(L10n.t("auto_switch", controller.language))
-                                .font(.headline)
+                                .font(.body.weight(.semibold))
                             Text(L10n.t("auto_switch_hint", controller.language))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.footnote)
+                                .foregroundStyle(ViaColors.secondaryText)
                         }
                     }
+                    .disabled(
+                        !controller.isRunning
+                            && (!controller.isComplete
+                                || controller.permission == .denied
+                                || controller.permission == .restricted)
+                    )
 
-                    if controller.permission != .authorizedAlways &&
-                        controller.permission != .authorizedWhenInUse {
+                    if !controller.isComplete {
+                        setupHint
+                    }
+
+                    if controller.isRunning {
+                        nextCheck
+                    }
+
+                    if !hasLocationAccess {
                         permissionCard
                     }
 
                     if !controller.message.isEmpty {
                         Text(controller.message)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ViaColors.secondaryText)
                     }
 
                     Button {
@@ -117,27 +122,90 @@ private struct StatusView: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(!controller.isRunning || controller.isChecking)
-
-                    Text(L10n.t("ios_limitation", controller.language))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
                 .padding()
             }
+            .background(ViaColors.background)
             .navigationTitle(L10n.t("app_title", controller.language))
         }
     }
 
-    private var permissionCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.t("permission_required", controller.language))
-                .font(.subheadline)
-            HStack {
-                Button(L10n.t("grant_permission", controller.language)) {
-                    controller.requestPermission()
+    private var connectionHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            StatusIcon(
+                role: controller.role,
+                isRunning: controller.isRunning,
+                size: 32
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                Text(
+                    controller.currentSSID
+                        ?? L10n.t("not_connected", controller.language)
+                )
+                .font(.title2.weight(.semibold))
+                .lineLimit(2)
+                if controller.currentSSID != nil, controller.role != .none {
+                    Text(roleText)
+                        .font(.footnote)
+                        .foregroundStyle(ViaColors.secondaryText)
                 }
-                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
 
+    private var setupHint: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(ViaColors.secondaryText)
+            Text(L10n.t("status_setup_hint", controller.language))
+                .font(.footnote)
+                .foregroundStyle(ViaColors.secondaryText)
+            Spacer(minLength: 8)
+            Button(L10n.t("open_networks", controller.language)) {
+                selection = 1
+            }
+            .font(.footnote)
+        }
+    }
+
+    @ViewBuilder
+    private var nextCheck: some View {
+        HStack {
+            Text(L10n.t("next_check", controller.language))
+                .font(.footnote)
+                .foregroundStyle(ViaColors.secondaryText)
+            Spacer(minLength: 8)
+            if controller.isChecking {
+                Text(L10n.t("waiting", controller.language))
+                    .font(.footnote)
+                    .foregroundStyle(ViaColors.secondaryText)
+            } else if let next = controller.nextCheck {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(
+                        L10n.duration(
+                            max(0, Int(next.timeIntervalSince(context.date))),
+                            controller.language
+                        )
+                    )
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(ViaColors.secondaryText)
+                }
+            }
+        }
+    }
+
+    private var permissionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L10n.t("permission_required", controller.language))
+                .font(.footnote)
+            HStack(spacing: 12) {
+                if controller.permission == .notDetermined {
+                    Button(L10n.t("grant_permission", controller.language)) {
+                        controller.requestPermission()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 Button(L10n.t("open_settings", controller.language)) {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
@@ -146,8 +214,12 @@ private struct StatusView: View {
                 .buttonStyle(.bordered)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .background(
+            ViaColors.warning.opacity(0.10),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
     }
 
     private var roleText: String {
@@ -166,6 +238,7 @@ private struct StatusView: View {
 
 private struct NetworksView: View {
     @EnvironmentObject private var controller: WifiController
+    @State private var showValidation = false
 
     var body: some View {
         NavigationStack {
@@ -173,7 +246,10 @@ private struct NetworksView: View {
                 Section {
                     Text(L10n.t("networks_description", controller.language))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ViaColors.secondaryText)
+                    Text(L10n.t("scan_unavailable", controller.language))
+                        .font(.footnote)
+                        .foregroundStyle(ViaColors.secondaryText)
                 }
 
                 Section {
@@ -181,36 +257,49 @@ private struct NetworksView: View {
                         title: L10n.t("priority_network", controller.language),
                         ssid: $controller.ssidP,
                         password: $controller.passwordP,
-                        language: controller.language
+                        language: controller.language,
+                        currentSSID: controller.currentSSID,
+                        onUseCurrent: {
+                            Task {
+                                await controller.useCurrent(primary: true)
+                            }
+                        }
                     )
                     NetworkEditor(
                         title: L10n.t("backup_network", controller.language),
                         ssid: $controller.ssidB,
                         password: $controller.passwordB,
-                        language: controller.language
+                        language: controller.language,
+                        currentSSID: controller.currentSSID,
+                        onUseCurrent: {
+                            Task {
+                                await controller.useCurrent(primary: false)
+                            }
+                        }
                     )
                 }
 
                 Section {
                     Button(L10n.t("save_changes", controller.language)) {
-                        controller.save()
+                        showValidation = !controller.save()
                     }
-                    .disabled(!controller.isComplete)
-
+                    if controller.hasUnsavedChanges {
+                        Text(L10n.t("unsaved", controller.language))
+                            .font(.footnote)
+                            .foregroundStyle(ViaColors.warning)
+                    }
+                    if showValidation, !controller.message.isEmpty {
+                        Text(controller.message)
+                            .font(.footnote)
+                            .foregroundStyle(ViaColors.danger)
+                    }
                     Text(L10n.t("password_optional", controller.language))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    Text(L10n.t("scan_unavailable", controller.language))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Button(L10n.t("use_current", controller.language)) {
-                        Task { await controller.useCurrentNetwork() }
-                    }
+                        .foregroundStyle(ViaColors.secondaryText)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(ViaColors.background)
             .navigationTitle(L10n.t("tab_networks", controller.language))
         }
     }
@@ -227,29 +316,32 @@ private struct SettingsView: View {
                         Text("中文").tag("zh")
                         Text("English").tag("en")
                     }
-                    // A menu picker matches macOS: one row showing the current
-                    // language that opens a list, instead of side-by-side chips.
                     .pickerStyle(.menu)
 
-                    Stepper(
-                        value: $controller.checkInterval,
-                        in: 5...3600
-                    ) {
-                        Text("\(L10n.t("interval", controller.language)): \(controller.checkInterval) \(L10n.t("seconds", controller.language))")
+                    Picker(L10n.t("interval", controller.language), selection: $controller.checkInterval) {
+                        ForEach(intervalOptions, id: \.self) { seconds in
+                            Text(L10n.duration(seconds, controller.language)).tag(seconds)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
 
                 Section {
                     Text(L10n.t("ios_background_note", controller.language))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ViaColors.secondaryText)
                 }
 
                 Section(header: Text(L10n.t("about", controller.language))) {
-                    Text("\(L10n.t("version", controller.language)) 1.0")
+                    HStack {
+                        Text(L10n.t("version", controller.language))
+                        Spacer()
+                        Text(versionText)
+                            .foregroundStyle(ViaColors.secondaryText)
+                    }
                     Text(L10n.t("privacy_note", controller.language))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ViaColors.secondaryText)
                 }
 
                 Section {
@@ -258,8 +350,27 @@ private struct SettingsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(ViaColors.background)
             .navigationTitle(L10n.t("tab_settings", controller.language))
         }
+    }
+
+    private var intervalOptions: [Int] {
+        var options = [30, 60, 300, 900, 1800, 3600]
+        if !options.contains(controller.checkInterval) {
+            options.append(controller.checkInterval)
+        }
+        return options.sorted()
+    }
+
+    private var versionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String,
+           !build.isEmpty {
+            return "\(version) (\(build))"
+        }
+        return version
     }
 }
 
@@ -268,17 +379,29 @@ private struct NetworkEditor: View {
     @Binding var ssid: String
     @Binding var password: String
     let language: String
+    let currentSSID: String?
+    let onUseCurrent: () -> Void
     @State private var showPassword = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
+                .font(.body.weight(.semibold))
 
-            TextField("SSID", text: $ssid)
+            TextField(L10n.t("network_name", language), text: $ssid)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textFieldStyle(.roundedBorder)
+
+            if let currentSSID, currentSSID != ssid {
+                Button {
+                    onUseCurrent()
+                } label: {
+                    Label(L10n.t("use_current", language), systemImage: "wifi")
+                        .font(.footnote)
+                }
+                .buttonStyle(.borderless)
+            }
 
             HStack {
                 Group {
@@ -309,62 +432,44 @@ private struct OnboardingView: View {
     @EnvironmentObject private var controller: WifiController
     @State private var step = 0
 
+    private var hasLocationAccess: Bool {
+        controller.permission == .authorizedAlways || controller.permission == .authorizedWhenInUse
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
                 Text("\(step + 1) / 3")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(ViaColors.secondaryText)
 
-                switch step {
-                case 0:
-                    Text(L10n.t("onboarding_permission_title", controller.language))
-                        .font(.title2.weight(.semibold))
-                    Text(L10n.t("onboarding_permission_body", controller.language))
-                        .foregroundStyle(.secondary)
-                    Button(L10n.t("grant_permission", controller.language)) {
-                        controller.requestPermission()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        switch step {
+                        case 0:
+                            permissionStep
+                        case 1:
+                            networksStep
+                        default:
+                            finishStep
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-
-                case 1:
-                    Text(L10n.t("onboarding_networks_title", controller.language))
-                        .font(.title2.weight(.semibold))
-                    Text(L10n.t("onboarding_networks_body", controller.language))
-                        .foregroundStyle(.secondary)
-                    NetworkEditor(
-                        title: L10n.t("priority_network", controller.language),
-                        ssid: $controller.ssidP,
-                        password: $controller.passwordP,
-                        language: controller.language
-                    )
-                    NetworkEditor(
-                        title: L10n.t("backup_network", controller.language),
-                        ssid: $controller.ssidB,
-                        password: $controller.passwordB,
-                        language: controller.language
-                    )
-
-                default:
-                    Text(L10n.t("onboarding_finish_title", controller.language))
-                        .font(.title2.weight(.semibold))
-                    Text(L10n.t("onboarding_finish_body", controller.language))
-                        .foregroundStyle(.secondary)
-                    Text("\(L10n.t("priority_network", controller.language)): \(controller.ssidP)")
-                    Text("\(L10n.t("backup_network", controller.language)): \(controller.ssidB)")
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Spacer()
-
-                HStack {
+                HStack(spacing: 10) {
                     if step > 0 {
                         Button(L10n.t("back", controller.language)) {
                             step -= 1
                         }
+                        .buttonStyle(.bordered)
                     }
 
-                    Button(L10n.t("skip", controller.language)) {
-                        controller.showOnboarding = false
+                    if step < 2 {
+                        Button(L10n.t("skip", controller.language)) {
+                            controller.markOnboardingSeen()
+                        }
+                        .foregroundStyle(ViaColors.secondaryText)
                     }
 
                     Spacer()
@@ -378,26 +483,164 @@ private struct OnboardingView: View {
                     } else {
                         Button(L10n.t("save_only", controller.language)) {
                             if controller.save() {
-                                controller.showOnboarding = false
+                                controller.markOnboardingSeen()
                             }
                         }
+                        .buttonStyle(.bordered)
                         .disabled(!controller.isComplete)
 
-                        Button(L10n.t("start", controller.language)) {
-                            Task {
-                                await controller.startMonitoring()
-                                if controller.isRunning {
-                                    controller.showOnboarding = false
+                        if hasLocationAccess {
+                            Button(L10n.t("start", controller.language)) {
+                                Task {
+                                    await controller.startMonitoring()
+                                    if controller.isRunning {
+                                        controller.markOnboardingSeen()
+                                    }
                                 }
                             }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!controller.isComplete)
+                        } else {
+                            Button(L10n.t("open_settings", controller.language)) {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!controller.isComplete)
                     }
                 }
             }
             .padding()
+            .background(ViaColors.background)
             .navigationTitle(L10n.t("app_title", controller.language))
+        }
+    }
+
+    private var permissionStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.t("onboarding_permission_title", controller.language))
+                .font(.title2.weight(.semibold))
+            Text(L10n.t("onboarding_permission_body", controller.language))
+                .foregroundStyle(ViaColors.secondaryText)
+
+            if hasLocationAccess {
+                Label(
+                    L10n.t("grant_permission", controller.language),
+                    systemImage: "checkmark.circle.fill"
+                )
+                .foregroundStyle(ViaColors.accentText)
+            } else if controller.permission == .notDetermined {
+                Button(L10n.t("grant_permission", controller.language)) {
+                    controller.requestPermission()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button(L10n.t("open_settings", controller.language)) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                Text(L10n.t("onboarding_permission_denied_body", controller.language))
+                    .font(.footnote)
+                    .foregroundStyle(ViaColors.secondaryText)
+            }
+
+            Text(L10n.t("onboarding_permission_always_hint", controller.language))
+                .font(.footnote)
+                .foregroundStyle(ViaColors.secondaryText)
+        }
+    }
+
+    private var networksStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.t("onboarding_networks_title", controller.language))
+                .font(.title2.weight(.semibold))
+            Text(L10n.t("onboarding_networks_body", controller.language))
+                .foregroundStyle(ViaColors.secondaryText)
+            Text(L10n.t("scan_unavailable", controller.language))
+                .font(.footnote)
+                .foregroundStyle(ViaColors.secondaryText)
+
+            NetworkEditor(
+                title: L10n.t("priority_network", controller.language),
+                ssid: $controller.ssidP,
+                password: $controller.passwordP,
+                language: controller.language,
+                currentSSID: controller.currentSSID,
+                onUseCurrent: {
+                    Task { await controller.useCurrent(primary: true) }
+                }
+            )
+            NetworkEditor(
+                title: L10n.t("backup_network", controller.language),
+                ssid: $controller.ssidB,
+                password: $controller.passwordB,
+                language: controller.language,
+                currentSSID: controller.currentSSID,
+                onUseCurrent: {
+                    Task { await controller.useCurrent(primary: false) }
+                }
+            )
+
+            if !controller.message.isEmpty {
+                Text(controller.message)
+                    .font(.footnote)
+                    .foregroundStyle(ViaColors.secondaryText)
+            }
+        }
+    }
+
+    private var finishStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.t("onboarding_finish_title", controller.language))
+                .font(.title2.weight(.semibold))
+            Text(L10n.t("onboarding_finish_body", controller.language))
+                .foregroundStyle(ViaColors.secondaryText)
+
+            VStack(spacing: 8) {
+                summaryRow(
+                    L10n.t("priority_network", controller.language),
+                    controller.ssidP
+                )
+                Divider()
+                summaryRow(
+                    L10n.t("backup_network", controller.language),
+                    controller.ssidB
+                )
+                Divider()
+                summaryRow(
+                    L10n.t("permission_label", controller.language),
+                    hasLocationAccess
+                        ? L10n.t("permission_granted", controller.language)
+                        : L10n.t("permission_required", controller.language)
+                )
+            }
+
+            if !hasLocationAccess {
+                Text(L10n.t("start_unavailable_permission", controller.language))
+                    .font(.footnote)
+                    .foregroundStyle(ViaColors.warning)
+            }
+
+            if !controller.message.isEmpty {
+                Text(controller.message)
+                    .font(.footnote)
+                    .foregroundStyle(ViaColors.secondaryText)
+            }
+        }
+    }
+
+    private func summaryRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.footnote)
+                .foregroundStyle(ViaColors.secondaryText)
+            Spacer(minLength: 12)
+            Text(value.isEmpty ? "—" : value)
+                .font(.body)
+                .multilineTextAlignment(.trailing)
         }
     }
 }
