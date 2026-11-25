@@ -137,7 +137,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             saveError = error
             return false
         }
-        return runCatching {
+        val saved = runCatching {
             val p = ssidP.trim()
             val b = ssidB.trim()
             val previousPasswordP = store.passwordP

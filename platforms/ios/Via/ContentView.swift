@@ -33,11 +33,11 @@ struct ContentView: View {
                 }
         }
         .tint(ViaColors.accent)
-        .sheet(isPresented: $controller.showOnboarding) {
+        .sheet(isPresented: $controller.showOnboarding, onDismiss: {
+            controller.markOnboardingSeen()
+        }) {
             OnboardingView()
                 .environmentObject(controller)
-        } onDismiss: {
-            controller.markOnboardingSeen()
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
