@@ -39,7 +39,13 @@ class MainActivity : ComponentActivity() {
             }
             val notificationLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
-            ) { }
+            ) {
+                // Publish right away once the user answered: a foreground
+                // notification posted while the permission was still missing
+                // is dropped by the system, and without this the drawer only
+                // saw it on the next scheduled check.
+                viewModel.ensureService()
+            }
 
             // Permissions are requested from the wizard (or the status card)
             // instead of immediately on launch, so a fresh install opens on

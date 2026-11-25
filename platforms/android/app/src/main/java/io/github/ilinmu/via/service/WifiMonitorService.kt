@@ -54,10 +54,6 @@ class WifiMonitorService : Service() {
     private var loop: Job? = null
     private var engine: PolicyEngine? = null
 
-    // Notification content only changes when the role or connection changes,
-    // not on every policy tick.
-    private var notificationKey: String? = null
-
     @Volatile
     private var refreshRequested = false
 
@@ -368,11 +364,13 @@ class WifiMonitorService : Service() {
     }
 
     private fun updateNotification(state: MonitorState) {
-        val key = "${settings.language}|${state.running}|${state.role}|${state.currentSsid}"
-        if (key == notificationKey) return
-        notificationKey = key
-
         val manager = getSystemService(NotificationManager::class.java) ?: return
+        // Re-post even when the text did not change. A notification posted
+        // while POST_NOTIFICATIONS was not granted is discarded by the system,
+        // and the old content-only de-dupe then prevented any retry, so the
+        // ongoing notification could stay invisible (or show the initial
+        // "not connected" text) until the network happened to change. Posting
+        // the same text again is silent on the low-importance channel.
         runCatching { manager.notify(NOTIFICATION_ID, buildNotification(state)) }
     }
 
@@ -402,7 +400,7 @@ class WifiMonitorService : Service() {
             override fun onCapabilitiesChanged(
                 network: Network,
                 capabilities: NetworkCapabilities,
-            ) = onWifiChanged()
+            ) = onWifiChanged(repository.ssidOf(capabilities))
         }
 
         runCatching { manager.registerNetworkCallback(request, callback) }
@@ -416,10 +414,12 @@ class WifiMonitorService : Service() {
         runCatching { manager.unregisterNetworkCallback(callback) }
     }
 
-    private fun onWifiChanged() {
+    private fun onWifiChanged(knownSsid: String? = null) {
         // Capability callbacks also fire for signal changes; only a different
-        // SSID is worth interrupting the policy loop for.
-        val ssid = runCatching { repository.currentSsid() }.getOrNull()
+        // SSID is worth interrupting the policy loop for. The SSID carried by
+        // the callback is the freshest one; reading WifiManager at this moment
+        // can still return "<unknown ssid>" while the association settles.
+        val ssid = knownSsid ?: runCatching { repository.currentSsid() }.getOrNull()
         if (ssid == lastSeenSsid) {
             return
         }
@@ -459,8 +459,6 @@ class WifiMonitorService : Service() {
             currentSsid = ssid,
             role = roleFor(ssid),
         )
-        notificationKey =
-            "${settings.language}|${initial.running}|${initial.role}|${initial.currentSsid}"
 
         ServiceCompat.startForeground(
             this,
@@ -495,6 +493,14 @@ class WifiMonitorService : Service() {
             .setShowWhen(false)
             .setContentIntent(openIntent)
             .setPriority(Notification.PRIORITY_LOW)
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+ postpones a foreground notification for
+                    // about 10 seconds by default; the monitoring state
+                    // should be visible the moment it starts.
+                    setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+                }
+            }
             .build()
     }
 
