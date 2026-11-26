@@ -1,0 +1,58 @@
+{
+  "name": "Via",
+  "slug": "via",
+  "identifier": "io.github.ilinmu.via",
+  "version": "2.0.0",
+  "copyright": "Copyright © 2025-2026 Linmu. Licensed under the MIT License.",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "out": "build",
+  "macos": {
+    "minimumSystemVersion": "13.0",
+    "entitlements": "entitlements.plist",
+    "infoPlist": {
+      "CFBundleLocalizations": ["en", "zh-Hans"],
+      "ITSApplicationUsesNonExemptEncryption": false,
+      "LSApplicationCategoryType": "public.app-category.utilities",
+      "LSUIElement": true,
+      "NSLocationAlwaysAndWhenInUseUsageDescription": "Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.",
+      "NSLocationAlwaysUsageDescription": "Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.",
+      "NSLocationUsageDescription": "Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.",
+      "NSLocationWhenInUseUsageDescription": "Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac."
+    }
+  },
+  "windows": {
+    "displayName": "Via",
+    "installDirName": "Via"
+  },
+  "linux": {
+    "comment": "Automatic priority/backup Wi-Fi switcher",
+    "categories": ["Network", "Utility"],
+    "webview": false,
+    "command": "via"
+  },
+  "android": {
+    "minSdk": 29,
+    "permissions": [
+      "ACCESS_WIFI_STATE",
+      "ACCESS_NETWORK_STATE",
+      "CHANGE_WIFI_STATE",
+      "ACCESS_FINE_LOCATION",
+      "ACCESS_COARSE_LOCATION",
+      "NEARBY_WIFI_DEVICES",
+      "FOREGROUND_SERVICE",
+      "FOREGROUND_SERVICE_CONNECTED_DEVICE",
+      "POST_NOTIFICATIONS",
+      "RECEIVE_BOOT_COMPLETED"
+    ],
+    "splash": "#F4F7FB"
+  },
+  "ios": {
+    "minimumSystemVersion": "17.0",
+    "infoPlist": {
+      "NSLocationAlwaysAndWhenInUseUsageDescription": "Via needs location access to read the current Wi-Fi network name.",
+      "NSLocationAlwaysUsageDescription": "Via needs location access to read the current Wi-Fi network name.",
+      "NSLocationWhenInUseUsageDescription": "Via needs location access to read the current Wi-Fi network name."
+    }
+  }
+}

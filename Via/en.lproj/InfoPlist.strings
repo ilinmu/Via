@@ -1,3 +1,0 @@
-"CFBundleDisplayName" = "Via";
-"NSLocationUsageDescription" = "Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.";
-"NSLocationWhenInUseUsageDescription" = "Via needs location access because macOS protects Wi-Fi names and nearby network scans as location-related information. The data stays on this Mac.";

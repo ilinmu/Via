@@ -1,33 +1,7 @@
-.build/
-.swiftpm/
-core/target/
+build/
 dist/
-*.app/
+.mygo/
 .DS_Store
-
-# Generated platform build output
-platforms/android/.gradle/
-platforms/android/build/
-platforms/android/app/build/
-platforms/android/local.properties
-platforms/android/app/src/main/jniLibs/
-platforms/ios/Via.xcodeproj/
-platforms/ios/Frameworks/
-platforms/ios/build/
-platforms/ios/DerivedData/
-platforms/windows/bin/
-platforms/windows/obj/
-platforms/windows.tests/bin/
-platforms/windows.tests/obj/
-*.xcuserstate
-*.iml
-.idea/
-
-# Generated packages and archives
-*.xcarchive
-*.ipa
-*.aab
-*.msi
 
 # Secrets and signing material: never commit these
 .env

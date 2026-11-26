@@ -1,4 +1,0 @@
-module CViaCore {
-    header "via_core.h"
-    export *
-}

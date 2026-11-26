@@ -1,169 +1,104 @@
 # Via
 
-<p align="center">
-  <strong>Find the right way.</strong>
-</p>
+**自动在「首选网络」与「备用网络」之间无缝切换的多端 Wi-Fi 守护工具。**
 
-Via 是一款跨平台的 Wi-Fi 自动切换工具，帮助你在多个 Wi-Fi 网络之间智能切换。支持 macOS、Windows、iOS 和 Android。
+Via v2.0 采用 **Go + MyGo Native UI** 单一代码库架构，覆盖 **macOS、Windows、Linux 与 Android**（并保留 iOS 架构占位）。所有网络策略、凭据保管、双语界面与命令行诊断均由同一套 Go 代码驱动。
 
-把常连的 Wi-Fi 设为首选网络，再选一个备用网络。首选网络不可用时，Via 会自动连接备用网络；等它恢复，再自动切回。
+---
 
-第一次打开，跟着设置向导授权、选网络并开启自动切换即可，不需要记任何代号。
+## 核心特性
 
-连接可以变化，体验不必改变。
+- **确定性主备切换状态机（`internal/policy`）**：
+  - 首选网络（`P`）可用时自动保持/回切；
+  - `P` 不可用时自动切换至备用网络（`B`）；
+  - 通过稳定窗口多次复扫区分“断网/失效”与“用户手动切网”，避免因系统扫描缓存误判，并在误停后自动复核恢复；
+  - 针对失败/超时的目标独立冷却（不影响切往另一槽位）。
+- **多端原生 Wi-Fi 适配与系统级托盘图标**：
+  - **macOS**：App Sandbox 沙盒适配（`CoreWLAN` + `CoreLocation`），菜单栏直接调用系统原生 SF Symbol，并在右下角标示 `P` / `B` 或暂停红点；
+  - **Windows**：纯 Go 调用系统 `wlanapi.dll` 与 `gdiplus.dll`（使用 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 系统 Wi-Fi 图标）；
+  - **Linux**：基于 NetworkManager (`nmcli`) 与桌面主题系统托盘图标；
+  - **Android**：通过 Kotlin 原生模块（`WifiManager`、`ConnectivityManager`、`WifiNetworkSuggestion`）提供低打扰前台守护通知与系统网络建议优先级切换；
+  - **iOS**：受系统后台限制，预留同构 UI 占位与提示，待具备特定授权扩展条件时启用。
+- **方案 A「晴空路径仪表盘」原生 UI（`internal/uiapp`）**：
+  - 极简双视图（「主控台」+「设置」），桌面端为 380px 无边框浮出面板（高度随当前内容自适应贴合，180–720px，无底部多余留白），手机端为底部双导航全屏布局；
+  - 管理网络提供下拉选择列表（首项为一键「使用当前网络」），未授予系统定位权限前严格锁定配置编辑与守护开关；
+  - 点击卡片原地编辑单槽位 SSID 与密码；macOS 钥匙串将主备密码合并存储于单一凭据条目并结合进程内会话缓存，避免重复弹窗授权。
+- **内置命令行工具（`internal/cli`）**：
+  - `via doctor`：检查当前 Wi-Fi 适配器、定位/网络权限、配置文件、凭据库状态（绝不打印明文密码）与附近扫描情况；
+  - `via status`：输出当前 SSID、角色与配置摘要；
+  - `via monitor`：在终端无界面持续守护（支持无回显交互式密码输入）。
 
-## Why Via?
+---
 
-Via 源自拉丁语 via，意为「道路」「路径」或「通道」。
+## 快速构建与测试
 
-每一次网络连接，都是一次路径选择。当常连的 Wi-Fi 不可用时，Via 会自动寻找备用路径，保持网络连接；当首选网络恢复时，又会回到熟悉的连接。
+> 环境要求：Go 1.27+；macOS 需要 Xcode Command Line Tools；Android 构建需要 Android SDK 与 NDK（可通过 `go tool mygo doctor` 自检）。
 
-这个名字承载着一个简单的理念：始终找到更合适的连接方式。
+```sh
+# 运行全套 Go 检查与单元测试
+go vet ./...
+go test -v ./...
 
-Via 不需要你时刻关注网络切换，它会在后台默默寻找合适的路径，让连接保持顺畅，让你专注于真正重要的事情。
+# 启动桌面端实时开发调试
+go tool mygo dev
 
-## Features
+# 打包当前平台桌面应用（macOS 生成 build/darwin-arm64/Via.app）
+go tool mygo build -skip-dmg
 
-- 自动切换：首选网络不可用时，自动连接备用网络；恢复后自动切回。
-- 网络设置：自己选择首选网络和备用网络，让网络选择更符合使用习惯。
-- 手动切换识别：识别用户主动切换网络的行为，避免自动策略与用户操作相互干扰。
-- 状态栏常驻：macOS 提供菜单栏常驻应用，通过状态图标直观展示当前状态。
-- 网络扫描：扫描周围可用 Wi-Fi，帮助用户选择需要管理的网络。
-- 首次设置向导：通过简单的三步流程完成权限授权、网络选择和自动切换设置。
-- 中英文支持：支持中文与英文界面。
-- 登录启动：支持随系统启动，无需每次手动打开。
-- 简洁界面：跟随系统浅色或深色外观，按状态、网络和设置组织功能。
-- 跨平台策略核心：使用 Rust 实现共享策略状态机，确保不同平台遵循一致的切换逻辑。
+# 打包 Android APK / AAB（需已配置 Android SDK & NDK）
+go tool mygo build -platform android
 
-## How It Works
-
-Via 使用两个网络配置实现自动切换：
-
-| 网络 | 作用 | 行为 |
-| --- | --- | --- |
-| 首选网络 | 平时连接 | 始终优先连接，恢复后自动切回 |
-| 备用网络 | 临时顶上 | 首选网络不可用时自动连接 |
-
-基本工作流程：
-
-1. 应用读取当前连接的 Wi-Fi 名称，并查看周围可用的网络。
-2. 如果当前已经连接首选网络，则保持连接，不做额外切换。
-3. 如果首选网络不可用且当前未连接备用网络，则尝试连接备用网络。
-4. 如果当前连接的是备用网络，Via 会按照设定的间隔继续检查。
-5. 一旦发现首选网络恢复可用，Via 会自动切回。
-6. 如果检测到用户主动切换网络，则关闭自动切换，避免与用户争夺网络控制权。
-
-### Manual Override
-
-Via 会区分自动切换和用户主动切换：
-
-- 自动回退：当确认首选网络不可见时，Via 自动切换到备用网络，继续检查，并在首选网络恢复后自动切回。
-- 手动覆盖：当确认首选网络仍然可见时，如果用户主动切换到备用网络或其他网络，Via 会认为这是用户的主动选择，并关闭自动切换。扫描失败返回“未知”时，既不会回退也不会停止检查。
-
-在 macOS 菜单栏图标上，手动覆盖状态会通过红点提示；状态页会说明原因，并提供重新开启的入口。
-
-这样既能保留自动切换的便利，也不会让自动化逻辑干扰用户自己的网络选择。
-
-## Platforms
-
-| 平台      | 项目目录                 | 技术方案                          | 主要能力                            |
-| ------- | -------------------- | ----------------------------- | ------------------------------- |
-| macOS   | `Sources/`           | SwiftUI、CoreWLAN              | 菜单栏应用、完整网络扫描与主动切换               |
-| Windows | `platforms/windows/` | C#、WPF、WlanAPI                | 托盘应用、Windows Credential Manager |
-| iOS     | `platforms/ios/`     | SwiftUI、Hotspot Configuration | 网络配置与前台监控                       |
-| Android | `platforms/android/` | Kotlin、Compose                | 前台服务、通过系统 Wi-Fi 建议切换            |
-
-> 各平台受操作系统公开 API 和权限机制限制，网络扫描、后台监控和主动切换能力可能有所不同。详细说明见 [跨平台能力说明](docs/CROSS_PLATFORM.md)。
-
-## Getting Started
-
-### Requirements
-
-开发环境需要根据目标平台安装相应工具：
-
-- macOS：Xcode、Swift、Rust。
-- iOS：Xcode、Swift、Rust，以及 XcodeGen。
-- Android：Android SDK、JDK、Gradle、Rust。
-- Windows：Windows 开发环境、.NET SDK、Rust。
-
-### Build
-
-#### macOS
-
-```
-cargo build --manifest-path core/Cargo.toml -p via-ffi --release
-scripts/package-app.sh
+# 运行命令行诊断与终端守护
+go run . version
+go run . doctor
 ```
 
-打包完成后，应用位于：
+---
 
-```
-dist/Via.app
-```
+## 目录结构
 
-#### iOS
-
-```
-scripts/build-ios-core.sh
-cd platforms/ios && xcodegen generate && cd ../..
-```
-
-#### Android
-
-```
-scripts/build-android-core.sh
-cd platforms/android && gradle assembleRelease && cd ../..
-```
-
-#### Windows
-
-请在 Windows 环境中执行：
-
-```
-./scripts/build-windows-core.ps1
-dotnet publish platforms/windows/Via.Windows.csproj -c Release -p:Platform=x64 -o dist/windows-app
+```text
+.
+├── main.go                     # CLI 与 GUI 统一入口
+├── mygo.json                   # MyGo 多端构建、权限与包信息配置
+├── entitlements.plist          # macOS App Store 沙盒权限声明
+├── resources/                  # 应用图标与隐私清单 (PrivacyInfo.xcprivacy)
+└── internal/
+    ├── policy/                 # 确定性 Wi-Fi 主备切换策略状态机
+    ├── store/                  # 原子 JSON 配置与系统安全凭据存储 (mygo.Secrets)
+    ├── i18n/                   # 中/英双语词典
+    ├── cli/                    # doctor / status / monitor / version 子命令
+    ├── nativewifi/             # MyGo 原生模块 (macOS Swift + Android Kotlin)
+    ├── wifi/                   # 跨平台适配器 (macOS/Windows/Linux/Android/iOS) 与协调器
+    ├── tray/                   # 各端系统原生托盘图标渲染 (Option 1: P/B/纯Wi-Fi/红点)
+    └── uiapp/                  # Scheme A MyGo Native UI（桌面浮窗 + 手机全屏）
 ```
 
-### Run Tests
+---
 
-运行 Swift 测试：
+## 相关文档
 
-```
-swift test
-```
+- [UI 设计规范](docs/UI_DESIGN.md)
+- [跨平台能力说明](docs/CROSS_PLATFORM.md)
+- [开发指南](docs/DEVELOPMENT_GUIDE.md)
+- [安全政策](SECURITY.md)
+- [GitHub Releases 下载](https://github.com/ilinmu/Via/releases)
 
-运行 Rust Core 测试：
+---
 
-```
-cargo test --manifest-path core/Cargo.toml
-```
+## 致谢（Acknowledgements）
 
-## CI / CD
+Via v2.0 的跨平台实现与原生交互体验得益于以下优秀开源项目与基础设施：
 
-项目使用 GitHub Actions 进行持续集成与构建，工作流配置位于：
+- **[MyGo](https://github.com/egoist/mygo)**（`github.com/egoist/mygo`）：跨平台原生应用框架，提供 Native UI 渲染引擎、托盘/浮窗（Flyout / Popover）、系统安全凭据存储（`mygo.Secrets`）以及 Swift/Kotlin 原生模块桥接（`//mygo:native`）
+- **[Go](https://go.dev/)**：核心编程语言、标准库与跨平台交叉编译工具链
+- **[purego](https://github.com/ebitengine/purego)**：纯 Go 动态库绑定基础库，支持无 CGo 直接调用各操作系统原生 API
+- **[go-text/typesetting](https://github.com/go-text/typesetting)**：跨平台文字整形与排版引擎，支撑 MyGo Native UI 的高清晰原生文本渲染
+- **[Go 官方扩展库（`golang.org/x/*`）](https://pkg.go.dev/golang.org/x)**：`x/sys`、`x/image`、`x/text`、`x/net`、`x/crypto` 等系统调用、图像处理与文本国际化底层支持
+- **[NetworkManager](https://networkmanager.dev/)**：Linux 平台 Wi-Fi 扫描与连接管理基础设施
 
-```
-.github/workflows/cross-platform.yml
-```
+---
 
-目前工作流支持：
+## 许可
 
-- Push 到 `master` 分支时触发。
-- Pull Request 时触发。
-- 执行 Rust、macOS Swift、iOS XCTest、Windows xUnit 和 Android JUnit 测试。
-- 构建 macOS、Windows、iOS 和 Android 四个平台的产物。
-- 仅修改文档的 Pull Request 会跳过平台构建任务；包含源码的 PR 不受影响。
-- 连续推送时只保留最新一次 PR 工作流运行；`master` 的每次提交独立运行。
-- Release 依赖全部测试和构建任务成功。
-
-每次 `master`分支构建都会在 GitHub Releases 中生成对应版本，版本号格式为：
-
-```
-v1.0.<运行号>
-```
-
-Release 包含四个平台的构建产物。
-
-## License
-
-本项目采用 MIT License。
+[MIT License](LICENSE)

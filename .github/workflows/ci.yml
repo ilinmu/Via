@@ -1,0 +1,198 @@
+name: Via CI
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-vet:
+    name: Go Vet & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+
+      - name: Cross-OS go vet
+        run: |
+          go vet ./...
+          GOOS=windows GOARCH=amd64 go vet ./...
+          GOOS=darwin GOARCH=arm64 go vet ./...
+
+      - name: Run unit tests
+        run: go test -race -v ./...
+
+      - name: Verify cross-platform Go builds
+        run: |
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o /tmp/via-darwin .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/via-windows.exe .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/via-linux .
+          rm -f /tmp/via-darwin /tmp/via-windows.exe /tmp/via-linux
+
+  build-macos:
+    name: Build macOS App
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+
+      - name: Check native module
+        run: go tool mygo native check internal/nativewifi
+
+      - name: Build macOS app bundle and DMG
+        run: go tool mygo build
+
+      - name: Verify app signature and entitlements
+        run: |
+          codesign --verify --deep --strict --verbose=2 "build/darwin-arm64/Via.app"
+          codesign -d --entitlements - "build/darwin-arm64/Via.app"
+
+      - name: Archive macOS app zip
+        run: ditto -c -k --sequesterRsrc --keepParent "build/darwin-arm64/Via.app" "build/Via-macos-arm64.zip"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Via-macos
+          path: |
+            build/Via-macos-arm64.zip
+            build/darwin-arm64/via-*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+
+      - name: Run tests & build
+        run: |
+          go test -v ./...
+          go tool mygo build -platform windows/amd64 -skip-installer
+          if (Test-Path "build/windows-amd64/Via.exe") {
+            Copy-Item "build/windows-amd64/Via.exe" "build/Via-windows-amd64.exe"
+          } else {
+            go build -o "build/Via-windows-amd64.exe" .
+          }
+
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: Via-windows
+          path: build/Via-windows-amd64.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+
+      - name: Install GTK3 & AppIndicator dev headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Build Linux package
+        run: |
+          go tool mygo build -platform linux/amd64
+          ls -la build/
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Via-linux
+          path: |
+            build/linux-amd64/via-*-linux-amd64.tar.gz
+            build/linux-amd64/*.deb
+            build/linux-amd64/*.rpm
+          if-no-files-found: error
+          retention-days: 14
+
+  build-android:
+    name: Build Android APK / AAB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build Android APK/AAB
+        run: go tool mygo build -platform android
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Via-android
+          path: build/android/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Upload Release Assets
+    needs: [test-and-vet, build-macos, build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Via $TAG" --generate-notes release/*
+          fi

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Via</string>
-    <string name="notification_channel_name">Wi-Fi auto-switch</string>
-    <string name="notification_channel_description">Keeps your preferred and backup networks connected.</string>
-    <string name="notification_title">Via</string>
-    <string name="notification_text">Keeping your preferred network connected.</string>
-</resources>

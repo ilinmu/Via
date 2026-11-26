@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Via — 找到合适的路</title>
-  <meta name="description" content="Via 会在首选网络不可用时自动连接备用网络，恢复后安静地切回。支持 macOS、Windows、iOS 和 Android。">
+  <meta name="description" content="Via 会在首选网络不可用时自动连接备用网络，恢复后安静地切回。基于 Go + MyGo Native UI 构建，支持 macOS、Windows、Linux 与 Android。">
   <meta name="theme-color" content="#F7F5F1" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1B1A18" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="Via — 找到合适的路">
-  <meta property="og:description" content="跨平台的 Wi-Fi 自动切换工具，支持 macOS、Windows、iOS 和 Android。">
+  <meta property="og:description" content="跨平台的 Wi-Fi 自动切换工具，基于 Go + MyGo Native UI 构建，支持 macOS、Windows、Linux 与 Android。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://ilinmu.github.io/Via/">
   <meta property="og:image" content="https://ilinmu.github.io/Via/assets/icon.png">
@@ -50,7 +50,7 @@
           <a class="button button-primary" href="https://github.com/ilinmu/Via/releases/latest">下载最新版本</a>
           <a class="button button-quiet" href="https://github.com/ilinmu/Via">在 GitHub 查看</a>
         </div>
-        <p class="meta reveal">macOS、Windows、iOS 与 Android</p>
+        <p class="meta reveal">macOS · Windows · Linux · Android（预留 iOS 架构占位）</p>
       </div>
     </section>
 
@@ -122,25 +122,29 @@
     <section class="section section-rule" id="platforms">
       <div class="wrap">
         <p class="eyebrow reveal">平台</p>
-        <h2 class="reveal">同一套策略，四种系统</h2>
-        <p class="section-lede reveal">切换逻辑来自共享的 Rust 策略核心，平台层只负责扫描、连接和呈现。</p>
+        <h2 class="reveal">同一套 Go 引擎，全端一致体验</h2>
+        <p class="section-lede reveal">切换策略、凭据管理与原生界面均基于 Go 与 MyGo 构建，各平台仅通过原生接口完成 Wi-Fi 扫描与切换。</p>
 
         <div class="platforms reveal">
           <div class="platform-row">
             <span class="platform-name">macOS</span>
-            <span class="platform-detail">菜单栏应用，基于 CoreWLAN，支持完整扫描与主动切换</span>
+            <span class="platform-detail">菜单栏 SF Symbol 图标与自适应 Popover，基于 CoreWLAN / CoreLocation，单条目钥匙串加密存储</span>
           </div>
           <div class="platform-row">
             <span class="platform-name">Windows</span>
-            <span class="platform-detail">WPF 托盘应用，基于 WlanAPI，密码存入 Windows Credential Manager</span>
+            <span class="platform-detail">系统托盘与原生界面，基于 WlanAPI，密码存入 Windows Credential Manager</span>
           </div>
           <div class="platform-row">
-            <span class="platform-name">iOS</span>
-            <span class="platform-detail">SwiftUI 与 Hotspot Configuration，前台监控网络变化</span>
+            <span class="platform-name">Linux</span>
+            <span class="platform-detail">桌面托盘与浮窗面板，基于 NetworkManager (nmcli) 与 FreeDesktop Secret Service</span>
           </div>
           <div class="platform-row">
             <span class="platform-name">Android</span>
-            <span class="platform-detail">Kotlin 与 Compose，前台服务常驻，通过系统 Wi-Fi 建议切换</span>
+            <span class="platform-detail">MyGo 原生双视图界面，低打扰常驻守护通知，通过 WifiNetworkSuggestion 优先级切换</span>
+          </div>
+          <div class="platform-row">
+            <span class="platform-name">iOS</span>
+            <span class="platform-detail">已保留同构原生界面与权限占位，受系统后台联网限制暂不主动切网</span>
           </div>
         </div>
 
@@ -150,20 +154,20 @@
 
     <section class="section download" id="download">
       <div class="wrap download-inner">
-        <h2 class="reveal">现在试试 Via</h2>
-        <p class="section-lede reveal">四个平台的构建都在 GitHub Releases 上，随每次提交自动更新。</p>
+        <h2 class="reveal">现在试试 Via v2.0</h2>
+        <p class="section-lede reveal">各平台构建产物与更新说明可在 GitHub Releases 下载获取。</p>
         <div class="actions reveal">
           <a class="button button-primary" href="https://github.com/ilinmu/Via/releases/latest">前往 Releases</a>
           <a class="button button-quiet" href="https://github.com/ilinmu/Via#readme">阅读 README</a>
         </div>
-        <p class="footnote reveal">自动构建未做代码签名，适合体验与测试；正式分发仍需各平台的签名流程。</p>
+        <p class="footnote reveal">开源版本默认使用基础或自签分发方式；欢迎源码构建或通过 <a href="https://github.com/egoist/mygo">MyGo</a> 与 Go 工具链体验。</p>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="wrap footer-inner">
-      <p>© 2025–2026 Linmu，MIT License</p>
+      <p>© 2025–2026 Linmu，MIT License · Powered by Go &amp; <a href="https://github.com/egoist/mygo">MyGo</a></p>
       <nav aria-label="页脚导航">
         <a href="https://github.com/ilinmu/Via">GitHub</a>
         <a href="https://github.com/ilinmu/Via/blob/master/docs/DEVELOPMENT_GUIDE.md">开发文档</a>

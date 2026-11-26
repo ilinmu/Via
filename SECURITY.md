@@ -6,7 +6,7 @@
 
 1. 打开仓库的 **Security** 标签页。
 2. 选择 **Advisories** → **Report a vulnerability**。
-3. 说明受影响的平台（macOS / Windows / iOS / Android）、版本、复现步骤和影响范围。
+3. 说明受影响的平台（macOS / Windows / Linux / Android / iOS）、版本、复现步骤和影响范围。
 
 我们会在确认后尽快回复，并在修复发布后公开致谢（如果你愿意）。
 
@@ -21,11 +21,12 @@
 - **不提交任何** token、API key、密码、证书、签名私钥、provisioning profile、keystore 或 `.env` 文件。
 - 签名身份、Team ID 等敏感信息通过环境变量或本机配置传入，不写入仓库。
 - CI 只使用 GitHub 自动生成的 `GITHUB_TOKEN`，工作流默认权限为只读；发布 job 才临时申请 `contents: write`。
-- 各平台的 Wi-Fi 密码只存放在系统提供的安全存储中：
-  - macOS：Keychain
-  - iOS：Keychain
+- 各平台的 Wi-Fi 密码只存放在系统提供的安全存储（通过 `mygo.Secrets` 调用）中：
+  - macOS：Keychain（单条目合并加密存储）
   - Windows：Credential Manager
-  - Android：`EncryptedSharedPreferences`（`allowBackup=false`）
+  - Linux：FreeDesktop Secret Service（`libsecret`）
+  - Android：Android 加密凭据 / 私有应用存储
+  - iOS（架构预留）：Keychain
 - 日志和状态界面不输出密码；诊断日志只包含 SSID 和连接结果。
 
 ## 依赖与供应链
