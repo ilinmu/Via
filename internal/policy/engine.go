@@ -63,6 +63,8 @@ type Engine struct {
 	previousBackupSSID          *string
 	hasLastProgrammaticBackupAt bool
 	lastProgrammaticBackupAtMs  uint64
+	hasLastFailedPriorityAt     bool
+	lastFailedPriorityAtMs      uint64
 	activeProgrammatic          *intent
 	cooldown                    *cooldownState
 	pending                     pendingState
@@ -128,6 +130,7 @@ func (e *Engine) Start(nowMs uint64, perm Permission, currentSSID *string) []Act
 	e.pending = pendingState{kind: pendingNone}
 	e.activeProgrammatic = nil
 	e.hasLastProgrammaticBackupAt = false
+	e.hasLastFailedPriorityAt = false
 	e.cooldown = nil
 	e.running = true
 
@@ -377,6 +380,7 @@ func (e *Engine) AssociationResult(ssid string, generation uint64, outcome Assoc
 		e.currentSSID = cloneString(ssid)
 		if ssid == e.config.SSIDP {
 			e.hasLastProgrammaticBackupAt = false
+			e.hasLastFailedPriorityAt = false
 		} else if ssid == e.config.SSIDB {
 			e.hasLastProgrammaticBackupAt = true
 			e.lastProgrammaticBackupAtMs = nowMs
@@ -388,6 +392,10 @@ func (e *Engine) AssociationResult(ssid string, generation uint64, outcome Assoc
 		}
 
 	case OutcomeTimeout:
+		if ssid == e.config.SSIDP {
+			e.hasLastFailedPriorityAt = true
+			e.lastFailedPriorityAtMs = nowMs
+		}
 		if ssid == e.config.SSIDB {
 			e.hasLastProgrammaticBackupAt = false
 		} else {
@@ -405,6 +413,10 @@ func (e *Engine) AssociationResult(ssid string, generation uint64, outcome Assoc
 
 	case OutcomeFailure:
 		e.activeProgrammatic = nil
+		if ssid == e.config.SSIDP {
+			e.hasLastFailedPriorityAt = true
+			e.lastFailedPriorityAtMs = nowMs
+		}
 		if ssid == e.config.SSIDB {
 			e.hasLastProgrammaticBackupAt = false
 		}
@@ -470,6 +482,7 @@ func (e *Engine) ObservedChange(previousSSID, newSSID *string, nowMs uint64) []A
 
 func (e *Engine) classifyObservedChange(previousSSID, newSSID *string, nowMs uint64) []Action {
 	if newSSID != nil && *newSSID == e.config.SSIDP {
+		e.hasLastFailedPriorityAt = false
 		e.currentSSID = cloneString(*newSSID)
 		return []Action{
 			{Kind: ActionLog, Event: LogPriorityConnected},
@@ -501,6 +514,9 @@ func (e *Engine) classifyObservedChange(previousSSID, newSSID *string, nowMs uin
 				{Kind: ActionLog, Event: LogAutomaticFailover},
 				{Kind: ActionCheckNow},
 			}
+		}
+		if e.recentFailedPriority(nowMs) {
+			return []Action{{Kind: ActionRefreshStatus}}
 		}
 		e.pending = pendingState{
 			kind:     pendingClassification,
@@ -596,6 +612,11 @@ func (e *Engine) recentProgrammaticBackup(nowMs uint64) bool {
 	return false
 }
 
+func (e *Engine) recentFailedPriority(nowMs uint64) bool {
+	return e.hasLastFailedPriorityAt && nowMs >= e.lastFailedPriorityAtMs &&
+		(nowMs-e.lastFailedPriorityAtMs) <= e.programmaticWindowMs
+}
+
 func (e *Engine) enterStopped() {
 	e.running = false
 	e.generation++
@@ -603,6 +624,7 @@ func (e *Engine) enterStopped() {
 	e.pending = pendingState{kind: pendingNone}
 	e.activeProgrammatic = nil
 	e.hasLastProgrammaticBackupAt = false
+	e.hasLastFailedPriorityAt = false
 }
 
 func (e *Engine) syncConfig() {

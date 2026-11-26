@@ -22,8 +22,10 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
     private var watchCallbacks: [UUID: @Sendable (String) -> Void] = [:]
     private var permCallbacks: [UUID: @Sendable (String) -> Void] = [:]
     private var eventMonitoringStarted = false
+    private let wifiOpLock = NSLock()
     private let scanCacheLock = NSLock()
     private var cachedNetworks: [String: (network: CWNetwork, at: Date)] = [:]
+    private var lastScanAt: Date?
 
     private func onMainSync<T>(_ work: () -> T) -> T {
         if Thread.isMainThread {
@@ -166,6 +168,7 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         }
         let now = Date()
         scanCacheLock.lock()
+        lastScanAt = now
         for (ssid, net) in bestCWBySSID {
             cachedNetworks[ssid] = (network: net, at: now)
         }
@@ -179,7 +182,7 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         }
     }
 
-    private func freshCachedNetwork(for ssid: String, maxAge: TimeInterval = 20.0) -> CWNetwork? {
+    private func freshCachedNetwork(for ssid: String, maxAge: TimeInterval = 15.0) -> CWNetwork? {
         scanCacheLock.lock()
         defer { scanCacheLock.unlock() }
         guard let entry = cachedNetworks[ssid], Date().timeIntervalSince(entry.at) <= maxAge else {
@@ -194,23 +197,62 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         scanCacheLock.unlock()
     }
 
-    private func resolveTargetNetwork(iface: CWInterface, ssid: String) throws -> CWNetwork {
+    private func waitPostScanSettle(minInterval: TimeInterval = 0.35) {
+        scanCacheLock.lock()
+        let last = lastScanAt
+        scanCacheLock.unlock()
+        guard let last else { return }
+        let elapsed = Date().timeIntervalSince(last)
+        if elapsed < minInterval {
+            Thread.sleep(forTimeInterval: minInterval - elapsed)
+        }
+    }
+
+    private func isTransientAssociationError(_ error: Error) -> Bool {
+        let nsErr = error as NSError
+        if nsErr.localizedDescription.lowercased().contains("tmperr") {
+            return true
+        }
+        if nsErr.domain == "com.apple.wifi.apple80211API.error" || nsErr.code == -528342014 {
+            return true
+        }
+        if nsErr.domain == CWErrorDomain {
+            let transientCodes: Set<Int> = [-3902, -3905, -3906, -3908, -3928, -3929, -3931]
+            if transientCodes.contains(nsErr.code) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func findTargetNetwork(iface: CWInterface, ssid: String, allowCache: Bool) throws -> (network: CWNetwork, fromCache: Bool) {
+        if allowCache, let cached = freshCachedNetwork(for: ssid) {
+            return (cached, true)
+        }
+        if let named = try? iface.scanForNetworks(withName: ssid, includeHidden: true) {
+            let now = Date()
+            scanCacheLock.lock()
+            lastScanAt = now
+            scanCacheLock.unlock()
+            if let hit = named.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
+                scanCacheLock.lock()
+                cachedNetworks[ssid] = (network: hit, at: now)
+                scanCacheLock.unlock()
+                return (hit, false)
+            }
+        }
         if let found = try? iface.scanForNetworks(withSSID: nil) {
             _ = updateScanCache(from: found)
             if let hit = found.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
-                return hit
+                return (hit, false)
             }
-        }
-        if let directed = try? iface.scanForNetworks(withSSID: Data(ssid.utf8)),
-           let hit = directed.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
-            return hit
         }
         // CoreWLAN may briefly throttle scans right after an association; settle and retry once.
         Thread.sleep(forTimeInterval: 0.6)
         let retryFound = try iface.scanForNetworks(withSSID: nil)
         _ = updateScanCache(from: retryFound)
         if let hit = retryFound.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
-            return hit
+            return (hit, false)
         }
         throw NSError(domain: "ViaNativeWiFi", code: 2, userInfo: [NSLocalizedDescriptionKey: "Network \(ssid) not found"])
     }
@@ -219,6 +261,8 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         guard isLocationAuthorized() else {
             throw NSError(domain: "ViaNativeWiFi", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location permission is required to scan Wi-Fi networks"])
         }
+        wifiOpLock.lock()
+        defer { wifiOpLock.unlock() }
         guard let iface = resolveInterface() else {
             throw NSError(domain: "ViaNativeWiFi", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Wi-Fi interface available"])
         }
@@ -230,22 +274,116 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         guard isLocationAuthorized() else {
             throw NSError(domain: "ViaNativeWiFi", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location permission is required to switch Wi-Fi networks"])
         }
+        wifiOpLock.lock()
+        defer { wifiOpLock.unlock() }
         guard let iface = resolveInterface() else {
             throw NSError(domain: "ViaNativeWiFi", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Wi-Fi interface available"])
         }
+        if iface.ssid() == ssid {
+            return
+        }
+
         let pwd: String? = password.isEmpty ? nil : password
         var associated = false
-        if let cached = freshCachedNetwork(for: ssid) {
+        var lastError: Error?
+        var targetSecured = false
+        var tryAttempt2 = false
+        var tryAttempt3 = false
+
+        // Attempt 1: fast path (allows recently cached CWNetwork).
+        do {
+            waitPostScanSettle(minInterval: 0.35)
+            let resolved = try findTargetNetwork(iface: iface, ssid: ssid, allowCache: true)
+            targetSecured = !resolved.network.supportsSecurity(.none)
+            waitPostScanSettle(minInterval: 0.35)
             do {
-                try iface.associate(to: cached, password: pwd)
+                try iface.associate(to: resolved.network, password: pwd)
                 associated = true
             } catch {
+                if resolveInterface()?.ssid() == ssid {
+                    return
+                }
                 invalidateCachedNetwork(for: ssid)
+                lastError = error
+                tryAttempt2 = resolved.fromCache || isTransientAssociationError(error)
+            }
+        } catch {
+            if resolveInterface()?.ssid() == ssid {
+                return
+            }
+            lastError = error
+            tryAttempt2 = isTransientAssociationError(error)
+        }
+
+        // Attempt 2: settle briefly, re-acquire interface, fresh scan without disassociating first.
+        if !associated && tryAttempt2 {
+            Thread.sleep(forTimeInterval: 0.8)
+            let freshIface = resolveInterface() ?? iface
+            if freshIface.ssid() == ssid {
+                return
+            }
+            do {
+                let freshTarget = try findTargetNetwork(iface: freshIface, ssid: ssid, allowCache: false)
+                targetSecured = !freshTarget.network.supportsSecurity(.none)
+                waitPostScanSettle(minInterval: 0.35)
+                do {
+                    try freshIface.associate(to: freshTarget.network, password: pwd)
+                    associated = true
+                } catch {
+                    if resolveInterface()?.ssid() == ssid {
+                        return
+                    }
+                    lastError = error
+                    tryAttempt3 = isTransientAssociationError(error)
+                }
+            } catch {
+                if resolveInterface()?.ssid() == ssid {
+                    return
+                }
+                lastError = error
+                tryAttempt3 = isTransientAssociationError(error)
             }
         }
+
+        // Attempt 3: disassociate from current network before retrying when apple80211 driver returned tmpErr.
+        if !associated && tryAttempt3 {
+            let curIface = resolveInterface() ?? iface
+            if curIface.ssid() == ssid {
+                return
+            }
+            if let curSSID = curIface.ssid(), !curSSID.isEmpty, curSSID != ssid {
+                curIface.disassociate()
+                Thread.sleep(forTimeInterval: 0.9)
+            }
+            let retryIface = resolveInterface() ?? curIface
+            do {
+                let retryTarget = try findTargetNetwork(iface: retryIface, ssid: ssid, allowCache: false)
+                targetSecured = !retryTarget.network.supportsSecurity(.none)
+                waitPostScanSettle(minInterval: 0.35)
+                try retryIface.associate(to: retryTarget.network, password: pwd)
+                associated = true
+            } catch {
+                if resolveInterface()?.ssid() == ssid {
+                    return
+                }
+                lastError = error
+            }
+        }
+
         if !associated {
-            let target = try resolveTargetNetwork(iface: iface, ssid: ssid)
-            try iface.associate(to: target, password: pwd)
+            Thread.sleep(forTimeInterval: 0.4)
+            if resolveInterface()?.ssid() == ssid {
+                return
+            }
+            if let err = lastError {
+                if targetSecured && password.isEmpty && !isTransientAssociationError(err) {
+                    throw NSError(domain: "ViaNativeWiFi", code: 5, userInfo: [NSLocalizedDescriptionKey: "Password required or invalid for \(ssid)"])
+                }
+                if isTransientAssociationError(err) {
+                    throw NSError(domain: "ViaNativeWiFi", code: 6, userInfo: [NSLocalizedDescriptionKey: "Wi-Fi driver busy while connecting to \(ssid) (tmpErr)"])
+                }
+                throw err
+            }
         }
 
         // Confirm the OS radio actually joined the requested SSID.

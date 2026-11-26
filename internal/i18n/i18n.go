@@ -80,6 +80,9 @@ type Strings struct {
 	ErrNoWifiInterface    string
 	ErrConnectStayFmt     string
 	ErrConnectStayPrefix  string
+	ErrWifiBusyFmt        string
+	ErrWifiBusy           string
+	ErrPasswordInvalidFmt string
 
 	ManagedNetworksTitle  string
 	RoleBadgeP            string
@@ -194,6 +197,9 @@ var zhStrings = Strings{
 	ErrNoWifiInterface:    "未检测到可用的 Wi-Fi 网卡",
 	ErrConnectStayFmt:     "未能切换到「%s」，当前仍连接着原网络",
 	ErrConnectStayPrefix:  "未能连接到目标网络",
+	ErrWifiBusyFmt:        "系统 Wi-Fi 正忙，暂时无法连接到「%s」，请稍后再试",
+	ErrWifiBusy:           "系统 Wi-Fi 正忙，暂时无法切换网络，请稍后再试",
+	ErrPasswordInvalidFmt: "无法连接到「%s」，请检查密码是否正确",
 
 	ManagedNetworksTitle:  "网络配置",
 	RoleBadgeP:            "主",
@@ -313,6 +319,9 @@ var enStrings = Strings{
 	ErrNoWifiInterface:    "No Wi-Fi interface available",
 	ErrConnectStayFmt:     "Could not switch to \"%s\"; staying on current network",
 	ErrConnectStayPrefix:  "Could not switch to target network",
+	ErrWifiBusyFmt:        "Wi-Fi is busy and couldn't connect to \"%s\". Please try again.",
+	ErrWifiBusy:           "Wi-Fi is temporarily busy. Please try again.",
+	ErrPasswordInvalidFmt: "Couldn't connect to \"%s\". Check that the password is correct.",
 
 	ManagedNetworksTitle:  "Networks",
 	RoleBadgeP:            "1",

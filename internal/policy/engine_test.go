@@ -345,3 +345,25 @@ func TestRolesFollowConfiguredSlots(t *testing.T) {
 		t.Fatal("expected none")
 	}
 }
+
+func TestFailedPriorityAssociationBounceToBackupDoesNotPauseManualOverride(t *testing.T) {
+	e := newTestEngine()
+	e.Start(0, PermissionAuthorized, strPtr("B"))
+
+	acts := e.ScanResult(boolPtr(true), 50)
+	assertActions(t, acts, []Action{{Kind: ActionAssociate, SSID: "P", Role: RolePriority}})
+
+	gen := e.AssociationStarted("P", 100)
+	e.AssociationResult("P", gen, OutcomeFailure, 200)
+
+	// OS bouncing back to Backup shortly after failed P association is not manual override.
+	acts = e.ObservedChange(nil, strPtr("B"), 250)
+	assertActions(t, acts, []Action{{Kind: ActionRefreshStatus}})
+	if !e.Snapshot().Running {
+		t.Fatal("expected engine to stay running after bounce back to Backup")
+	}
+
+	// After the programmatic attribution window expires, switching to Backup classifies normally.
+	acts = e.ObservedChange(strPtr("Other"), strPtr("B"), 200+DefaultProgrammaticWindowMs+1)
+	assertActions(t, acts, []Action{{Kind: ActionScan, Purpose: ScanPriorityClassification}})
+}

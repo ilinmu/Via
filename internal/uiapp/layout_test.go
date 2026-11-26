@@ -119,6 +119,24 @@ func TestLocalizeMonitorError(t *testing.T) {
 	if got := localizeMonitorError("macOS did not switch Wi-Fi to Office_5G (current: Backup)", zh); got != "未能切换到「Office_5G」，当前仍连接着原网络" {
 		t.Fatalf("unexpected connect error: %q", got)
 	}
+	if got := localizeMonitorError("未能完成该操作。tmpErr", zh); got != zh.ErrWifiBusy {
+		t.Fatalf("unexpected zh tmpErr: %q", got)
+	}
+	if got := localizeMonitorError("未能完成该操作。tmpErr", en); got != en.ErrWifiBusy {
+		t.Fatalf("unexpected en tmpErr: %q", got)
+	}
+	if got := localizeMonitorError("Wi-Fi driver busy while connecting to Office_5G (tmpErr)", zh); got != "系统 Wi-Fi 正忙，暂时无法连接到「Office_5G」，请稍后再试" {
+		t.Fatalf("unexpected zh busy fmt: %q", got)
+	}
+	if got := localizeMonitorError("Wi-Fi driver busy while connecting to Office_5G (tmpErr)", en); got != `Wi-Fi is busy and couldn't connect to "Office_5G". Please try again.` {
+		t.Fatalf("unexpected en busy fmt: %q", got)
+	}
+	if got := localizeMonitorError("Password required or invalid for Office_5G", zh); got != "无法连接到「Office_5G」，请检查密码是否正确" {
+		t.Fatalf("unexpected zh pwd fmt: %q", got)
+	}
+	if got := localizeMonitorError("Password required or invalid for Office_5G", en); got != `Couldn't connect to "Office_5G". Check that the password is correct.` {
+		t.Fatalf("unexpected en pwd fmt: %q", got)
+	}
 }
 
 func assertTextsWithinWidth(t *testing.T, tt *ui.Tester, maxWidth int, labels []string) {

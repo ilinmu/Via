@@ -139,7 +139,14 @@ func (a *App) renderDashboard(c *ui.Context, p palette, s i18n.Strings, lang i18
 					sw.Disabled(true)
 				}
 				if sw.Changed() && permOK && st.Configured {
-					go a.monitor.ToggleRunning()
+					wantRunning := running
+					go func() {
+						if wantRunning {
+							a.monitor.Start()
+						} else {
+							a.monitor.Stop()
+						}
+					}()
 				}
 			})
 
@@ -285,6 +292,21 @@ func localizeMonitorError(raw string, s i18n.Strings) string {
 	}
 	if strings.Contains(lower, "stayed on") {
 		return s.ErrConnectStayPrefix
+	}
+	if strings.HasPrefix(raw, "Wi-Fi driver busy while connecting to ") && strings.HasSuffix(raw, " (tmpErr)") {
+		name := strings.TrimSuffix(strings.TrimPrefix(raw, "Wi-Fi driver busy while connecting to "), " (tmpErr)")
+		if name != "" {
+			return fmt.Sprintf(s.ErrWifiBusyFmt, name)
+		}
+	}
+	if strings.HasPrefix(raw, "Password required or invalid for ") {
+		name := strings.TrimPrefix(raw, "Password required or invalid for ")
+		if name != "" {
+			return fmt.Sprintf(s.ErrPasswordInvalidFmt, name)
+		}
+	}
+	if strings.Contains(lower, "tmperr") || strings.Contains(lower, "apple80211") {
+		return s.ErrWifiBusy
 	}
 	return raw
 }

@@ -20,6 +20,7 @@ type fakeAdapter struct {
 	scanErr      error
 	connectCalls []string
 	connectErr   error
+	connectFn    func(ssid string) error
 	keepSSID     bool
 	advisory     bool
 	advisoryCalls []string
@@ -57,13 +58,21 @@ func (f *fakeAdapter) Scan(_ context.Context) ([]Network, error) {
 }
 func (f *fakeAdapter) Connect(_ context.Context, ssid, _ string) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.connectCalls = append(f.connectCalls, ssid)
-	if f.connectErr != nil {
-		return f.connectErr
+	fn := f.connectFn
+	connErr := f.connectErr
+	keepSSID := f.keepSSID
+	f.mu.Unlock()
+	if fn != nil {
+		return fn(ssid)
 	}
-	if !f.keepSSID {
+	if connErr != nil {
+		return connErr
+	}
+	if !keepSSID {
+		f.mu.Lock()
 		f.currentSSID = ssid
+		f.mu.Unlock()
 	}
 	return nil
 }
@@ -254,5 +263,49 @@ func TestMonitorStartRefusesWhenUnauthorized(t *testing.T) {
 	m.Start()
 	if m.State().Running {
 		t.Fatal("expected Monitor not to run while permission denied")
+	}
+}
+
+func TestMonitorFailedPriorityConnectDoesNotTriggerManualOverrideAndStopClearsError(t *testing.T) {
+	fa := &fakeAdapter{
+		perm:        policy.PermissionAuthorized,
+		currentSSID: "B",
+		scanQueue: [][]Network{
+			{{SSID: "P", RSSI: -45}, {SSID: "B", RSSI: -60}},
+		},
+	}
+	fa.connectFn = func(ssid string) error {
+		if fa.onChange != nil {
+			fa.onChange("")
+			fa.onChange("B")
+		}
+		return errors.New("Wi-Fi driver busy while connecting to " + ssid + " (tmpErr)")
+	}
+	cfg := store.Settings{SSIDP: "P", SSIDB: "B", CheckIntervalSec: 60}
+	m := NewMonitor(fa, store.NewMemSecretStore(), cfg, "", fastTimings())
+	defer m.Close()
+
+	m.Init(context.Background())
+	m.Start()
+	time.Sleep(40 * time.Millisecond)
+
+	st := m.State()
+	if !st.Running {
+		t.Fatalf("expected Monitor to stay running after failed P connect, got %+v", st)
+	}
+	if st.HasStopReason {
+		t.Fatalf("expected no stop reason after failed P connect, got %v", st.StopReason)
+	}
+	if st.LastError == "" {
+		t.Fatal("expected LastError to record failed P connect")
+	}
+
+	m.Stop()
+	st = m.State()
+	if st.Running {
+		t.Fatal("expected Monitor to stop cleanly")
+	}
+	if st.LastError != "" {
+		t.Fatalf("expected explicit Stop to clear LastError, got %q", st.LastError)
 	}
 }

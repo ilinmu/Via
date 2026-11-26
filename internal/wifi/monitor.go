@@ -34,7 +34,7 @@ func DefaultTimingOptions() TimingOptions {
 		ManualVerifyDelay:    25 * time.Second,
 		ManualVerifyInterval: 3 * time.Second,
 		ManualVerifyAttempts: 2,
-		AssociationTimeout:   15 * time.Second,
+		AssociationTimeout:   20 * time.Second,
 		Cooldown:             90 * time.Second,
 		ProgrammaticWindow:   15 * time.Second,
 	}
@@ -91,6 +91,7 @@ type Monitor struct {
 	nextCheckAt      time.Time
 	lastEvent        string
 	lastErr          string
+	assocEndedAt     time.Time
 
 	watchCloser  io.Closer
 	permCloser   io.Closer
@@ -234,7 +235,8 @@ func (m *Monitor) Init(ctx context.Context) {
 	m.RefreshStatus(ctx)
 	if m.adapter != nil {
 		if c, err := m.adapter.SubscribeChanges(func(ssid string) {
-			go m.HandleObservedSSIDChange(ssid)
+			observedAt := m.now()
+			go m.handleObservedSSIDChangeAt(ssid, observedAt)
 		}); err == nil && c != nil {
 			m.mu.Lock()
 			m.watchCloser = c
@@ -417,6 +419,9 @@ func (m *Monitor) stopLocked(hasReason bool, reason policy.StopReason) {
 	m.nextCheckAt = time.Time{}
 	m.stopReason = reason
 	m.hasStopReason = hasReason
+	if !hasReason {
+		m.lastErr = ""
+	}
 	m.persistSettingsLocked()
 	m.mu.Unlock()
 	if cancel != nil {
@@ -474,10 +479,20 @@ func (m *Monitor) checkOnceLocked(ctx context.Context) {
 
 // HandleObservedSSIDChange feeds an OS SSID transition event into the state machine.
 func (m *Monitor) HandleObservedSSIDChange(newSSID string) {
+	m.handleObservedSSIDChangeAt(newSSID, m.now())
+}
+
+func (m *Monitor) handleObservedSSIDChangeAt(newSSID string, observedAt time.Time) {
 	m.execMu.Lock()
 	defer m.execMu.Unlock()
 
 	m.mu.Lock()
+	// Ignore intermediate OS SSID change callbacks queued during Via's own
+	// programmatic association attempt once that attempt has resolved.
+	if !m.assocEndedAt.IsZero() && !observedAt.After(m.assocEndedAt) {
+		m.mu.Unlock()
+		return
+	}
 	m.liveSSID = newSSID
 	m.hasLiveSample = true
 	if !m.engine.Snapshot().Running {
@@ -747,8 +762,16 @@ func (m *Monitor) performPolicyAssociate(ctx context.Context, ssid string) []pol
 	case err := <-errCh:
 		if err != nil {
 			outcome = policy.OutcomeFailure
+			cur, curErr := m.adapter.CurrentSSID(ctx)
 			m.mu.Lock()
 			m.lastErr = err.Error()
+			if curErr == nil {
+				m.liveSSID = cur
+				m.hasLiveSample = true
+				m.lastObservedSSID = cur
+				m.hasLastObserved = true
+			}
+			m.assocEndedAt = m.now()
 			m.mu.Unlock()
 		} else {
 			cur, curErr := m.adapter.CurrentSSID(ctx)
@@ -756,19 +779,24 @@ func (m *Monitor) performPolicyAssociate(ctx context.Context, ssid string) []pol
 			if curErr == nil {
 				m.liveSSID = cur
 				m.hasLiveSample = true
+				m.lastObservedSSID = cur
+				m.hasLastObserved = true
 			}
-			m.mu.Unlock()
+			m.assocEndedAt = m.now()
 			if cur == ssid {
 				outcome = policy.OutcomeSuccess
+				m.lastErr = ""
 			} else {
 				outcome = policy.OutcomeFailure
-				m.mu.Lock()
 				m.lastErr = fmt.Sprintf("OS stayed on %q instead of %q", cur, ssid)
-				m.mu.Unlock()
 			}
+			m.mu.Unlock()
 		}
 	case <-time.After(timeout):
 		outcome = policy.OutcomeTimeout
+		m.mu.Lock()
+		m.assocEndedAt = m.now()
+		m.mu.Unlock()
 		go func() {
 			lateErr := <-errCh
 			m.execMu.Lock()
