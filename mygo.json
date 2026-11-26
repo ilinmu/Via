@@ -6,9 +6,11 @@
   "copyright": "Copyright © 2025-2026 Linmu. Licensed under the MIT License.",
   "license": "MIT",
   "icon": "resources/icon.png",
+  "resourcesExclude": ["AppIcon.icns", "android-icon-foreground.png"],
   "out": "build",
   "macos": {
     "minimumSystemVersion": "13.0",
+    "icon": "resources/AppIcon.icns",
     "entitlements": "entitlements.plist",
     "infoPlist": {
       "CFBundleLocalizations": ["en", "zh-Hans"],
@@ -45,6 +47,10 @@
       "POST_NOTIFICATIONS",
       "RECEIVE_BOOT_COMPLETED"
     ],
+    "adaptiveIcon": {
+      "foreground": "resources/android-icon-foreground.png",
+      "background": "#0F172A"
+    },
     "splash": "#F4F7FB"
   },
   "ios": {
