@@ -37,6 +37,7 @@ func TestSaveAndLoadSettingsAtomic(t *testing.T) {
 		CheckIntervalSec: 45,
 		IsRunning:        true,
 		Language:         "zh",
+		Theme:            "dark",
 		OnboardingDone:   true,
 	}
 	if err := SaveSettings(dir, s); err != nil {
@@ -46,7 +47,7 @@ func TestSaveAndLoadSettingsAtomic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadSettings: %v", err)
 	}
-	if loaded.SSIDP != "Studio_5G" || loaded.SSIDB != "Studio_Backup" || loaded.CheckIntervalSec != 45 || !loaded.IsRunning || loaded.Language != "zh" || !loaded.OnboardingDone {
+	if loaded.SSIDP != "Studio_5G" || loaded.SSIDB != "Studio_Backup" || loaded.CheckIntervalSec != 45 || !loaded.IsRunning || loaded.Language != "zh" || loaded.Theme != "dark" || !loaded.OnboardingDone {
 		t.Fatalf("unexpected loaded settings: %+v", loaded)
 	}
 }

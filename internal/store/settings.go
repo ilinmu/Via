@@ -32,6 +32,7 @@ type Settings struct {
 	CheckIntervalSec int    `json:"check_interval_sec"`
 	IsRunning        bool   `json:"is_running"`
 	Language         string `json:"language,omitempty"` // "", "zh", "en"
+	Theme            string `json:"theme,omitempty"`    // "", "light", "dark"
 	OnboardingDone   bool   `json:"onboarding_done"`
 	BootRestore      bool   `json:"boot_restore"`
 }
@@ -43,11 +44,19 @@ func DefaultSettings() Settings {
 	}
 }
 
-// Normalize returns a copy of s with normalized interval and trimmed SSIDs.
+// Normalize returns a copy of s with normalized interval, theme, and trimmed SSIDs.
 func (s Settings) Normalize() Settings {
 	s.SSIDP = strings.TrimSpace(s.SSIDP)
 	s.SSIDB = strings.TrimSpace(s.SSIDB)
 	s.CheckIntervalSec, _ = NormalizeInterval(s.CheckIntervalSec)
+	switch strings.ToLower(strings.TrimSpace(s.Theme)) {
+	case "light":
+		s.Theme = "light"
+	case "dark":
+		s.Theme = "dark"
+	default:
+		s.Theme = ""
+	}
 	return s
 }
 

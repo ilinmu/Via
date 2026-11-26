@@ -21,6 +21,14 @@ func (a *App) renderOnboarding(c *ui.Context, p palette, s i18n.Strings, st wifi
 		a.mu.Unlock()
 	}
 
+	// Automatically skip permission step when already authorized.
+	if permOK && a.wizardStep == 1 && !isIOS() {
+		a.mu.Lock()
+		a.wizardStep = 2
+		a.mu.Unlock()
+		go func() { _, _ = a.monitor.ScanNearby(context.Background()) }()
+	}
+
 	// 3-step progress bar
 	ui.Row(c).Gap(6).Children(func() {
 		for step := 1; step <= 3; step++ {
@@ -34,46 +42,52 @@ func (a *App) renderOnboarding(c *ui.Context, p palette, s i18n.Strings, st wifi
 
 	switch a.wizardStep {
 	case 1:
-		ui.Column(c).Padding(16).Gap(12).Radius(14).Background(p.surface).Border(1, p.border).Children(func() {
-			ui.Text(c, s.WizardStep1Title).FontSize(15).Bold().TextColor(p.text)
-			ui.Text(c, s.WizardStep1Desc).FontSize(12).TextColor(p.muted)
-			if !permOK {
-				ui.Box(c).Padding(10).Radius(10).Background(p.warningSoft).Children(func() {
-					ui.Text(c, s.PermMacSettingsHint).FontSize(11).TextColor(p.warningText)
-				})
+		ui.Column(c).Radius(radiusCard).Background(p.surface).Border(1, p.border).Clip().Children(func() {
+			ui.Column(c).Padding(16).Gap(8).Children(func() {
+				ui.Text(c, s.WizardStep1Title).FontSize(fontTitle).Bold().TextColor(p.text)
+				ui.Text(c, s.WizardStep1Desc).FontSize(fontSub).LineHeight(lineHeightBody).TextColor(p.muted)
+			})
+			if st.Permission == policy.PermissionDenied {
+				ui.Row(c).Padding(12, 16).Background(p.warningSoft).
+					BorderWidth(1, 0, 0, 0).BorderColor(p.border).
+					Children(func() {
+						ui.Text(c, s.PermMacSettingsHint).FontSize(fontSub).LineHeight(lineHeightBody).TextColor(p.warningText).Grow(1).Shrink(1).MinWidth(0)
+					})
 			}
 
-			ui.Column(c).Gap(8).Children(func() {
-				if !isIOS() {
-					if permOK {
-						if ui.PrimaryButton(c.Key("wiz_continue"), s.WizardNext).Clicked() {
-							go func() { _, _ = a.monitor.ScanNearby(context.Background()) }()
+			ui.Row(c).Padding(12, 16).Gap(8).Wrap().
+				BorderWidth(1, 0, 0, 0).BorderColor(p.border).
+				Children(func() {
+					if !isIOS() {
+						if permOK {
+							if ui.PrimaryButton(c.Key("wiz_continue"), s.WizardNext).Clicked() {
+								go func() { _, _ = a.monitor.ScanNearby(context.Background()) }()
+								a.mu.Lock()
+								a.wizardStep = 2
+								a.mu.Unlock()
+							}
+						} else {
+							if ui.PrimaryButton(c.Key("wiz_grant"), s.WizardStep1Grant).Clicked() {
+								a.triggerPermissionRequest()
+							}
+							if ui.Button(c.Key("wiz_recheck"), s.BtnRecheckPerm).Clicked() {
+								go a.monitor.RefreshStatus(context.Background())
+							}
+						}
+					} else {
+						if ui.PrimaryButton(c.Key("wiz_ios_next"), s.WizardNext).Clicked() {
 							a.mu.Lock()
 							a.wizardStep = 2
 							a.mu.Unlock()
 						}
-					} else {
-						if ui.PrimaryButton(c.Key("wiz_grant"), s.WizardStep1Grant).Clicked() {
-							a.triggerPermissionRequest()
-						}
-						if ui.Button(c.Key("wiz_recheck"), s.BtnRecheckPerm).Clicked() {
-							go a.monitor.RefreshStatus(context.Background())
-						}
 					}
-				} else {
-					if ui.PrimaryButton(c.Key("wiz_ios_next"), s.WizardNext).Clicked() {
-						a.mu.Lock()
-						a.wizardStep = 2
-						a.mu.Unlock()
-					}
-				}
-			})
+				})
 		})
 
 	case 2:
-		ui.Column(c).Padding(16).Gap(10).Radius(14).Background(p.surface).Border(1, p.border).Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, s.WizardStep2Title).FontSize(14).Bold().TextColor(p.text).Grow(1)
+		ui.Column(c).Padding(16).Gap(10).Radius(radiusCard).Background(p.surface).Border(1, p.border).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, s.WizardStep2Title).FontSize(fontTitle).Bold().TextColor(p.text).Grow(1).Shrink(1).MinWidth(0)
 				if !isIOS() {
 					scanText := s.BtnScanNearby
 					if st.Scanning {
@@ -85,25 +99,65 @@ func (a *App) renderOnboarding(c *ui.Context, p palette, s i18n.Strings, st wifi
 				}
 			})
 
-			ui.Text(c, s.PrimaryLabel).FontSize(11).FontWeight(600).TextColor(p.accentText)
+			ui.Text(c, s.PrimaryLabel).FontSize(fontBody).FontWeight(600).TextColor(p.accentText)
 			a.renderNetworkPicker(c, p, s, st, "wiz_picker_p", &a.wizardPrimarySSID)
 			ui.TextInput(c.Key("wiz_p_ssid"), &a.wizardPrimarySSID).Placeholder(s.SSIDPlaceholder)
-			ui.TextInput(c.Key("wiz_p_pwd"), &a.wizardPrimaryPwd).Password().Placeholder(s.PwdPlaceholder)
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				pwdIn := ui.TextInput(c.Key("wiz_p_pwd"), &a.wizardPrimaryPwd).Grow(1).Shrink(1).MinWidth(0).Placeholder(s.PwdPlaceholder)
+				if !a.wizardPrimaryShowPwd {
+					pwdIn.Password()
+				}
+				eyeIcon, eyeLabel := svgEye, s.ShowPasswordLabel
+				if a.wizardPrimaryShowPwd {
+					eyeIcon, eyeLabel = svgEyeOff, s.HidePasswordLabel
+				}
+				eyeBtn := ui.ButtonBase(c.Key("wiz_p_eye")).Size(32, 32).Radius(radiusControl).
+					Background(p.surfaceMuted).Center().Shrink(0).Label(eyeLabel).
+					Children(func() {
+						ui.Icon(c, eyeIcon).Size(15, 15).TextColor(p.muted)
+					})
+				if eyeBtn.Clicked() {
+					a.mu.Lock()
+					a.wizardPrimaryShowPwd = !a.wizardPrimaryShowPwd
+					a.mu.Unlock()
+				}
+			})
 
-			ui.Text(c, s.BackupLabel).FontSize(11).FontWeight(600).TextColor(p.warningText)
+			ui.Text(c, s.BackupLabel).FontSize(fontBody).FontWeight(600).TextColor(p.warningText)
 			a.renderNetworkPicker(c, p, s, st, "wiz_picker_b", &a.wizardBackupSSID)
 			ui.TextInput(c.Key("wiz_b_ssid"), &a.wizardBackupSSID).Placeholder(s.SSIDPlaceholder)
-			ui.TextInput(c.Key("wiz_b_pwd"), &a.wizardBackupPwd).Password().Placeholder(s.PwdPlaceholder)
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				pwdIn := ui.TextInput(c.Key("wiz_b_pwd"), &a.wizardBackupPwd).Grow(1).Shrink(1).MinWidth(0).Placeholder(s.PwdPlaceholder)
+				if !a.wizardBackupShowPwd {
+					pwdIn.Password()
+				}
+				eyeIcon, eyeLabel := svgEye, s.ShowPasswordLabel
+				if a.wizardBackupShowPwd {
+					eyeIcon, eyeLabel = svgEyeOff, s.HidePasswordLabel
+				}
+				eyeBtn := ui.ButtonBase(c.Key("wiz_b_eye")).Size(32, 32).Radius(radiusControl).
+					Background(p.surfaceMuted).Center().Shrink(0).Label(eyeLabel).
+					Children(func() {
+						ui.Icon(c, eyeIcon).Size(15, 15).TextColor(p.muted)
+					})
+				if eyeBtn.Clicked() {
+					a.mu.Lock()
+					a.wizardBackupShowPwd = !a.wizardBackupShowPwd
+					a.mu.Unlock()
+				}
+			})
 
 			if a.wizardError != "" {
-				ui.Text(c, a.wizardError).FontSize(11).TextColor(p.dangerText)
+				ui.Text(c, a.wizardError).FontSize(fontSub).LineHeight(lineHeightBody).TextColor(p.dangerText)
 			}
 
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c.Key("wiz_prev2"), s.WizardPrev).Clicked() {
-					a.mu.Lock()
-					a.wizardStep = 1
-					a.mu.Unlock()
+			ui.Row(c).Gap(8).Justify(ui.End).Wrap().Children(func() {
+				if isIOS() {
+					if ui.Button(c.Key("wiz_prev2"), s.WizardPrev).Clicked() {
+						a.mu.Lock()
+						a.wizardStep = 1
+						a.mu.Unlock()
+					}
 				}
 				if ui.PrimaryButton(c.Key("wiz_next2"), s.WizardNext).Clicked() {
 					if err := store.ValidateSlot(store.SlotPrimary, a.wizardPrimarySSID, a.wizardBackupSSID); err != nil {
@@ -133,58 +187,73 @@ func (a *App) renderOnboarding(c *ui.Context, p palette, s i18n.Strings, st wifi
 		})
 
 	default:
-		ui.Column(c).Padding(16).Gap(12).Radius(14).Background(p.surface).Border(1, p.border).Children(func() {
-			ui.Text(c, s.WizardStep3Title).FontSize(15).Bold().TextColor(p.text)
-			ui.Column(c).Padding(10).Gap(6).Radius(10).Background(p.bg).Children(func() {
-				ui.Textf(c, "%s: %s", s.PrimaryLabel, a.wizardPrimarySSID).FontSize(12).FontWeight(600).TextColor(p.text)
-				ui.Textf(c, "%s: %s", s.BackupLabel, a.wizardBackupSSID).FontSize(12).FontWeight(600).TextColor(p.text)
+		ui.Column(c).Radius(radiusCard).Background(p.surface).Border(1, p.border).Clip().Children(func() {
+			ui.Box(c).Padding(16).Children(func() {
+				ui.Text(c, s.WizardStep3Title).FontSize(fontTitle).Bold().TextColor(p.text)
+			})
+			ui.Column(c).Padding(12, 16).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, s.PrimaryLabel).FontSize(fontSub).TextColor(p.muted).Grow(1).Shrink(1).MinWidth(0)
+					ui.Text(c, a.wizardPrimarySSID).FontSize(fontBody).FontWeight(600).TextColor(p.text).SingleLine()
+				})
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, s.BackupLabel).FontSize(fontSub).TextColor(p.muted).Grow(1).Shrink(1).MinWidth(0)
+					ui.Text(c, a.wizardBackupSSID).FontSize(fontBody).FontWeight(600).TextColor(p.text).SingleLine()
+				})
 				permStr := s.WizardPermPending
 				if st.Permission == policy.PermissionAuthorized {
 					permStr = s.WizardPermGranted
 				}
-				ui.Textf(c, "%s: %s", s.WizardPermStatus, permStr).FontSize(12).TextColor(p.muted)
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, s.WizardPermStatus).FontSize(fontSub).TextColor(p.muted).Grow(1).Shrink(1).MinWidth(0)
+					ui.Text(c, permStr).FontSize(fontSub).FontWeight(600).TextColor(p.text).SingleLine()
+				})
 			})
 
 			if a.wizardError != "" {
-				ui.Text(c, a.wizardError).FontSize(11).TextColor(p.dangerText)
+				ui.Box(c).Padding(10, 16).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
+					ui.Text(c, a.wizardError).FontSize(fontSub).LineHeight(lineHeightBody).TextColor(p.dangerText)
+				})
 			}
 
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c.Key("wiz_prev3"), s.WizardPrev).Clicked() {
-					a.mu.Lock()
-					a.wizardStep = 2
-					a.mu.Unlock()
-				}
-				finishLabel := s.WizardFinishAndStart
-				startAfter := !isIOS() && st.Permission == policy.PermissionAuthorized
-				if !startAfter {
-					finishLabel = s.WizardFinishSaveOnly
-				}
-				if ui.PrimaryButton(c.Key("wiz_finish"), finishLabel).Clicked() {
-					pSSID, pPwd := a.wizardPrimarySSID, a.wizardPrimaryPwd
-					bSSID, bPwd := a.wizardBackupSSID, a.wizardBackupPwd
-					if err := a.monitor.SaveSlot(store.SlotPrimary, pSSID, pPwd); err != nil {
+			ui.Row(c).Padding(12, 16).Gap(8).Justify(ui.End).Wrap().
+				BorderWidth(1, 0, 0, 0).BorderColor(p.border).
+				Children(func() {
+					if ui.Button(c.Key("wiz_prev3"), s.WizardPrev).Clicked() {
 						a.mu.Lock()
-						a.wizardError = err.Error()
+						a.wizardStep = 2
 						a.mu.Unlock()
-						return
 					}
-					if err := a.monitor.SaveSlot(store.SlotBackup, bSSID, bPwd); err != nil {
+					finishLabel := s.WizardFinishAndStart
+					startAfter := !isIOS() && st.Permission == policy.PermissionAuthorized
+					if !startAfter {
+						finishLabel = s.WizardFinishSaveOnly
+					}
+					if ui.PrimaryButton(c.Key("wiz_finish"), finishLabel).Clicked() {
+						pSSID, pPwd := a.wizardPrimarySSID, a.wizardPrimaryPwd
+						bSSID, bPwd := a.wizardBackupSSID, a.wizardBackupPwd
+						if err := a.monitor.SaveSlot(store.SlotPrimary, pSSID, pPwd); err != nil {
+							a.mu.Lock()
+							a.wizardError = err.Error()
+							a.mu.Unlock()
+							return
+						}
+						if err := a.monitor.SaveSlot(store.SlotBackup, bSSID, bPwd); err != nil {
+							a.mu.Lock()
+							a.wizardError = err.Error()
+							a.mu.Unlock()
+							return
+						}
+						a.monitor.SetOnboardingDone(true)
 						a.mu.Lock()
-						a.wizardError = err.Error()
+						a.wizardError = ""
+						a.activeTab = tabDashboard
 						a.mu.Unlock()
-						return
+						if startAfter {
+							go a.monitor.Start()
+						}
 					}
-					a.monitor.SetOnboardingDone(true)
-					a.mu.Lock()
-					a.wizardError = ""
-					a.activeTab = tabDashboard
-					a.mu.Unlock()
-					if startAfter {
-						go a.monitor.Start()
-					}
-				}
-			})
+				})
 		})
 	}
 }

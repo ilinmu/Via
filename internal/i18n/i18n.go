@@ -32,6 +32,7 @@ type Strings struct {
 	NavDashboard string
 	NavSettings  string
 
+	NotConnectedTitle  string
 	BadgeGuardPriority string
 	BadgeGuardBackup   string
 	BadgeGuardOther    string
@@ -53,310 +54,329 @@ type Strings struct {
 	SubIOSUnsupported  string
 	SubAndroidAdvisory string
 
-	BtnResumeNow    string
-	BtnGrantPerm    string
-	BtnOpenSysSet   string
-	BtnRecheckPerm  string
-	BtnSetupNet     string
-	BtnScanNearby   string
-	BtnScanning     string
-	BtnSwitchNow    string
-	BtnUseCurrent   string
-	BtnCancel       string
-	BtnSave         string
-	BtnQuit         string
-	BtnRerunWizard  string
+	BtnResumeNow   string
+	BtnGrantPerm   string
+	BtnRecheckPerm string
+	BtnSetupNet    string
+	BtnScanNearby  string
+	BtnScanning    string
+	BtnSwitchNow   string
+	BtnCancel      string
+	BtnSave        string
+	BtnQuit        string
+	BtnRerunWizard string
 
-	PickerTriggerFmt  string
-	PickerEmpty       string
-	PickerEmptyList   string
-	PickerCurrentFmt  string
-	PickerNoCurrent   string
-	PermMacSettingsHint string
-	LockedCardHint    string
-	SwitchFailedFmt   string
+	PickerTriggerFmt      string
+	PickerEmpty           string
+	PickerEmptyList       string
+	PickerCurrentFmt      string
+	PickerNoCurrent       string
+	PermNecessityDesc     string
+	PermMacSettingsHint   string
+	LockedCardHint        string
+	SwitchFailedFmt       string
+	ErrPermissionRequired string
+	ErrNetworkNotFoundFmt string
+	ErrNoWifiInterface    string
+	ErrConnectStayFmt     string
+	ErrConnectStayPrefix  string
 
-	ManagedNetworksTitle string
-	RoleBadgeP           string
-	RoleBadgeB           string
-	PrimaryLabel         string
-	BackupLabel          string
-	ConnectedTag         string
-	NotSetTag            string
-	SSIDPlaceholder      string
-	PwdPlaceholder       string
-	ErrEmptySSID         string
-	ErrDuplicateSSID     string
-	SavedNotice          string
-	SwitchedNotice       string
+	ManagedNetworksTitle  string
+	RoleBadgeP            string
+	RoleBadgeB            string
+	PrimaryLabel          string
+	BackupLabel           string
+	ConnectedTag          string
+	NotSetTag             string
+	SSIDPlaceholder       string
+	PwdPlaceholder        string
+	ShowPasswordLabel     string
+	HidePasswordLabel     string
+	ErrEmptySSID          string
+	ErrDuplicateSSID      string
+	SavedNotice           string
+	SavedAndStartedNotice string
+	SwitchedNotice        string
 
-	SettingsGeneralTitle  string
 	LaunchAtLoginTitle    string
 	LaunchAtLoginDesc     string
 	BootRestoreTitle      string
 	BootRestoreDesc       string
-	LaunchApprovalHint    string
 	LanguageLabel         string
+	LangOptionZH          string
+	LangOptionEN          string
+	ThemeLabel            string
+	ThemeSystem           string
+	ThemeLight            string
+	ThemeDark             string
 	IntervalTitle         string
 	IntervalPresets       [4]string
 	IntervalCustom        string
 	IntervalSecondsSuffix string
-	IntervalClampedHint   string
-	AboutTitle            string
+	ErrInvalidInterval    string
 	HelpTitle             string
-	HelpLines             [3]string
+	HelpLines             [4]string
 	PrivacyNote           string
+	VersionLabel          string
 
-	WizardTitle           string
-	WizardSkip            string
-	WizardSteps           [3]string
-	WizardStep1Title      string
-	WizardStep1Desc       string
-	WizardStep1Grant      string
-	WizardStep1Manual     string
-	WizardStep2Title      string
-	WizardStep2SetP       string
-	WizardStep2SetB       string
-	WizardStep2Manual     string
-	WizardPrev            string
-	WizardNext            string
-	WizardStep3Title      string
-	WizardPermStatus      string
-	WizardPermGranted     string
-	WizardPermPending     string
-	WizardFinishAndStart  string
-	WizardFinishSaveOnly  string
+	WizardSkip           string
+	WizardStep1Title     string
+	WizardStep1Desc      string
+	WizardStep1Grant     string
+	WizardStep2Title     string
+	WizardPrev           string
+	WizardNext           string
+	WizardStep3Title     string
+	WizardPermStatus     string
+	WizardPermGranted    string
+	WizardPermPending    string
+	WizardFinishAndStart string
+	WizardFinishSaveOnly string
 
-	TrayTooltipPaused   string
-	TrayTooltipPrimary  string
-	TrayTooltipBackup   string
-	TrayTooltipOther    string
-	MenuOpenPanel       string
-	MenuTogglePause     string
-	MenuQuit            string
+	TrayTooltipPaused  string
+	TrayTooltipPrimary string
+	TrayTooltipBackup  string
+	TrayTooltipOther   string
+	MenuOpenPanel      string
+	MenuTogglePause    string
+	MenuQuit           string
 }
 
 var zhStrings = Strings{
 	NavDashboard: "主控台",
 	NavSettings:  "设置",
 
+	NotConnectedTitle:  "未连接 Wi-Fi",
 	BadgeGuardPriority: "自动守护中-首选",
 	BadgeGuardBackup:   "自动守护中-备用",
 	BadgeGuardOther:    "自动守护中",
 	BadgePaused:        "已暂停",
-	BadgeNoPermission:  "缺少权限",
-	BadgeNotConfigured: "未配置",
+	BadgeNoPermission:  "需要权限",
+	BadgeNotConfigured: "未设置",
 
-	PrimarySlotLabel: "主路径 · 首选",
-	BackupSlotLabel:  "备路径 · 备用",
+	PrimarySlotLabel: "首选",
+	BackupSlotLabel:  "备用",
 
-	AutoSwitchTitle:    "智能自动切换",
-	SubCheckingInFmt:   "下次检查：约 %d 秒",
-	SubBackupInFmt:     "重检首选网络：约 %d 秒",
-	SubGuardWaiting:    "守护运行中 · 靠近首选或备用将自动切换",
-	SubPausedManual:    "检测到手动切换，已暂停避免干扰",
-	SubPausedStopped:   "自动切换已关闭",
-	SubNeedPermission:  "需要定位权限才能读取 Wi-Fi 名称与扫描网络",
-	SubNotConfigured:   "请先设置首选与备用网络后再开启",
-	SubIOSUnsupported:  "iOS 系统限制后台自动切换 Wi-Fi，当前仅支持查看配置状态",
-	SubAndroidAdvisory: "Android 模式下将通过系统网络建议优先级引导自动切换",
+	AutoSwitchTitle:    "自动切换",
+	SubCheckingInFmt:   "下次检查：%s",
+	SubBackupInFmt:     "重检首选网络：%s",
+	SubGuardWaiting:    "等待首选或备用网络出现",
+	SubPausedManual:    "你已手动切换网络，自动切换已暂停",
+	SubPausedStopped:   "已关闭",
+	SubNeedPermission:  "需要定位权限才能识别 Wi-Fi",
+	SubNotConfigured:   "设置首选和备用网络后即可自动切换",
+	SubIOSUnsupported:  "iOS 不允许应用在后台自动切换 Wi-Fi，当前仅可查看状态",
+	SubAndroidAdvisory: "Android 会根据首选和备用优先级由系统自动连接",
 
-	BtnResumeNow:   "立即恢复",
-	BtnGrantPerm:   "去授权",
-	BtnOpenSysSet:  "打开系统设置",
+	BtnResumeNow:   "恢复",
+	BtnGrantPerm:   "开启定位",
 	BtnRecheckPerm: "重新检测",
-	BtnSetupNet:    "点击设置网络",
-	BtnScanNearby:  "扫描附近",
+	BtnSetupNet:    "设置网络",
+	BtnScanNearby:  "扫描",
 	BtnScanning:    "扫描中…",
-	BtnSwitchNow:   "切换",
-	BtnUseCurrent:  "使用当前网络",
+	BtnSwitchNow:   "连接",
 	BtnCancel:      "取消",
 	BtnSave:        "保存",
 	BtnQuit:        "退出 Via",
-	BtnRerunWizard: "重新运行首次设置向导",
+	BtnRerunWizard: "设置向导",
 
-	PickerTriggerFmt:    "选择网络（附近 %d 个）",
-	PickerEmpty:         "点击选择当前或附近网络",
-	PickerEmptyList:     "暂无扫描结果，请点右上角「扫描附近」或下方手动输入",
-	PickerCurrentFmt:    "使用当前网络：%s",
-	PickerNoCurrent:     "使用当前网络（当前未连接）",
-	PermMacSettingsHint: "点击「去授权」将打开系统「定位服务」，勾选 Via 后点「重新检测」",
-	LockedCardHint:      "授予系统定位权限后解锁配置",
-	SwitchFailedFmt:     "切换失败：%s",
+	PickerTriggerFmt:      "选择网络（附近 %d 个）",
+	PickerEmpty:           "选择网络",
+	PickerEmptyList:       "未发现附近网络，可扫描或在下方输入",
+	PickerCurrentFmt:      "使用当前网络：%s",
+	PickerNoCurrent:       "当前未连接 Wi-Fi",
+	PermNecessityDesc:     "系统将 Wi-Fi 名称和附近网络归类为位置隐私，未授权时无法识别当前网络及自动切换。所有数据仅在本机使用，绝不上传。",
+	PermMacSettingsHint:   "在系统「定位服务」中开启 Via，再点「重新检测」",
+	LockedCardHint:        "开启定位权限后可编辑",
+	SwitchFailedFmt:       "连接失败：%s",
+	ErrPermissionRequired: "需要先开启定位权限",
+	ErrNetworkNotFoundFmt: "未找到网络「%s」，请确认路由器已开启或在信号范围内",
+	ErrNoWifiInterface:    "未检测到可用的 Wi-Fi 网卡",
+	ErrConnectStayFmt:     "未能切换到「%s」，当前仍连接着原网络",
+	ErrConnectStayPrefix:  "未能连接到目标网络",
 
-	ManagedNetworksTitle: "管理的网络（点击展开原地编辑）",
-	RoleBadgeP:           "主",
-	RoleBadgeB:           "备",
-	PrimaryLabel:         "首选网络",
-	BackupLabel:          "备用网络",
-	ConnectedTag:         "已连接",
-	NotSetTag:            "点击设置网络",
-	SSIDPlaceholder:      "输入或从上方点选 Wi-Fi 名称",
-	PwdPlaceholder:       "密码（开放网络可留空）",
-	ErrEmptySSID:         "网络名称不能为空",
-	ErrDuplicateSSID:     "首选与备用网络不能相同",
-	SavedNotice:          "网络配置已保存",
-	SwitchedNotice:       "已发起切换请求",
+	ManagedNetworksTitle:  "网络配置",
+	RoleBadgeP:            "主",
+	RoleBadgeB:            "备",
+	PrimaryLabel:          "首选网络",
+	BackupLabel:           "备用网络",
+	ConnectedTag:          "已连接",
+	NotSetTag:             "未设置",
+	SSIDPlaceholder:       "输入网络名称",
+	PwdPlaceholder:        "输入密码（无密码可留空）",
+	ShowPasswordLabel:     "显示密码",
+	HidePasswordLabel:     "隐藏密码",
+	ErrEmptySSID:          "请输入网络名称",
+	ErrDuplicateSSID:      "首选和备用网络不能相同",
+	SavedNotice:           "已保存",
+	SavedAndStartedNotice: "已保存并开启自动切换",
+	SwitchedNotice:        "正在连接",
 
-	SettingsGeneralTitle:  "通用",
-	LaunchAtLoginTitle:    "登录时自动启动",
-	LaunchAtLoginDesc:     "开机静默驻留托盘",
-	BootRestoreTitle:      "开机自动恢复监控",
-	BootRestoreDesc:       "手机重启后自动恢复后台护航",
-	LaunchApprovalHint:    "请在「系统设置 → 通用 → 登录项」中允许后台运行",
-	LanguageLabel:         "界面语言",
-	IntervalTitle:         "自动检查频率",
+	LaunchAtLoginTitle:    "登录时打开",
+	LaunchAtLoginDesc:     "开机后在菜单栏后台运行",
+	BootRestoreTitle:      "重启后自动恢复",
+	BootRestoreDesc:       "设备重启后继续自动切换",
+	LanguageLabel:         "语言",
+	LangOptionZH:          "中文",
+	LangOptionEN:          "English",
+	ThemeLabel:            "外观",
+	ThemeSystem:           "跟随系统",
+	ThemeLight:            "浅色",
+	ThemeDark:             "深色",
+	IntervalTitle:         "检查间隔",
 	IntervalPresets:       [4]string{"15 秒", "30 秒", "1 分钟", "5 分钟"},
 	IntervalCustom:        "自定义",
 	IntervalSecondsSuffix: "秒",
-	IntervalClampedHint:   "已自动调整到允许范围（5–3600 秒）",
-	AboutTitle:            "说明与关于",
+	ErrInvalidInterval:    "请输入 5 到 3600 之间的整数（秒）",
 	HelpTitle:             "使用说明",
-	HelpLines: [3]string{
-		"1. 首选网络可用时始终保持连接；不可用时自动切到备用网络并持续检测，恢复后立即切回。",
-		"2. 系统将 Wi-Fi 名称视为位置信息，因此需要定位权限，所有数据仅保存在本机。",
-		"3. 当首选网络仍可用而你主动切到其他网络时，Via 会自动暂停以尊重你的选择。",
+	HelpLines: [4]string{
+		"自动切换：首选网络可用时保持连接；不可用时自动切到备用网络，首选恢复后再自动切回。",
+		"为何需要定位权限：系统将 Wi-Fi 名称和附近网络列表归类为位置隐私信息。如果不授权，Via 无法识别当前网络，也无法扫描并判断首选网络是否恢复；所有数据仅在本机使用，绝不上传。",
+		"为何需要钥匙串与密码本：自动切换网络时系统可能需要验证 Wi-Fi 密码。Via 将密码加密保存在本机系统钥匙串（Windows 为凭据管理器）中，不以明文存储，也不会上传到任何服务器。",
+		"尊重手动选择：首选网络仍可用时，如果你手动切换到了其他网络，Via 会自动暂停，不与你的操作冲突。",
 	},
-	PrivacyNote: "Via v2.0 · 密码仅保存在本机安全凭据库",
+	PrivacyNote:  "密码仅保存在本机",
+	VersionLabel: "Via 2.0",
 
-	WizardTitle:          "Via 首次设置",
-	WizardSkip:           "跳过",
-	WizardSteps:          [3]string{"定位授权", "选择网络", "准备就绪"},
-	WizardStep1Title:     "允许读取 Wi-Fi 名称",
-	WizardStep1Desc:      "操作系统把读取 Wi-Fi 名称归类为位置相关信息。Via 只在本地识别网络以完成自动切换，绝不上传任何位置或密码。",
-	WizardStep1Grant:     "允许访问并继续",
-	WizardStep1Manual:    "暂不授权，先手动填写",
-	WizardStep2Title:     "选择你的首选与备用网络",
-	WizardStep2SetP:      "设为首选",
-	WizardStep2SetB:      "设为备用",
-	WizardStep2Manual:    "手动输入网络名称与密码",
+	WizardSkip:           "稍后",
+	WizardStep1Title:     "开启定位权限",
+	WizardStep1Desc:      "系统将 Wi-Fi 名称归类为位置信息。Via 仅在本机识别网络，不会上传任何数据。",
+	WizardStep1Grant:     "开启定位",
+	WizardStep2Title:     "选择首选和备用网络",
 	WizardPrev:           "上一步",
 	WizardNext:           "下一步",
-	WizardStep3Title:     "一切准备就绪",
+	WizardStep3Title:     "准备就绪",
 	WizardPermStatus:     "定位权限",
-	WizardPermGranted:    "已授权",
-	WizardPermPending:    "待授权（可在主控台开启）",
-	WizardFinishAndStart: "保存并开启自动切换",
-	WizardFinishSaveOnly: "仅保存配置",
+	WizardPermGranted:    "已开启",
+	WizardPermPending:    "尚未开启",
+	WizardFinishAndStart: "完成并开启",
+	WizardFinishSaveOnly: "保存配置",
 
-	TrayTooltipPaused:  "Via: 已暂停",
-	TrayTooltipPrimary: "Via: %s — 自动守护中-首选",
-	TrayTooltipBackup:  "Via: %s — 自动守护中-备用",
-	TrayTooltipOther:   "Via: %s — 自动守护中",
-	MenuOpenPanel:      "打开 Via 面板",
-	MenuTogglePause:    "切换运行 / 暂停",
+	TrayTooltipPaused:  "Via：已暂停",
+	TrayTooltipPrimary: "Via：%s（自动守护中-首选）",
+	TrayTooltipBackup:  "Via：%s（自动守护中-备用）",
+	TrayTooltipOther:   "Via：%s（自动守护中）",
+	MenuOpenPanel:      "打开 Via",
+	MenuTogglePause:    "暂停或恢复自动切换",
 	MenuQuit:           "退出 Via",
 }
 
 var enStrings = Strings{
-	NavDashboard: "Dashboard",
+	NavDashboard: "Status",
 	NavSettings:  "Settings",
 
-	BadgeGuardPriority: "Auto-Guard · Primary",
-	BadgeGuardBackup:   "Auto-Guard · Backup",
-	BadgeGuardOther:    "Auto-Guard",
+	NotConnectedTitle:  "Not connected",
+	BadgeGuardPriority: "Active: Primary",
+	BadgeGuardBackup:   "Active: Backup",
+	BadgeGuardOther:    "Active",
 	BadgePaused:        "Paused",
-	BadgeNoPermission:  "No Permission",
-	BadgeNotConfigured: "Not Set",
+	BadgeNoPermission:  "Permission needed",
+	BadgeNotConfigured: "Not set",
 
-	PrimarySlotLabel: "Primary Path",
-	BackupSlotLabel:  "Backup Path",
+	PrimarySlotLabel: "Primary",
+	BackupSlotLabel:  "Backup",
 
-	AutoSwitchTitle:    "Auto-Switch Guard",
-	SubCheckingInFmt:   "Next check in %ds",
-	SubBackupInFmt:     "Rechecking primary in %ds",
-	SubGuardWaiting:    "Guard active · waiting for Primary or Backup",
-	SubPausedManual:    "Manual Wi-Fi switch detected · paused to avoid interference",
-	SubPausedStopped:   "Auto-switch is off",
-	SubNeedPermission:  "Location permission is required to read Wi-Fi names and scan",
-	SubNotConfigured:   "Configure both Primary and Backup networks first",
-	SubIOSUnsupported:  "iOS restricts automatic background Wi-Fi switching; view-only mode",
-	SubAndroidAdvisory: "On Android, Via guides switching via prioritized system Wi-Fi suggestions",
+	AutoSwitchTitle:    "Auto-switch",
+	SubCheckingInFmt:   "Next check in %s",
+	SubBackupInFmt:     "Rechecking primary in %s",
+	SubGuardWaiting:    "Waiting for primary or backup network",
+	SubPausedManual:    "Paused after you switched networks manually",
+	SubPausedStopped:   "Off",
+	SubNeedPermission:  "Location access is needed to read Wi-Fi names",
+	SubNotConfigured:   "Add primary and backup networks to enable auto-switch",
+	SubIOSUnsupported:  "iOS does not allow background Wi-Fi switching; view-only mode",
+	SubAndroidAdvisory: "Android switches using your prioritized network suggestions",
 
-	BtnResumeNow:   "Resume Now",
-	BtnGrantPerm:   "Grant Access",
-	BtnOpenSysSet:  "Open System Settings",
-	BtnRecheckPerm: "Recheck",
-	BtnSetupNet:    "Set Up Networks",
-	BtnScanNearby:  "Scan Nearby",
+	BtnResumeNow:   "Resume",
+	BtnGrantPerm:   "Enable Location",
+	BtnRecheckPerm: "Check again",
+	BtnSetupNet:    "Set up",
+	BtnScanNearby:  "Scan",
 	BtnScanning:    "Scanning…",
-	BtnSwitchNow:   "Switch",
-	BtnUseCurrent:  "Use Current Wi-Fi",
+	BtnSwitchNow:   "Connect",
 	BtnCancel:      "Cancel",
 	BtnSave:        "Save",
 	BtnQuit:        "Quit Via",
-	BtnRerunWizard: "Re-run Setup Wizard",
+	BtnRerunWizard: "Run setup",
 
-	PickerTriggerFmt:    "Choose Network (%d nearby)",
-	PickerEmpty:         "Choose current or nearby Wi-Fi",
-	PickerEmptyList:     "No scan results yet — tap Scan Nearby or type below",
-	PickerCurrentFmt:    "Use Current Network: %s",
-	PickerNoCurrent:     "Use Current Network (Not Connected)",
-	PermMacSettingsHint: "Click Grant Access to open Location Services, enable Via, then click Recheck",
-	LockedCardHint:      "Grant location permission to edit",
-	SwitchFailedFmt:     "Switch failed: %s",
+	PickerTriggerFmt:      "Choose network (%d nearby)",
+	PickerEmpty:           "Choose network",
+	PickerEmptyList:       "No nearby networks yet. Scan or enter one below.",
+	PickerCurrentFmt:      "Use current: %s",
+	PickerNoCurrent:       "Not connected to Wi-Fi",
+	PermNecessityDesc:     "Your OS treats Wi-Fi names and nearby scans as location data. Without it, Via cannot detect networks or switch automatically. Everything stays on this device.",
+	PermMacSettingsHint:   "Turn on Via in Location Services, then select Check again.",
+	LockedCardHint:        "Enable location permission to edit",
+	SwitchFailedFmt:       "Failed: %s",
+	ErrPermissionRequired: "Enable location permission first",
+	ErrNetworkNotFoundFmt: "Network \"%s\" not found. Make sure it is powered on and in range.",
+	ErrNoWifiInterface:    "No Wi-Fi interface available",
+	ErrConnectStayFmt:     "Could not switch to \"%s\"; staying on current network",
+	ErrConnectStayPrefix:  "Could not switch to target network",
 
-	ManagedNetworksTitle: "Managed Networks (click card to edit inline)",
-	RoleBadgeP:           "P",
-	RoleBadgeB:           "B",
-	PrimaryLabel:         "Primary Network",
-	BackupLabel:          "Backup Network",
-	ConnectedTag:         "Connected",
-	NotSetTag:            "Tap to configure",
-	SSIDPlaceholder:      "Enter or pick a Wi-Fi name above",
-	PwdPlaceholder:       "Password (leave empty for open network)",
-	ErrEmptySSID:         "Network SSID cannot be empty",
-	ErrDuplicateSSID:     "Primary and Backup networks cannot be the same",
-	SavedNotice:          "Network saved",
-	SwitchedNotice:       "Switch requested",
+	ManagedNetworksTitle:  "Networks",
+	RoleBadgeP:            "1",
+	RoleBadgeB:            "2",
+	PrimaryLabel:          "Primary network",
+	BackupLabel:           "Backup network",
+	ConnectedTag:          "Connected",
+	NotSetTag:             "Not set",
+	SSIDPlaceholder:       "Network name",
+	PwdPlaceholder:        "Password (optional if open)",
+	ShowPasswordLabel:     "Show password",
+	HidePasswordLabel:     "Hide password",
+	ErrEmptySSID:          "Enter a network name",
+	ErrDuplicateSSID:      "Primary and backup networks must be different",
+	SavedNotice:           "Saved",
+	SavedAndStartedNotice: "Saved and auto-switch started",
+	SwitchedNotice:        "Connecting",
 
-	SettingsGeneralTitle:  "General",
-	LaunchAtLoginTitle:    "Launch at Login",
-	LaunchAtLoginDesc:     "Start quietly in the menu bar / tray",
-	BootRestoreTitle:      "Restore Guard on Boot",
-	BootRestoreDesc:       "Resume monitoring automatically after reboot",
-	LaunchApprovalHint:    "Allow Via in System Settings → General → Login Items",
+	LaunchAtLoginTitle:    "Open at login",
+	LaunchAtLoginDesc:     "Run quietly in the background",
+	BootRestoreTitle:      "Resume after restart",
+	BootRestoreDesc:       "Keep auto-switch active after restart",
 	LanguageLabel:         "Language",
-	IntervalTitle:         "Check Interval",
+	LangOptionZH:          "中文",
+	LangOptionEN:          "English",
+	ThemeLabel:            "Appearance",
+	ThemeSystem:           "Auto",
+	ThemeLight:            "Light",
+	ThemeDark:             "Dark",
+	IntervalTitle:         "Check interval",
 	IntervalPresets:       [4]string{"15s", "30s", "1m", "5m"},
 	IntervalCustom:        "Custom",
 	IntervalSecondsSuffix: "sec",
-	IntervalClampedHint:   "Adjusted to valid range (5–3600s)",
-	AboutTitle:            "Help & About",
-	HelpTitle:             "How Via Works",
-	HelpLines: [3]string{
-		"1. Keeps Primary connected when available; falls back to Backup automatically and switches back once Primary returns.",
-		"2. OS treats Wi-Fi names as location info, so location permission is required; credentials stay local.",
-		"3. Switching away manually while Primary is still available pauses Via automatically.",
+	ErrInvalidInterval:    "Enter a whole number from 5 to 3,600 seconds",
+	HelpTitle:             "How it works",
+	HelpLines: [4]string{
+		"Auto-switch: Keeps you on your primary network when available, switches to backup if it drops, and returns automatically once primary is back.",
+		"Why location access is needed: Your OS classifies Wi-Fi names and nearby scans as location privacy data. Without it, Via cannot tell which network you are on or detect when your primary network returns. Everything stays on this device.",
+		"Why Keychain / credential storage is needed: Switching networks automatically may require your Wi-Fi password. Via stores passwords encrypted in your system Keychain or Credential Manager, never in plain text and never uploaded.",
+		"Manual choice respected: If you switch networks manually while your primary network is still available, Via pauses automatically.",
 	},
-	PrivacyNote: "Via v2.0 · Passwords stay in local OS keychain/credential store",
+	PrivacyNote:  "Passwords stay on this device",
+	VersionLabel: "Via 2.0",
 
-	WizardTitle:          "Via Setup",
-	WizardSkip:           "Skip",
-	WizardSteps:          [3]string{"Permission", "Networks", "Ready"},
-	WizardStep1Title:     "Allow Reading Wi-Fi Names",
-	WizardStep1Desc:      "Your OS classifies Wi-Fi names under location privacy. Via only inspects networks locally to switch automatically.",
-	WizardStep1Grant:     "Allow & Continue",
-	WizardStep1Manual:    "Skip & Enter Manually",
-	WizardStep2Title:     "Pick Primary & Backup Wi-Fi",
-	WizardStep2SetP:      "Set Primary",
-	WizardStep2SetB:      "Set Backup",
-	WizardStep2Manual:    "Enter SSID & password manually",
+	WizardSkip:           "Later",
+	WizardStep1Title:     "Enable location access",
+	WizardStep1Desc:      "Your system treats Wi-Fi names as location data. Via checks networks locally and never uploads anything.",
+	WizardStep1Grant:     "Enable Location",
+	WizardStep2Title:     "Choose primary and backup Wi-Fi",
 	WizardPrev:           "Back",
 	WizardNext:           "Next",
-	WizardStep3Title:     "Ready to Go",
-	WizardPermStatus:     "Location Permission",
-	WizardPermGranted:    "Granted",
-	WizardPermPending:    "Pending (grant later)",
-	WizardFinishAndStart: "Save & Start Guard",
-	WizardFinishSaveOnly: "Save Only",
+	WizardStep3Title:     "Ready to start",
+	WizardPermStatus:     "Location access",
+	WizardPermGranted:    "Enabled",
+	WizardPermPending:    "Not enabled",
+	WizardFinishAndStart: "Save and start",
+	WizardFinishSaveOnly: "Save",
 
 	TrayTooltipPaused:  "Via: Paused",
-	TrayTooltipPrimary: "Via: %s — Auto-Guard · Primary",
-	TrayTooltipBackup:  "Via: %s — Auto-Guard · Backup",
-	TrayTooltipOther:   "Via: %s — Auto-Guard",
+	TrayTooltipPrimary: "Via: %s (Active: Primary)",
+	TrayTooltipBackup:  "Via: %s (Active: Backup)",
+	TrayTooltipOther:   "Via: %s (Active)",
 	MenuOpenPanel:      "Open Via",
-	MenuTogglePause:    "Pause / Resume Guard",
+	MenuTogglePause:    "Pause or resume",
 	MenuQuit:           "Quit Via",
 }
 

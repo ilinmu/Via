@@ -378,6 +378,7 @@ func (m *Monitor) startLocked(ctx context.Context) {
 		return
 	}
 
+	m.lastErr = ""
 	actions := m.engine.Start(m.nowMs(), perm, optSSIDPtr(ssid))
 	snap := m.engine.Snapshot()
 	if snap.Running {
@@ -975,6 +976,16 @@ func (m *Monitor) SetInterval(sec int) (bool, error) {
 func (m *Monitor) SetLanguage(lang string) {
 	m.mu.Lock()
 	m.settings.Language = lang
+	m.persistSettingsLocked()
+	m.mu.Unlock()
+	m.emit()
+}
+
+// SetTheme updates and persists UI appearance ("", "light", "dark").
+func (m *Monitor) SetTheme(theme string) {
+	m.mu.Lock()
+	m.settings.Theme = theme
+	m.settings = m.settings.Normalize()
 	m.persistSettingsLocked()
 	m.mu.Unlock()
 	m.emit()
