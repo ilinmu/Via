@@ -2,7 +2,7 @@
   "name": "Via",
   "slug": "via",
   "identifier": "io.github.ilinmu.via",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "copyright": "Copyright © 2025-2026 Linmu. Licensed under the MIT License.",
   "license": "MIT",
   "icon": "resources/icon.png",

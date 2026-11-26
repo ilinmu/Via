@@ -22,7 +22,7 @@ import (
 	"via/internal/wifi"
 )
 
-const AppVersion = "2.0.0"
+const AppVersion = "2.0.1"
 
 // Deps supplies platform and I/O hooks (injectable for tests).
 type Deps struct {
