@@ -8,7 +8,7 @@ import (
 	"via/internal/policy"
 )
 
-func TestRenderTrayIconOption1(t *testing.T) {
+func TestRenderTrayIconStatusBadges(t *testing.T) {
 	hasRedPixel := func(pngBytes []byte) bool {
 		img, err := png.Decode(bytes.NewReader(pngBytes))
 		if err != nil {
@@ -60,7 +60,7 @@ func TestRenderTrayIconOption1(t *testing.T) {
 
 	otherIcon := Render(nil, true, policy.RoleOther, false)
 	if hasRedPixel(otherIcon) {
-		t.Fatal("Option 1 running outside P/B should not have red dot")
+		t.Fatal("running outside P/B should not have red dot")
 	}
 	if hasRightGlyph(otherIcon) {
 		t.Fatal("running outside P/B should not draw P/B glyph")

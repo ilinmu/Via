@@ -12,13 +12,13 @@ import (
 
 type iosAdapter struct{}
 
-// NewAdapter returns the Option A iOS placeholder adapter. Background automatic
+// NewAdapter returns the iOS placeholder adapter. Background automatic
 // Wi-Fi switching is restricted on iOS without NEHotspotConfiguration / MDM.
 func NewAdapter() (Adapter, error) {
 	return &iosAdapter{}, nil
 }
 
-func (a *iosAdapter) Name() string                              { return "iOS Placeholder (Option A)" }
+func (a *iosAdapter) Name() string                              { return "iOS Placeholder" }
 func (a *iosAdapter) CurrentSSID(_ context.Context) (string, error) { return "", nil }
 func (a *iosAdapter) Permission(_ context.Context) policy.Permission {
 	return policy.PermissionUnknown

@@ -19,7 +19,7 @@ Via v2.0 采用 **Go + MyGo Native UI** 单一代码库架构，覆盖 **macOS�
   - **Linux**：基于 NetworkManager (`nmcli`) 与桌面主题系统托盘图标；
   - **Android**：通过 Kotlin 原生模块（`WifiManager`、`ConnectivityManager`、`WifiNetworkSuggestion`）提供低打扰前台守护通知与系统网络建议优先级切换；
   - **iOS**：受系统后台限制，预留同构 UI 占位与提示，待具备特定授权扩展条件时启用。
-- **方案 A「晴空路径仪表盘」原生 UI（`internal/uiapp`）**：
+- **跨平台原生界面（`internal/uiapp`）**：
   - 极简双视图（「主控台」+「设置」），桌面端为 380px 无边框浮出面板（高度随当前内容自适应贴合，180–720px，无底部多余留白），手机端为底部双导航全屏布局；
   - 管理网络提供下拉选择列表（首项为一键「使用当前网络」），未授予系统定位权限前严格锁定配置编辑与守护开关；
   - 点击卡片原地编辑单槽位 SSID 与密码；macOS 钥匙串将主备密码合并存储于单一凭据条目并结合进程内会话缓存，避免重复弹窗授权。
@@ -70,8 +70,8 @@ go run . doctor
     ├── cli/                    # doctor / status / monitor / version 子命令
     ├── nativewifi/             # MyGo 原生模块 (macOS Swift + Android Kotlin)
     ├── wifi/                   # 跨平台适配器 (macOS/Windows/Linux/Android/iOS) 与协调器
-    ├── tray/                   # 各端系统原生托盘图标渲染 (Option 1: P/B/纯Wi-Fi/红点)
-    └── uiapp/                  # Scheme A MyGo Native UI（桌面浮窗 + 手机全屏）
+    ├── tray/                   # 各端系统原生托盘图标渲染（P / B / 纯 Wi-Fi / 红点）
+    └── uiapp/                  # MyGo 原生界面（桌面浮窗 + 手机全屏）
 ```
 
 ---

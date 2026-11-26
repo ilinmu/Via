@@ -96,7 +96,7 @@ func (a *App) renderDashboard(c *ui.Context, p palette, s i18n.Strings, lang i18
 			})
 		})
 
-		// Row 2: Stacked Primary / Backup Path Rows (Option C: clear primary & accent color distinction, no swap button)
+		// Row 2: Stacked Primary / Backup Path Rows (primary & accent color distinction)
 		pActive := st.Configured && st.CurrentSSID == st.SSIDP
 		bActive := st.Configured && st.CurrentSSID == st.SSIDB
 

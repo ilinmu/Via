@@ -1,4 +1,4 @@
-// Package uiapp implements Via's cross-platform Scheme A Native UI.
+// Package uiapp implements Via's cross-platform Native UI.
 package uiapp
 
 import (
@@ -274,7 +274,7 @@ func (a *App) renderCommonRoot(c *ui.Context, isMobile bool) {
 			dark = mygo.Theme.IsDark()
 		}
 	}
-	p := schemeAPalette(dark)
+	p := appPalette(dark)
 	applyTheme(c, p)
 	c.Root().Background(p.bg)
 

@@ -50,7 +50,7 @@ type palette struct {
 	dangerText   ui.Color
 }
 
-func schemeAPalette(dark bool) palette {
+func appPalette(dark bool) palette {
 	if dark {
 		return palette{
 			dark:         true,

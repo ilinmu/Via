@@ -1,4 +1,4 @@
-// Package tray renders Option 1 status tray icons using each OS's native system
+// Package tray renders status tray icons using each OS's native system
 // Wi-Fi icon plus a subtle P/B corner badge or paused red dot.
 package tray
 
@@ -37,7 +37,7 @@ func Render(ctrl nativewifi.Controller, running bool, role policy.Role, darkBar 
 	return RenderFallback(running, role, darkBar)
 }
 
-// RenderFallback draws a crisp 36px-tall @2x PNG matching Option 1.
+// RenderFallback draws a crisp 36px-tall @2x PNG tray status icon.
 func RenderFallback(running bool, role policy.Role, darkBar bool) []byte {
 	badge := Badge(running, role)
 	w := 36
