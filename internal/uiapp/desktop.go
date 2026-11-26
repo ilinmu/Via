@@ -57,21 +57,27 @@ func (a *App) toggleFlyout() {
 	go a.monitor.RefreshStatus(context.Background())
 
 	panel := mygo.NewFlyout(mygo.FlyoutOptions{
-		Tray:       a.tray,
-		Placement:  mygo.PlacementBottom,
-		Gap:        6,
-		Width:      380,
-		Height:     380,
-		FitContent: true,
-		MinWidth:   380,
-		MaxWidth:   380,
-		MinHeight:  180,
-		MaxHeight:  720,
-		Focusable:  true,
-		Shadow:     true,
-		Popover:    runtime.GOOS == "darwin",
-		Content:    ui.View(a.viewDesktop),
+		Tray:         a.tray,
+		Placement:    mygo.PlacementBottom,
+		Gap:          0,
+		Width:        380,
+		Height:       380,
+		FitContent:   true,
+		MinWidth:     380,
+		MaxWidth:     380,
+		MinHeight:    180,
+		MaxHeight:    720,
+		Focusable:    true,
+		Shadow:       true,
+		CornerRadius: 12,
+		Content:      ui.View(a.viewDesktop),
 	})
+	if runtime.GOOS == "darwin" {
+		// Lower the tray flyout from NSPopUpMenuWindowLevel (101) to
+		// NSFloatingWindowLevel (3) so macOS system permission and Keychain
+		// dialogs appear above Via instead of behind it.
+		panel.SetAlwaysOnTop(true)
+	}
 	tickCtx, cancelTick := context.WithCancel(context.Background())
 	panel.OnClosed(func() {
 		cancelTick()

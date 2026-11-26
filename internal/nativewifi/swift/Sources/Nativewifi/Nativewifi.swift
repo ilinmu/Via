@@ -22,6 +22,8 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
     private var watchCallbacks: [UUID: @Sendable (String) -> Void] = [:]
     private var permCallbacks: [UUID: @Sendable (String) -> Void] = [:]
     private var eventMonitoringStarted = false
+    private let scanCacheLock = NSLock()
+    private var cachedNetworks: [String: (network: CWNetwork, at: Date)] = [:]
 
     private func onMainSync<T>(_ work: () -> T) -> T {
         if Thread.isMainThread {
@@ -122,19 +124,15 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
     func requestLocation() throws {
         DispatchQueue.main.async {
             let st = self.location.authorizationStatus
-            let openPrefs = {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") {
-                    NSWorkspace.shared.open(url)
-                }
-            }
             NSApp.activate(ignoringOtherApps: true)
             if st == .notDetermined {
                 self.location.requestAlwaysAuthorization()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: openPrefs)
                 return
             }
             if st == .denied || st == .restricted {
-                openPrefs()
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
     }
@@ -149,6 +147,74 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         }
     }
 
+    private func updateScanCache(from found: Set<CWNetwork>) -> [Network] {
+        var bestBySSID: [String: Network] = [:]
+        var bestCWBySSID: [String: CWNetwork] = [:]
+        for net in found {
+            guard let ssid = net.ssid, !ssid.isEmpty else { continue }
+            let secured = !net.supportsSecurity(.none)
+            let item = Network(ssid: ssid, rssi: net.rssiValue, secured: secured)
+            if let existing = bestBySSID[ssid] {
+                if item.rssi > existing.rssi {
+                    bestBySSID[ssid] = item
+                    bestCWBySSID[ssid] = net
+                }
+            } else {
+                bestBySSID[ssid] = item
+                bestCWBySSID[ssid] = net
+            }
+        }
+        let now = Date()
+        scanCacheLock.lock()
+        for (ssid, net) in bestCWBySSID {
+            cachedNetworks[ssid] = (network: net, at: now)
+        }
+        scanCacheLock.unlock()
+
+        return bestBySSID.values.sorted { a, b in
+            if a.rssi != b.rssi {
+                return a.rssi > b.rssi
+            }
+            return a.ssid < b.ssid
+        }
+    }
+
+    private func freshCachedNetwork(for ssid: String, maxAge: TimeInterval = 20.0) -> CWNetwork? {
+        scanCacheLock.lock()
+        defer { scanCacheLock.unlock() }
+        guard let entry = cachedNetworks[ssid], Date().timeIntervalSince(entry.at) <= maxAge else {
+            return nil
+        }
+        return entry.network
+    }
+
+    private func invalidateCachedNetwork(for ssid: String) {
+        scanCacheLock.lock()
+        cachedNetworks.removeValue(forKey: ssid)
+        scanCacheLock.unlock()
+    }
+
+    private func resolveTargetNetwork(iface: CWInterface, ssid: String) throws -> CWNetwork {
+        if let found = try? iface.scanForNetworks(withSSID: nil) {
+            _ = updateScanCache(from: found)
+            if let hit = found.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
+                return hit
+            }
+        }
+        if let directed = try? iface.scanForNetworks(withSSID: Data(ssid.utf8)),
+           let hit = directed.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
+            return hit
+        }
+        // CoreWLAN may briefly throttle scans right after an association; settle and retry once.
+        Thread.sleep(forTimeInterval: 0.6)
+        let retryFound = try iface.scanForNetworks(withSSID: nil)
+        _ = updateScanCache(from: retryFound)
+        if let hit = retryFound.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) {
+            return hit
+        }
+        throw NSError(domain: "ViaNativeWiFi", code: 2, userInfo: [NSLocalizedDescriptionKey: "Network \(ssid) not found"])
+    }
+
     func scan() throws -> [Network] {
         guard isLocationAuthorized() else {
             throw NSError(domain: "ViaNativeWiFi", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location permission is required to scan Wi-Fi networks"])
@@ -157,25 +223,7 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
             throw NSError(domain: "ViaNativeWiFi", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Wi-Fi interface available"])
         }
         let found = try iface.scanForNetworks(withSSID: nil)
-        var bestBySSID: [String: Network] = [:]
-        for net in found {
-            guard let ssid = net.ssid, !ssid.isEmpty else { continue }
-            let secured = !net.supportsSecurity(.none)
-            let item = Network(ssid: ssid, rssi: net.rssiValue, secured: secured)
-            if let existing = bestBySSID[ssid] {
-                if item.rssi > existing.rssi {
-                    bestBySSID[ssid] = item
-                }
-            } else {
-                bestBySSID[ssid] = item
-            }
-        }
-        return bestBySSID.values.sorted { a, b in
-            if a.rssi != b.rssi {
-                return a.rssi > b.rssi
-            }
-            return a.ssid < b.ssid
-        }
+        return updateScanCache(from: found)
     }
 
     func connect(ssid: String, password: String) throws {
@@ -185,11 +233,20 @@ final class MacOSController: NSObject, Controller, CWEventDelegate, CLLocationMa
         guard let iface = resolveInterface() else {
             throw NSError(domain: "ViaNativeWiFi", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Wi-Fi interface available"])
         }
-        let matches = try iface.scanForNetworks(withSSID: Data(ssid.utf8))
-        guard let target = matches.filter({ $0.ssid == ssid }).max(by: { $0.rssiValue < $1.rssiValue }) else {
-            throw NSError(domain: "ViaNativeWiFi", code: 2, userInfo: [NSLocalizedDescriptionKey: "Network \(ssid) not found"])
+        let pwd: String? = password.isEmpty ? nil : password
+        var associated = false
+        if let cached = freshCachedNetwork(for: ssid) {
+            do {
+                try iface.associate(to: cached, password: pwd)
+                associated = true
+            } catch {
+                invalidateCachedNetwork(for: ssid)
+            }
         }
-        try iface.associate(to: target, password: password.isEmpty ? nil : password)
+        if !associated {
+            let target = try resolveTargetNetwork(iface: iface, ssid: ssid)
+            try iface.associate(to: target, password: pwd)
+        }
 
         // Confirm the OS radio actually joined the requested SSID.
         for _ in 0..<12 {
